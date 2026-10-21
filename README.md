@@ -13,7 +13,9 @@ source (Liljencrants-Fant or a self-oscillating two-mass model), and
 turbulence noise appears wherever the Reynolds number of the airflow says it
 should, with a separate obstacle source where the jet hits the incisors.
 
-The interface is in Italian by default, with an English toggle (IT / EN).
+The interface is in English by default, with an Italian toggle (EN / IT). The
+last choice is remembered in the browser, and `?lang=it` or `?lang=en` in the
+address opens the page in that language.
 
 ## Run
 

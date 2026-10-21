@@ -27,6 +27,8 @@ const say = (text: string, lang: 'it' | 'en') => {
   const p = store.params;
   void store.speak(buildScore(textToPhones(text, lang), { lang, f0: p.source.f0, ps: Math.max(7, p.source.ps) }));
 };
+/** Speaks the example in the language of the interface. */
+const sayL = (text: Bi) => { const lang = store.ui.lang; say(text[lang], lang); };
 /** Glides a source parameter over time (for demonstrations). */
 const glide = (from: number, to: number, seconds: number, set: (v: number) => void) => {
   const t0 = performance.now();
@@ -43,7 +45,7 @@ export const CHAPTERS: Chapter[] = [
     kicker: { it: 'Benvenuto', en: 'Welcome' },
     title: { it: 'Un ronzio e un filtro', en: 'A buzz and a filter' },
     paragraphs: [
-      { it: 'Ogni voce che hai sentito è fatta di due ingredienti: un ronzio, che nasce nella laringe, e un filtro, la gola e la bocca, che lo colora.', en: 'Every voice you have heard is made of two ingredients: a buzz, born in the larynx, and a filter, the throat and the mouth, that colours it.' },
+      { it: 'Ogni voce che hai sentito è fatta di due ingredienti: un ronzio, che nasce nella laringe, e un filtro, la gola e la bocca, che lo colora.', en: 'Every voice you have heard is made of two ingredients: a buzz, born in the larynx, and a filter, the throat and the mouth, that colors it.' },
       { it: 'Questa testa è un modello fisico: l’aria dei polmoni fa vibrare le corde vocali, le onde di pressione viaggiano in un tubo che cambia forma, e quello che senti è calcolato in tempo reale, campione per campione.', en: 'This head is a physical model: lung air makes the vocal folds vibrate, pressure waves travel in a tube that changes shape, and what you hear is computed in real time, sample by sample.' },
       { it: 'Trascina la lingua, la mascella o le labbra e ascolta come cambia il suono.', en: 'Drag the tongue, the jaw or the lips and listen to the sound change.' },
     ],
@@ -105,7 +107,7 @@ export const CHAPTERS: Chapter[] = [
     paragraphs: [
       { it: 'L’idea chiave: ronzio e filtro si comandano quasi indipendentemente.', en: 'The key idea: the buzz and the filter are controlled almost independently.' },
       { it: 'Con il filtro fermo, alzando la nota le armoniche si allargano e scorrono sotto lo stesso inviluppo: la vocale resta la stessa e la voce resta riconoscibile. Con la nota ferma, cambiando il filtro cambia la vocale.', en: 'Keep the filter fixed and raise the pitch: the harmonics spread apart and slide under the same envelope; the vowel and the voice stay the same. Keep the pitch and change the filter: same note, different vowel.' },
-      { it: 'Per questo puoi cantare una nota più alta e suonare ancora come te: melodia e colore sono due manopole diverse.', en: 'That is why you can sing a higher note and still sound like yourself: melody and colour are two different knobs.' },
+      { it: 'Per questo puoi cantare una nota più alta e suonare ancora come te: melodia e colore sono due manopole diverse.', en: 'That is why you can sing a higher note and still sound like yourself: melody and color are two different knobs.' },
     ],
     actions: [
       { label: { it: 'Alza la nota, filtro fermo', en: 'Raise the pitch, filter fixed' }, run: () => { clean(); vowel('a', 110); store.setUi({ envelope: true, showHarmonics: true }); glide(110, 260, 2.5, (v) => store.setParams((p) => { p.source.f0 = v; })); void go('spectrum'); } },
@@ -119,7 +121,7 @@ export const CHAPTERS: Chapter[] = [
     paragraphs: [
       { it: 'Non tutti i suoni vengono dalle corde. Per la «s» o la «f» l’aria passa per una fessura stretta e la turbolenza produce un fruscio: rumore sparso su tante frequenze, senza armoniche.', en: 'Not every sound comes from the vocal folds. For “s” or “f” air is squeezed through a narrow gap and the turbulence makes a hiss: noise spread over many frequencies, with no harmonics.' },
       { it: 'Il fruscio si mescola anche ai suoni con voce: in una voce soffiata l’aria scappa tra le corde e un fruscio leggero riempie gli spazi tra le armoniche. E non è costante: pulsa a ogni battito delle corde, più forte quando sono aperte.', en: 'Noise mixes into voiced sounds too: in a breathy voice air leaks past the folds and a soft hiss fills the gaps between the harmonics. And it is not steady: it pulses with every beat of the folds, strongest while they are open.' },
-      { it: 'Una voce sono dunque tre cose: un ronzio che porta la melodia, un fruscio, e un filtro che li colora entrambi.', en: 'So a voice is three things: a buzz that carries the melody, a hiss, and a filter that colours them both.' },
+      { it: 'Una voce sono dunque tre cose: un ronzio che porta la melodia, un fruscio, e un filtro che li colora entrambi.', en: 'So a voice is three things: a buzz that carries the melody, a hiss, and a filter that colors them both.' },
     ],
     actions: [
       { label: { it: 'Una «s»: il getto sui denti', en: 'An “s”: the jet on the teeth' }, run: () => { clean(); setPhoneme('s'); void go('spectrum', 'teeth'); } },
@@ -138,10 +140,10 @@ export const CHAPTERS: Chapter[] = [
       { it: 'C’è un compromesso: fette lunghe separano le armoniche ma sfocano gli eventi rapidi; fette corte colgono ogni impulso delle corde ma fondono le armoniche. Lo spettrogramma mel piega le frequenze come l’orecchio, le raggruppa in 80 bande e ne prende il logaritmo.', en: 'There is a trade-off: long slices separate the harmonics but blur fast events; short slices catch every pulse of the folds but merge the harmonics. The mel spectrogram bends frequency like the ear, groups it into 80 bands and takes the logarithm.' },
     ],
     actions: [
-      { label: { it: 'Pronuncia una frase', en: 'Speak a sentence' }, run: () => { clean(); store.setUi({ mel: false, specWindow: 30 }); void go(undefined, 'speak'); say('la voce è fatta di aria', 'it'); } },
-      { label: { it: 'Fette lunghe (40 ms)', en: 'Long slices (40 ms)' }, run: () => { store.setUi({ specWindow: 40, mel: false }); say('sasso', 'it'); } },
-      { label: { it: 'Fette corte (4 ms)', en: 'Short slices (4 ms)' }, run: () => { store.setUi({ specWindow: 4, mel: false }); say('sasso', 'it'); } },
-      { label: { it: 'Log-mel, 80 bande', en: 'Log-mel, 80 bands' }, run: () => { store.setUi({ specWindow: 25, mel: true }); say('a buzz and a hiss', 'en'); } },
+      { label: { it: 'Pronuncia una frase', en: 'Speak a sentence' }, run: () => { clean(); store.setUi({ mel: false, specWindow: 30 }); void go(undefined, 'speak'); sayL({ it: 'la voce è fatta di aria', en: 'a buzz, a hiss and a filter' }); } },
+      { label: { it: 'Fette lunghe (40 ms)', en: 'Long slices (40 ms)' }, run: () => { store.setUi({ specWindow: 40, mel: false }); sayL({ it: 'sasso', en: 'a hiss' }); } },
+      { label: { it: 'Fette corte (4 ms)', en: 'Short slices (4 ms)' }, run: () => { store.setUi({ specWindow: 4, mel: false }); sayL({ it: 'sasso', en: 'a hiss' }); } },
+      { label: { it: 'Log-mel, 80 bande', en: 'Log-mel, 80 bands' }, run: () => { store.setUi({ specWindow: 25, mel: true }); sayL({ it: 'un ronzio e un fruscio', en: 'a buzz and a hiss' }); } },
     ],
   },
   {

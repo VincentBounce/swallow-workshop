@@ -41,11 +41,28 @@ export interface UiState {
 }
 
 const RING = 1 << 17;
+const LANG_KEY = 'voice-workshop.lang';
+
+/**
+ * Interface language: English by default; `?lang=it` in the address or the
+ * viewer's last choice (kept in this browser) picks Italian.
+ */
+function initialLang(): Lang {
+  try {
+    const q = new URLSearchParams(window.location.search).get('lang');
+    if (q === 'it' || q === 'en') return q;
+  } catch { /* no window (tests) */ }
+  try {
+    const v = window.localStorage.getItem(LANG_KEY);
+    if (v === 'it' || v === 'en') return v;
+  } catch { /* storage blocked */ }
+  return 'en';
+}
 
 class Store {
   params: EngineParams = defaultParams();
   ui: UiState = {
-    lang: 'it', mode: 'lab', chapter: 0, controlTab: 'source', viewTab: 'chart', specWindow: 30, mel: false,
+    lang: initialLang(), mode: 'lab', chapter: 0, controlTab: 'source', viewTab: 'chart', specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
     speaking: null, info: null, numbers: false,
   };
@@ -132,7 +149,13 @@ class Store {
 
   setArticulators(a: Partial<Articulators>): void { this.setParams((p) => { Object.assign(p.articulators, a); }); }
 
-  setUi(u: Partial<UiState>): void { this.ui = { ...this.ui, ...u }; this.emit(); }
+  setUi(u: Partial<UiState>): void {
+    if (u.lang && u.lang !== this.ui.lang) {
+      try { window.localStorage.setItem(LANG_KEY, u.lang); } catch { /* storage blocked */ }
+    }
+    this.ui = { ...this.ui, ...u };
+    this.emit();
+  }
 
   async startAudio(): Promise<void> {
     try {

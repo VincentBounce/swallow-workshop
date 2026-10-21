@@ -125,7 +125,7 @@ export function TubeView() {
         onPointerUp={() => { drawing.current = false; }} />
       <div className="overlay-top right">
         {[0, 1, 2, 3].map((k) => (
-          <button key={k} className={ui.standing === k ? 'chip on amber' : 'chip'} onClick={() => store.setUi({ standing: k })}>{k === 0 ? L({ it: 'onde off', en: 'waves off' }) : `F${k}`}</button>
+          <button key={k} className={ui.standing === k ? 'chip on amber' : 'chip'} onClick={() => store.setUi({ standing: k })}>{k === 0 ? L({ it: 'niente onde', en: 'no waves' }) : `F${k}`}</button>
         ))}
       </div>
       <div className="overlay-bottom row">

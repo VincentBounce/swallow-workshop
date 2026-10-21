@@ -7,11 +7,13 @@ import { textToPhones, Phone } from '../../dsp/speech/g2p';
 import { buildScore } from '../../dsp/speech/sequencer';
 
 const EXAMPLES: { text: string; lang: 'it' | 'en' }[] = [
+  { text: 'heed', lang: 'en' }, { text: 'father', lang: 'en' }, { text: 'hiss', lang: 'en' }, { text: 'this', lang: 'en' },
+  { text: 'a buzz, a hiss and a filter', lang: 'en' },
   { text: 'sasso', lang: 'it' }, { text: 'mamma', lang: 'it' }, { text: 'voce', lang: 'it' }, { text: 'la voce è fatta di aria', lang: 'it' },
   { text: 'ciao, come stai?', lang: 'it' }, { text: 'gnocchi e pizza', lang: 'it' },
-  { text: 'heed', lang: 'en' }, { text: 'father', lang: 'en' }, { text: 'hiss', lang: 'en' }, { text: 'this', lang: 'en' },
-  { text: 'a buzz and a hiss', lang: 'en' },
 ];
+/** First sentence in the text box, in the language of the interface. */
+const DEFAULT_TEXT = { en: 'a buzz, a hiss and a filter', it: 'la voce è fatta di aria' };
 
 /**
  * Text to speech with the articulatory model: spelling -> phonemes ->
@@ -20,8 +22,8 @@ const EXAMPLES: { text: string; lang: 'it' | 'en' }[] = [
 export function SpeakPanel() {
   const L = useL();
   const ui = useUi();
-  const [text, setText] = useState('la voce è fatta di aria');
-  const [lang, setLang] = useState<'it' | 'en'>('it');
+  const [text, setText] = useState(DEFAULT_TEXT[ui.lang]);
+  const [lang, setLang] = useState<'it' | 'en'>(ui.lang);
   const [rate, setRate] = useState(1);
   const [accent, setAccent] = useState(3);
   useTick(ui.speaking ? 20 : 0);
@@ -54,7 +56,7 @@ export function SpeakPanel() {
           <button className="btn" onClick={() => store.stopSpeaking()}>{L({ it: 'Ferma', en: 'Stop' })}</button>
         </div>
         <div className="chips">
-          {EXAMPLES.map((e) => (
+          {[...EXAMPLES.filter((e) => e.lang === ui.lang), ...EXAMPLES.filter((e) => e.lang !== ui.lang)].map((e) => (
             <button key={e.text} className="chip" onClick={() => { setText(e.text); setLang(e.lang); speak(e.text, e.lang); }}>{e.text}<small> {e.lang}</small></button>
           ))}
         </div>

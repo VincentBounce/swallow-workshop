@@ -60,8 +60,8 @@ function Header() {
         <button className={ui.freeze ? 'chip on' : 'chip'} onClick={() => store.setUi({ freeze: !ui.freeze })}>❚❚ {t('freeze')}</button>
         <button className="chip" onClick={resetAll}>{t('reset')}</button>
         <div className="seg lang">
-          <button className={ui.lang === 'it' ? 'on' : ''} onClick={() => store.setUi({ lang: 'it' })}>IT</button>
           <button className={ui.lang === 'en' ? 'on' : ''} onClick={() => store.setUi({ lang: 'en' })}>EN</button>
+          <button className={ui.lang === 'it' ? 'on' : ''} onClick={() => store.setUi({ lang: 'it' })}>IT</button>
         </div>
       </div>
       {ui.info && <div className="toast" onClick={() => store.setUi({ info: null })}>{ui.info} — {L({ it: 'clic per chiudere', en: 'click to close' })}</div>}
@@ -106,7 +106,7 @@ export function App() {
   const L = useL();
   const ui = useUi();
   const [wide, setWide] = useState(true);
-  useEffect(() => { document.documentElement.lang = ui.lang; }, [ui.lang]);
+  useEffect(() => { document.documentElement.lang = ui.lang; document.title = t('appTitle'); }, [ui.lang]);
   return (
     <div className="app">
       <Header />

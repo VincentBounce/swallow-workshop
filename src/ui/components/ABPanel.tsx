@@ -16,21 +16,21 @@ const preset = (list: typeof VOICE_PRESETS, id: string) => list.find((x) => x.id
 
 const EXPERIMENTS: Experiment[] = [
   {
-    id: 'pitch', title: { it: 'Stesso filtro, altra nota', en: 'Same filter, other pitch' },
+    id: 'pitch', title: { it: 'Stesso filtro, altra nota', en: 'Same filter, different pitch' },
     question: { it: 'La vocale cambia se alzo la nota?', en: 'Does the vowel change if I raise the pitch?' },
     a: { it: '«a» a 110 Hz', en: '“ah” at 110 Hz' }, b: { it: '«a» a 220 Hz', en: '“ah” at 220 Hz' },
     setA: vowelAt('a', 110), setB: vowelAt('a', 220),
-    answer: { it: 'Le armoniche si allargano e scorrono sotto lo stesso inviluppo: la vocale resta «a» e la voce resta riconoscibile.', en: 'The harmonics spread apart and slide under the same envelope: the vowel stays “ah” and the voice stays recognisable.' },
+    answer: { it: 'Le armoniche si allargano e scorrono sotto lo stesso inviluppo: la vocale resta «a» e la voce resta riconoscibile.', en: 'The harmonics spread apart and slide under the same envelope: the vowel stays “ah” and the voice stays recognizable.' },
   },
   {
-    id: 'vowel', title: { it: 'Stessa nota, altro filtro', en: 'Same pitch, other filter' },
+    id: 'vowel', title: { it: 'Stessa nota, altro filtro', en: 'Same pitch, different filter' },
     question: { it: 'Cosa cambia tra «a» e «i» sulla stessa nota?', en: 'What changes between “ah” and “ee” on the same note?' },
     a: { it: '«a» a 150 Hz', en: '“ah” at 150 Hz' }, b: { it: '«i» a 150 Hz', en: '“ee” at 150 Hz' },
     setA: vowelAt('a', 150), setB: vowelAt('i', 150),
     answer: { it: 'Le armoniche restano agli stessi multipli di 150 Hz; cambia l’inviluppo: in «i» F1 scende e F2 sale.', en: 'The harmonics stay at the same multiples of 150 Hz; the envelope changes: in “ee” F1 drops and F2 rises.' },
   },
   {
-    id: 'size', title: { it: 'Stessa vocale, altro corpo', en: 'Same vowel, another body' },
+    id: 'size', title: { it: 'Stessa vocale, altro corpo', en: 'Same vowel, different body' },
     question: { it: 'Un tratto più corto, con la stessa nota?', en: 'A shorter tract, with the same pitch?' },
     a: { it: 'tratto adulto', en: 'adult tract' }, b: { it: 'tratto di bambino', en: 'child tract' },
     setA: (p) => { vowelAt('a', 180)(p); p.anatomy.scale = 1; }, setB: (p) => { vowelAt('a', 180)(p); p.anatomy.scale = 0.74; p.anatomy.pharynx = 0.82; },
@@ -46,7 +46,7 @@ const EXPERIMENTS: Experiment[] = [
   {
     id: 'nasal', title: { it: 'Velo chiuso contro aperto', en: 'Velum closed versus open' },
     question: { it: 'Che cosa aggiunge il naso?', en: 'What does the nose add?' },
-    a: { it: '«a» orale', en: 'oral “ah”' }, b: { it: '«a» nasalizzata', en: 'nasalised “ah”' },
+    a: { it: '«a» orale', en: 'oral “ah”' }, b: { it: '«a» nasalizzata', en: 'nasalized “ah”' },
     setA: vowelAt('a', 130), setB: (p) => { vowelAt('a', 130)(p); p.articulators.velum = 0.7; },
     answer: { it: 'Il ramo nasale aggiunge risonanze e antirisonanze: F1 si allarga e si abbassa, compaiono valli nello spettro.', en: 'The nasal branch adds resonances and anti-resonances: F1 broadens and drops, valleys appear in the spectrum.' },
   },

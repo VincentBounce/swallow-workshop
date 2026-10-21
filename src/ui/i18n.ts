@@ -1,6 +1,6 @@
 import { useStore, Lang } from './store';
 
-/** UI strings, Italian first (default) and English. */
+/** UI strings in Italian and English (English is the default language). */
 export const S = {
   appTitle: { it: 'Officina della voce', en: 'Voice Workshop' },
   appSub: { it: 'un ronzio, un fruscio e un filtro', en: 'a buzz, a hiss and a filter' },

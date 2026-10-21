@@ -131,7 +131,7 @@ export function TeethPanel() {
       <Section title={L({ it: 'La fessura', en: 'The slit' })} accent={C.violet}
         info={L({
           it: 'Per la «s» la lingua forma un canale stretto e il getto d’aria va a sbattere contro gli incisivi: è l’ostacolo a creare gran parte del fruscio acuto (Shadle 1985). Se la fessura tra i denti si allarga, o i denti non sono sulla traiettoria del getto, la «s» perde forza e diventa più cupa o sibilante in modo diverso.',
-          en: 'For “s” the tongue forms a narrow channel and the air jet hits the incisors: the obstacle makes most of the high hiss (Shadle 1985). If the slit between the teeth widens, or the teeth are not in the jet’s path, the “s” weakens and changes colour.',
+          en: 'For “s” the tongue forms a narrow channel and the air jet hits the incisors: the obstacle makes most of the high hiss (Shadle 1985). If the slit between the teeth widens, or the teeth are not in the jet’s path, the “s” weakens and changes color.',
         })}>
         <Slider label={L({ it: 'Larghezza fessura', en: 'Slit width' })} value={T.slitWidth} min={0.5} max={4} onChange={(v) => set('slitWidth', v)} format={(v) => `${(v * 10).toFixed(0)} mm`} />
         <Slider label={L({ it: 'Apertura extra tra i denti', en: 'Extra opening between teeth' })} value={T.slitOpen} min={-0.15} max={0.8} onChange={(v) => set('slitOpen', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />

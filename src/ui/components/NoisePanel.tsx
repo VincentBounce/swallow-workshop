@@ -99,7 +99,7 @@ export function NoisePanel() {
       <Section title={L({ it: 'Il tuo rumore bianco', en: 'Your white noise' })} accent={C.sky}
         info={L({
           it: 'Un generatore di rumore che modelli tu: scegli il colore o disegna lo spettro col mouse, decidi in che punto del tratto entra (alla glottide, alla strettoia, ai denti, alle labbra o dove vuoi) e se pulsa col ritmo delle corde. Con «senza filtro» lo senti com’è; altrimenti passa attraverso il tratto e ne prende le risonanze.',
-          en: 'A noise generator you shape: pick a colour or draw the spectrum with the mouse, choose where it enters the tract (glottis, constriction, teeth, lips or anywhere) and whether it pulses with the folds. With “no filter” you hear it as it is; otherwise it passes through the tract and takes on its resonances.',
+          en: 'A noise generator you shape: pick a color or draw the spectrum with the mouse, choose where it enters the tract (glottis, constriction, teeth, lips or anywhere) and whether it pulses with the folds. With “no filter” you hear it as it is; otherwise it passes through the tract and takes on its resonances.',
         })}>
         <Toggle label={L({ it: 'Generatore acceso', en: 'Generator on' })} value={u.on} onChange={(v) => { set((x) => { x.noise.user.on = v; if (v) x.phonate = true; }); if (v && !store.audio.running) void store.startAudio(); }} />
         <div className="chips">
