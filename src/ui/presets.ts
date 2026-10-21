@@ -132,7 +132,7 @@ export function contourScore(points: { t: number; f0: number }[], art: Articulat
     const u = b.t > a.t ? Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t))) : 0;
     const f0 = a.f0 > 0 && b.f0 > 0 ? a.f0 * Math.pow(b.f0 / a.f0, u) : (u < 0.5 ? a.f0 : b.f0);
     const voiced = f0 > 0;
-    frames.push({ t, art: { ...art }, abduction: voiced ? abduction : 0.6, f0: voiced ? f0 : (points.find((q) => q.f0 > 0)?.f0 ?? 120), ps: t < dur ? ps : 0, trill: 0 });
+    frames.push({ t, art: { ...art }, abduction: voiced ? abduction : 0.6, f0: voiced ? f0 : (points.find((q) => q.f0 > 0)?.f0 ?? 120), ps: t < dur ? ps : 0 });
   }
   return { frames, phones: [{ ipa: '', t0: 0, t1: dur }], duration: dur };
 }

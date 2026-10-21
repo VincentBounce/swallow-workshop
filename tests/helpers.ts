@@ -1,4 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import { welch } from '../src/dsp/util/fft';
+import { setEnglishLexicon } from '../src/dsp/speech/english';
+
+/** Loads the American English lexicon (as the browser does on demand); returns the word count. */
+export function loadEnglishLexicon(): number {
+  return setEnglishLexicon(gunzipSync(readFileSync(new URL('../public/lexicon/en-us.lex', import.meta.url))).toString('utf-8'));
+}
 
 /** Records validation numbers so that they can be printed in one table. */
 export const report: Record<string, string> = {};

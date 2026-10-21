@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 45 automated tests (physics, speech, analysis)
+npm test           # 59 automated tests (physics, speech, analysis)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -68,7 +68,7 @@ Control tabs:
 | Tract & person | Articulators as sliders, phoneme buttons (IPA), anatomy (size, pharynx length and width, nasal leak), timbre presets, losses. |
 | Teeth & slit | Front view and side view of the incisors with the jet; slit width, extra opening, diastema, overjet, advance, upper / lower incisor length, tongue groove; presets (open bite, gap teeth, overjet, short teeth); s / ʃ / f / θ / z shortcuts; live jet readouts (velocity, Reynolds number, share of the jet hitting the teeth). |
 | Noise | The physical sources (aspiration, constriction jet, teeth obstacle, release bursts) with trims and pulsing; your own noise: colour (white, pink, brown, blue, violet), a drawable 32-point spectrum, band limits, level, pulsing by the glottal flow, injection point (glottis, constriction, teeth, lips or anywhere along the tract) or straight to the ears (bypassing the tract). |
-| Speak | Italian or English text, or IPA between slashes; rate, accent strength; examples ("sasso", "mamma", "voce", "heed", "father", "hiss", "this" and sentences); a phone timeline that follows the playback. |
+| Speak | English or Italian text (numbers are read out), or IPA between slashes; rate, accent strength; examples in both languages; a phone timeline that follows the playback; "what makes it sound natural": timing, intonation, micro-variation, voice quality and coarticulation, each switchable, with a plain explanation and a one-click robot voice. |
 | Melody | Draw a pitch contour (erase = unvoiced) and play it with the buzz alone or through the current vowel; contour presets (sample sentence, question, flat); a two-octave keyboard (mouse or computer keys) with vibrato. |
 | A/B experiment | Eight ready-made experiments (same filter other pitch, same pitch other filter, same vowel another body, dark vs bright, velum closed vs open, steady vs pulsed hiss, voice vs whisper, LF vs two-mass) plus your own A/B captures, rendered offline, played and overlaid as long-term spectra. |
 | Machine voice | Only what the video narration says about the excitation of a neural speech model: nine sines at 1..9 x F0, locked to the pitch, switched off where the melody is zero and replaced by soft noise, mixed by learned weights (here by hand). |
@@ -251,23 +251,77 @@ sibilants. The teeth panel draws the front and side views with the live jet.
 
 ### Speech
 
-- **Phonemes**: 13 vowels (Italian and English) and 29 consonants, each a set
-  of articulator targets plus source settings (voicing, abduction, trill).
-  Vowel articulations were fitted so that the frequency-domain model hits
-  adult male targets: Peterson & Barney (1952) where available, Hillenbrand
-  et al. (1995) for Italian /e o/, Italian /a/ between /æ/ and /ɑ/, and the
-  uniform tube for /ə/.
-- **G2P**: Italian orthography rules (c/g before e/i, ch/gh, sc(i), gn, gl(i),
+- **Phonemes**: 14 steady vowels (Italian and English, with the r-coloured
+  /ɝ/), the American diphthongs /eɪ aɪ oʊ aʊ ɔɪ/ (a nucleus that glides to its
+  offglide), unstressed /ɚ/ and 30 consonants, each a set of articulator
+  targets plus source settings (voicing, abduction). Vowel articulations were
+  fitted so that the frequency-domain model hits adult male targets: Peterson
+  & Barney (1952) where available, Hillenbrand et al. (1995) for Italian
+  /e o/, Italian /a/ between /æ/ and /ɑ/, and the uniform tube for /ə/. The
+  American /ɹ/ and /ɝ/ have the tip up and back with rounded lips, which
+  pulls F3 down to about 1600-1750 Hz (scripts/tune-rhotic.ts); the dark /ɫ/
+  of English codas backs the tongue body (F2 about 1000 Hz). Gestures that
+  cannot be held: the tap /ɾ/ (one flick of the tongue tip) and the glottal
+  stop /ʔ/ (the folds pressed shut).
+- **Italian G2P**: orthography rules (c/g before e/i, ch/gh, sc(i), gn, gl(i),
   qu, z, geminates, silent h, intervocalic s voiced in the northern norm,
-  penultimate stress unless an accent is written); a small English lexicon for
-  the video's examples; or IPA between slashes.
-- **Sequencer**: consonants only set the articulators they need; the others
-  are interpolated from the neighbouring vowels (Öhman 1966), so lips round
-  ahead of /u/ and the tongue glides through /p/. Stops are split into closure
-  and release; geminates are longer (x1.9); stressed vowels x1.35;
-  phrase-final lengthening x1.4. Prosody: declination, raised-cosine pitch
-  accents on stressed syllables, final fall or question rise, or a drawn
-  contour.
+  ɲ ʎ ʃ ts dz always long between vowels, penultimate stress unless an accent
+  is written); unstressed function words (articles, clitics, prepositions);
+  numbers in words (ventitré, centottantuno).
+- **English G2P** (src/dsp/speech/english.ts): an American lexicon of 89 321
+  words with primary and secondary stress, loaded on demand (0.69 MB,
+  gzip-compressed; built by scripts/build-lexicon.ts from the gold dictionary
+  of the misaki G2P, hexgrad, Apache-2.0); weak forms of function words
+  (a, of, to, and...) and "the" before a vowel; inflections of known words
+  (-s, -ed, -ing, -er, -ly...) with their voicing rules; compounds split into
+  known words; for anything else, letter-to-sound rules in the style of
+  Elovitz et al. (1976) with a simple stress rule; numbers and years in words.
+  Flaps ("water"), glottal stops ("button"), dark l and r-coloured vowels come
+  from the lexicon's American forms.
+- **IPA** between slashes, with ˈ ˌ and ː.
+- **Sequencer** (src/dsp/speech/sequencer.ts): the phones are syllabified
+  (legal onsets, geminates close the syllable before), grouped into words and
+  phrases (commas, full stops, questions), and turned into a gestural score.
+  Each ingredient of natural speech can be switched off in the speak panel:
+  - *Timing*: English durations follow Klatt (1979): every sound has an
+    inherent and a minimum duration, and multiplicative rules scale the
+    compressible part (phrase-final lengthening x1.4, non-final shortening,
+    polysyllabic and unstressed shortening, the next consonant: x1.6 before a
+    voiced fricative, x0.7 before a voiceless stop, cluster shortening).
+    Italian uses rules of the same form: stressed vowels long in open
+    syllables (x1.55) and short before a geminate or a coda, unstressed and
+    function-word vowels short, geminates x1.85, phrase-final lengthening.
+  - *Intonation*: the Fujisaki model (Fujisaki & Hirose 1984): ln F0 = ln Fb
+    + phrase commands (impulses through α² t e^(-αt), α = 2/s: the slow rise
+    and declination of each phrase) + accent commands (steps through
+    1 - (1 + βt) e^(-βt), capped at 0.9) on the stressed syllables of content
+    words, with downstep. English accents peak inside the stressed vowel;
+    Italian prenuclear accents peak late (L+H*) and the statement nucleus
+    falls onto the stressed syllable (H+L*). Statements end with a final
+    lowering, yes/no questions rise, questions with a question word fall, a
+    comma leaves a small continuation rise.
+  - *Micro-variation*: intrinsic F0 of vowels (+0.7 st for i u, -0.5 st for
+    a), the push of the previous consonant on the vowel onset (+1.3 st after a
+    voiceless obstruent, -0.8 st after a voiced one, decaying in 35 ms), and
+    flutter, the slow F0 wander of Klatt & Klatt (1990): F0 (1 + FL/5000 (sin
+    2π 12.7 t + sin 2π 7.1 t + sin 2π 4.7 t)), FL = 25.
+  - *Voice quality*: more lung pressure (+14 %) and a tenser source (Rd -0.12)
+    on stressed syllables; lower pressure and a breathier source (Rd +0.55)
+    over the last 280 ms of each phrase; quiet pauses.
+  - *Coarticulation*: consonants only set the articulators they need; the
+    others are interpolated from the neighbouring vowels (Öhman 1966), so lips
+    round ahead of /u/ and the tongue glides through /p/. Off: every sound
+    sets every articulator.
+  Stops are split into closure and release. English voiceless stops at the
+  start of a stressed syllable (not after /s/) keep the glottis open past the
+  release: aspiration, a voice onset time of about 60-70 ms; Italian ones
+  adduct before the release (about 10 ms). Taps and trills are ballistic
+  raised-cosine flicks of the tongue tip added on top of the smoothed posture
+  (one for /ɾ/, two to four contacts at 26 Hz for the Italian /r/, Recasens
+  1991); their height is computed from the tip's smoothed position, so they
+  really close against the ridge and build up oral pressure. After the last
+  sound the mouth relaxes to rest, releasing a final stop. A drawn contour
+  replaces the intonation.
 - **Target approximation** (Birkholz 2007; Prom-on, Xu & Thipakorn 2009):
   every articulator follows its targets through three identical first-order
   sections (critically damped, no overshoot), with articulator-specific time
@@ -327,9 +381,17 @@ in brackets are the adult male targets described under Speech.
 | Breathiness | HF/LF ratio +11.5 dB with a 0.12 cm² chink and Rd 2.2 |
 | Aspiration | F0 envelope modulation depth: steady 0.043, pulsed 0.591 |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 228 ms vs single /s/ 120 ms; HF/LF -2.2 dB in /sː/ vs -31.7 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -30.1 dB vs -12.9 dB in the vowel |
-| G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio, scena, chiesa, città; heed, this; IPA parsing |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF -6.3 dB in /sː/ vs -32.2 dB in /a/ |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.8 dB vs -10.9 dB in the vowel |
+| Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
+| English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
+| American r | /ɹ/ 416 / 1151 / 1591 Hz, /ɝ/ 464 / 1290 / 1744 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690) |
+| Dark l | F2 clear /l/ 1497 Hz, dark /ɫ/ 985 Hz |
+| Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
+| Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
+| Voice onset time | /t/ English 69 ms, Italian 9 ms (typical 60-70 and 10-25 ms) |
+| Trill and tap | tongue-tip closures: "carro" 3, "caro" 1 |
+| Fujisaki intonation | final F0: statement 105 Hz, wh-question 101 Hz, yes/no question 163 Hz (base 120 Hz) |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
 
 ## Simplifications and limits
@@ -347,8 +409,11 @@ in brackets are the adult male targets described under Speech.
   smoothing; a strong closure damping term keeps closed cavities stable.
 - The two-mass model is the 4-mass asymmetric form without collision
   dynamics beyond the contact spring.
-- English G2P is a small lexicon for the video's words (others fall back to
-  Italian rules); prosody is rule-based.
+- English pronunciation is American only; unknown words use letter-to-sound
+  rules, which miss many irregular spellings. Homographs (read, live) take one
+  pronunciation. Italian open and close e/o are only known where an accent is
+  written. Prosody is rule-based: it has no idea which word the sentence is
+  about, so the nuclear accent always falls on the last content word.
 - The machine-voice tab describes only the excitation as the video narration
   presents it; it does not model any trained network.
 - The colourful field and particle visualisations are illustrative (the
@@ -377,6 +442,12 @@ in brackets are the adult male targets described under Speech.
 - Peterson, G. E. & Barney, H. L. (1952). Control methods used in a study of the vowels. JASA 24.
 - Prom-on, S., Xu, Y. & Thipakorn, B. (2009). Modeling tone and intonation in Mandarin and English as a process of target approximation. JASA 125.
 - Recasens, D. (1991). On the production characteristics of apicoalveolar taps and trills. J. Phonetics 19.
+- Elovitz, H. S., Johnson, R., McHugh, A. & Shore, J. E. (1976). Automatic translation of English text to phonetics by means of letter-to-sound rules. NRL Report 7948.
+- Espy-Wilson, C. Y., Boyce, S. E., Jackson, M., Narayanan, S. & Alwan, A. (2000). Acoustic modeling of American English /r/. JASA 108.
+- Fujisaki, H. & Hirose, K. (1984). Analysis of voice fundamental frequency contours for declarative sentences of Japanese. J. Acoust. Soc. Jpn. (E) 5.
+- Klatt, D. H. (1979). Synthesis by rule of segmental durations in English sentences. In Frontiers of Speech Communication Research. Academic Press.
+- Klatt, D. H. & Klatt, L. C. (1990). Analysis, synthesis, and perception of voice quality variations among female and male talkers. JASA 87.
+- Lisker, L. & Abramson, A. S. (1964). A cross-language study of voicing in initial stops: acoustical measurements. Word 20.
 - Shadle, C. H. (1985). The acoustics of fricative consonants. PhD thesis, MIT.
 - Sondhi, M. M. & Schroeter, J. (1987). A hybrid time-frequency domain articulatory speech synthesizer. IEEE Trans. ASSP 35.
 - Steinecke, I. & Herzel, H. (1995). Bifurcations in an asymmetric vocal-fold model. JASA 97.
@@ -390,7 +461,12 @@ in brackets are the adult male targets described under Speech.
 ## Developer scripts
 
 ```bash
-npx tsx scripts/say.ts out/            # render example sentences to WAV, print IPA and levels
+npx tsx scripts/say.ts out/            # render example sentences to WAV, print phones, durations and pitch range
+npx tsx scripts/say.ts out/ en "any sentence"   # one sentence; add --flat for the robot version
+npx tsx scripts/g2p.ts en "the water bottle"    # phones of a text and where each English word came from
+npx tsx scripts/trace.ts it "il carro"          # every 2 ms: phone, constriction area, oral pressure, voicing
+npx tsx scripts/build-lexicon.ts us_gold.json   # rebuild public/lexicon/en-us.lex
+npx tsx scripts/tune-rhotic.ts 490,1350,1690 ɹ  # fit an articulation to F1/F2/F3 with tip and lips free
 npx tsx scripts/explore.ts a out.wav   # one phoneme: level, F0, LPC formants
 npx tsx scripts/tune-vowels.ts         # fit vowel articulations to reference formants
 npx tsx scripts/tune-consonants.ts     # consonant tuning helper

@@ -1,11 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { textToPhones, parseIpa } from '../src/dsp/speech/g2p';
 import { buildScore } from '../src/dsp/speech/sequencer';
-import { renderOffline } from '../src/dsp/engine/engine';
+import { renderOffline, VoiceEngine } from '../src/dsp/engine/engine';
 import { defaultParams } from '../src/dsp/engine/params';
 import { yin } from '../src/dsp/analysis/pitch';
 import { melBank, applyMel } from '../src/dsp/analysis/mel';
-import { bandPower, note } from './helpers';
+import { bandPower, note, loadEnglishLexicon } from './helpers';
+
+beforeAll(() => { loadEnglishLexicon(); });
 
 const fs = 48000;
 const ipa = (s: string, lang: 'it' | 'en' = 'it') => textToPhones(s, lang).map((p) => p.ipa + (p.long ? 'ː' : '')).join('');
@@ -17,7 +19,8 @@ describe('grapheme to phoneme', () => {
     expect(ipa('voce')).toBe('votʃe');
     expect(ipa('rosa')).toBe('roza');
     expect(ipa('gnocchi')).toBe('ɲokːi');
-    expect(ipa('figlio')).toBe('fiʎo');
+    // the palatal lateral is always long between vowels
+    expect(ipa('figlio')).toBe('fiʎːo');
     expect(ipa('scena')).toBe('ʃena');
     expect(ipa('chiesa')).toBe('kjeza');
     const st = textToPhones('città', 'it');
@@ -107,5 +110,99 @@ describe('log-mel spectrogram', () => {
     // 1 kHz = 1000 mel; 80 bands over 0..2840 mel: centre spacing 35 mel
     expect(best).toBeGreaterThan(24);
     expect(best).toBeLessThan(30);
+  });
+});
+
+describe('timing, melody and gestures of sequenced speech', () => {
+  const phoneDur = (text: string, lang: 'it' | 'en', ipaSym: string, which = 0) => {
+    const sc = buildScore(textToPhones(text, lang), { lang });
+    const p = sc.phones.filter((q) => q.ipa === ipaSym)[which];
+    return p.t1 - p.t0;
+  };
+
+  it('English vowels are longer before voiced consonants and at the end of a phrase (Klatt 1979)', () => {
+    const bead = phoneDur('bead', 'en', 'i'), beat = phoneDur('beat', 'en', 'i');
+    const mid = phoneDur('heed heed heed', 'en', 'i', 0), last = phoneDur('heed heed heed', 'en', 'i', 2);
+    note('Klatt durations', `/i/ in bead ${(bead * 1000).toFixed(0)} ms vs beat ${(beat * 1000).toFixed(0)} ms; heed heed heed: first ${(mid * 1000).toFixed(0)} ms, last ${(last * 1000).toFixed(0)} ms`);
+    expect(bead / beat).toBeGreaterThan(1.3);
+    expect(last / mid).toBeGreaterThan(1.5);
+  });
+
+  it('Italian stressed vowels are long in open syllables and short before a geminate', () => {
+    const fato = phoneDur('fato', 'it', 'a'), fatto = phoneDur('fatto', 'it', 'a');
+    note('Italian durations', `stressed /a/ in fato ${(fato * 1000).toFixed(0)} ms vs fatto ${(fatto * 1000).toFixed(0)} ms`);
+    expect(fato / fatto).toBeGreaterThan(1.35);
+  });
+
+  it('English voiceless stops are aspirated, Italian ones are not', () => {
+    const vot = (text: string, lang: 'it' | 'en') => {
+      const score = buildScore(textToPhones(text, lang), { lang });
+      const t = score.phones.find((q) => q.ipa === 't')!;
+      const e = new VoiceEngine(fs, defaultParams());
+      e.snapArticulators(); e.snapPressure(); e.playScore(score);
+      const buf = new Float32Array(48);
+      let closed = false, release = -1, onset = -1;
+      for (let time = 0; time < score.duration; time += 48 / fs) {
+        e.process(buf, 48);
+        const tel = e.telemetry();
+        if (time > t.t0 && tel.constrictionArea < 0.005) closed = true;
+        if (closed && release < 0 && tel.constrictionArea > 0.02) release = time;
+        if (release > 0 && onset < 0 && tel.voicingAmp > 0.5) { onset = time; break; }
+      }
+      return onset - release;
+    };
+    const en = vot('a top', 'en'), it = vot('a topo', 'it');
+    note('voice onset time', `/t/ English ${(en * 1000).toFixed(0)} ms, Italian ${(it * 1000).toFixed(0)} ms (typical 60-70 and 10-25)`);
+    expect(en).toBeGreaterThan(0.045);
+    expect(it).toBeLessThan(0.03);
+  });
+
+  it('the Italian trill makes several tongue-tip closures, the tap one', () => {
+    const closures = (text: string) => {
+      const score = buildScore(textToPhones(text, 'it'), { lang: 'it' });
+      const r = score.phones.find((q) => q.ipa === 'r')!;
+      const e = new VoiceEngine(fs, defaultParams());
+      e.snapArticulators(); e.snapPressure(); e.playScore(score);
+      const buf = new Float32Array(48);
+      let n = 0, closed = false;
+      for (let time = 0; time < r.t1 + 0.03; time += 48 / fs) {
+        e.process(buf, 48);
+        const c = e.telemetry().constrictionArea < 0.01;
+        if (time > r.t0 - 0.02 && c && !closed) n++;
+        closed = c;
+      }
+      return n;
+    };
+    const carro = closures('carro'), caro = closures('caro');
+    note('trill', `tongue-tip closures: "carro" ${carro}, "caro" ${caro}`);
+    expect(carro).toBeGreaterThanOrEqual(3);
+    expect(caro).toBeGreaterThanOrEqual(1);
+  });
+
+  it('questions rise unless they start with a question word; commas leave the melody up', () => {
+    const endF0 = (text: string) => {
+      const s = buildScore(textToPhones(text, 'en'), { lang: 'en' });
+      const last = [...s.phones].reverse().find((q) => q.ipa !== '_')!;
+      return s.frames[Math.round((last.t1 - 0.01) / 0.005)].f0;
+    };
+    const yn = endF0('is it raining?'), wh = endF0('where is it raining?'), st = endF0('it is raining.');
+    note('Fujisaki intonation', `final F0: statement ${st.toFixed(0)} Hz, wh-question ${wh.toFixed(0)} Hz, yes/no question ${yn.toFixed(0)} Hz`);
+    expect(yn).toBeGreaterThan(st * 1.3);
+    expect(wh).toBeLessThan(yn * 0.8);
+  });
+
+  it('a glottal stop closes the folds ("button")', () => {
+    const s = buildScore(textToPhones('button', 'en'), { lang: 'en' });
+    expect(s.frames.some((f) => f.gate === 0)).toBe(true);
+  });
+
+  it('every naturalness ingredient can be switched off', () => {
+    const ph = textToPhones('la voce è fatta di aria', 'it');
+    const flat = buildScore(ph, { lang: 'it', natural: { intonation: false, micro: false } });
+    const f0s = flat.frames.filter((f) => f.t < flat.duration).map((f) => f.f0);
+    expect(Math.max(...f0s) - Math.min(...f0s)).toBeLessThan(0.01);
+    const nominal = buildScore(ph, { lang: 'it', natural: { timing: false } });
+    const v = nominal.phones.find((q) => q.ipa === 'v')!;
+    expect(v.t1 - v.t0).toBeCloseTo(0.08, 3);
   });
 });

@@ -23,7 +23,8 @@ const clean = () => store.setParams((p) => {
   p.voicing = true; p.bypassTract = false; p.tubeMode = false; p.abduction = 0;
 });
 const vowel = (v: string, f0?: number) => store.setParams((p) => { applyPhoneme(v, p); if (f0) p.source.f0 = f0; p.phonate = true; });
-const say = (text: string, lang: 'it' | 'en') => {
+const say = async (text: string, lang: 'it' | 'en') => {
+  if (lang === 'en') await store.ensureLexicon();
   const p = store.params;
   void store.speak(buildScore(textToPhones(text, lang), { lang, f0: p.source.f0, ps: Math.max(7, p.source.ps) }));
 };

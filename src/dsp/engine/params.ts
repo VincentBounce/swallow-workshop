@@ -180,8 +180,15 @@ export interface ScoreFrame {
   f0: number;
   /** lung pressure, cm H2O */
   ps: number;
-  /** tongue-tip trill amount (Italian r), 0..1 */
-  trill: number;
+  /**
+   * fast tongue-tip raise added after the articulator smoothing (cm): the
+   * ballistic contacts of taps and trills, too quick for the target dynamics
+   */
+  tip?: number;
+  /** change of the LF shape parameter Rd (breathier phrase ends, tenser accents) */
+  rd?: number;
+  /** vocal-fold vibration and leak allowed (1) or folds pressed shut (0, glottal stop) */
+  gate?: number;
 }
 
 export interface ScorePhone { ipa: string; t0: number; t1: number; label?: string }
@@ -190,4 +197,6 @@ export interface Score {
   frames: ScoreFrame[];
   phones: ScorePhone[];
   duration: number;
+  /** slow random wander of F0 while the score plays (Klatt's flutter, 0..100; 25 is natural) */
+  flutter?: number;
 }

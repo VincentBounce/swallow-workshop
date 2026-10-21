@@ -1,17 +1,29 @@
 import { PHONEMES } from './phonemes';
+import { englishWord, englishNumber } from './english';
 
 /** A phone of an utterance after grapheme-to-phoneme conversion. */
 export interface Phone {
   ipa: string;
+  /** primary lexical stress (on vowels) */
   stress?: boolean;
+  /** secondary stress (English compounds and long words) */
+  stress2?: boolean;
+  /** reduced vowel (English schwa, the short i of "roses") */
+  reduced?: boolean;
+  /** part of a function word (article, preposition...): no pitch accent */
+  func?: boolean;
   /** geminate (Italian double consonant) */
   long?: boolean;
+  /** first phone of a word */
+  wordStart?: boolean;
   /** word boundary after this phone */
   wordEnd?: boolean;
   /** prosodic break (comma, full stop) after this phone */
   pause?: 'short' | 'long';
   /** question intonation at the end of the phrase */
   question?: boolean;
+  /** a question that starts with a question word (falls like a statement) */
+  whQuestion?: boolean;
 }
 
 export type Lang = 'it' | 'en';
@@ -35,6 +47,17 @@ function baseVowel(c: string): { ipa: string; accent: boolean } {
 }
 
 /**
+ * Unstressed Italian function words (articles, clitic pronouns, simple and
+ * articulated prepositions, conjunctions): in running speech they lean on the
+ * next word and carry no accent.
+ */
+const IT_FUNCTION_WORDS = new Set((
+  'il lo la i gli le un uno una l di a da in con su per tra fra e ed o od ma se che non mi ti si ci vi ne li ' +
+  'del dello della dei degli delle al allo alla ai agli alle dal dallo dalla dai dagli dalle ' +
+  'nel nello nella nei negli nelle sul sullo sulla sui sugli sulle col coi'
+).split(' '));
+
+/**
  * Italian orthography to phones. Rules: c/g before e/i, ch/gh, sc(i), gn, gl(i),
  * qu, z, geminates, silent h, intervocalic s voiced (northern norm),
  * default stress on the penultimate syllable unless an accent is written.
@@ -46,7 +69,7 @@ export function italianWord(word: string): Phone[] {
   let i = 0;
   const push = (ipa: string, extra: Partial<Phone> = {}) => out.push({ ipa, ...extra });
   while (i < w.length) {
-    const c = w[i], n = w[i + 1], n2 = w[i + 2];
+    const c = w[i], n = w[i + 1];
     // geminates: double consonant letter
     if (!isV(c) && c === n && c !== 'h') {
       const ph = italianConsonant(w, i + 1);
@@ -63,18 +86,17 @@ export function italianWord(word: string): Phone[] {
       i++;
       continue;
     }
-    if (c === 'h') { i++; continue; }
-    if (c === "'" ) { i++; continue; }
+    if (c === 'h' || c === "'") { i++; continue; }
     const ph = italianConsonant(w, i);
     if (ph) { push(ph.ipa); i += ph.len; continue; }
     i++;
-    void n2;
   }
   // stress: written accent, else penultimate vowel
   const vowelIdx = out.map((p, k) => (PHONEMES[p.ipa]?.manner === 'vowel' ? k : -1)).filter((k) => k >= 0);
   let st = accentIdx;
   if (st < 0 && vowelIdx.length) st = vowelIdx.length >= 2 ? vowelIdx[vowelIdx.length - 2] : vowelIdx[0];
-  if (st >= 0) out[st].stress = true;
+  const func = IT_FUNCTION_WORDS.has(w);
+  if (st >= 0 && !func) out[st].stress = true;
   // intervocalic s -> z (northern Italian), s before voiced consonant -> z
   for (let k = 0; k < out.length; k++) {
     if (out[k].ipa !== 's' || out[k].long) continue;
@@ -83,7 +105,13 @@ export function italianWord(word: string): Phone[] {
     const nv = next && PHONEMES[next.ipa]?.manner === 'vowel';
     if ((pv && nv) || (next && VOICED_C.includes(next.ipa))) out[k].ipa = 'z';
   }
-  if (out.length) out[out.length - 1].wordEnd = true;
+  // the palatals ɲ ʎ ʃ and the affricates ts dz are always long between vowels
+  for (let k = 1; k < out.length - 1; k++) {
+    const ipa = out[k].ipa;
+    if (['ɲ', 'ʎ', 'ʃ', 'ts', 'dz'].includes(ipa) && PHONEMES[out[k - 1].ipa]?.manner === 'vowel' && PHONEMES[out[k + 1].ipa]?.manner === 'vowel') out[k].long = true;
+  }
+  if (func) for (const p of out) p.func = true;
+  if (out.length) { out[0].wordStart = true; out[out.length - 1].wordEnd = true; }
   return out;
 }
 
@@ -120,68 +148,119 @@ function italianConsonant(w: string, i: number): { ipa: string; len: number } | 
   }
 }
 
-/** Small English lexicon for the examples of the explainer (IPA, General American). */
-export const ENGLISH_LEXICON: Record<string, string> = {
-  heed: 'hˈid', hid: 'hˈɪd', head: 'hˈɛd', had: 'hˈæd', hod: 'hˈɑd', hawed: 'hˈɔd', hood: 'hˈʊd', "who'd": 'hˈud',
-  hud: 'hˈʌd', heard: 'hˈɝd', father: 'fˈɑðəɹ', hiss: 'hˈɪs', this: 'ðˈɪs', see: 'sˈi', buzz: 'bˈʌz',
-  filter: 'fˈɪltəɹ', voice: 'vˈɔɪs', is: 'ɪz', made: 'mˈeɪd', of: 'ʌv', a: 'ə', and: 'ænd', the: 'ðə',
-  hello: 'hɛlˈoʊ', world: 'wˈɝld', sing: 'sˈɪŋ', she: 'ʃˈi', sea: 'sˈi', shoe: 'ʃˈu', zoo: 'zˈu',
-  hot: 'hˈɑt', mama: 'mˈɑmə', no: 'nˈoʊ', yes: 'jˈɛs', we: 'wˈi', red: 'ɹˈɛd', thin: 'θˈɪn',
-  speech: 'spˈitʃ', sound: 'sˈaʊnd', melody: 'mˈɛlədi',
-};
+const IT_UNITS = ['zero', 'uno', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci', 'undici', 'dodici', 'tredici',
+  'quattordici', 'quindici', 'sedici', 'diciassette', 'diciotto', 'diciannove'];
+const IT_TENS = ['', '', 'venti', 'trenta', 'quaranta', 'cinquanta', 'sessanta', 'settanta', 'ottanta', 'novanta'];
+
+/** An integer in Italian words, written as one word as Italian does (ventitré, centottanta). */
+export function italianNumber(n: number): string {
+  if (n < 0) return 'meno ' + italianNumber(-n);
+  if (n < 20) return IT_UNITS[n];
+  if (n < 100) {
+    const t = IT_TENS[Math.floor(n / 10)], u = n % 10;
+    if (!u) return t;
+    // the tens drop their vowel before uno and otto; tre takes an accent
+    const tt = u === 1 || u === 8 ? t.slice(0, -1) : t;
+    return tt + (u === 3 ? 'tré' : IT_UNITS[u]);
+  }
+  if (n < 1000) {
+    const h = Math.floor(n / 100), r = n % 100;
+    const hs = (h === 1 ? '' : IT_UNITS[h]) + 'cento';
+    if (!r) return hs;
+    return (Math.floor(r / 10) === 8 ? hs.slice(0, -1) : hs) + italianNumber(r);
+  }
+  if (n < 1e6) {
+    const k = Math.floor(n / 1000), r = n % 1000;
+    return (k === 1 ? 'mille' : italianNumber(k) + 'mila') + (r ? ' ' + italianNumber(r) : '');
+  }
+  const m = Math.floor(n / 1e6), r = n % 1e6;
+  return (m === 1 ? 'un milione' : italianNumber(m) + ' milioni') + (r ? ' ' + italianNumber(r) : '');
+}
 
 const IPA_SYMBOLS = Object.keys(PHONEMES).sort((a, b) => b.length - a.length);
-const IPA_ALIASES: Record<string, string> = { 'ɝ': 'ɹ', 'ɐ': 'ə', 'ɚ': 'ə', 'ɡ': 'g', 'ɾ': 'r', 'ʁ': 'r', 'ɫ': 'l', 'ç': 'ʃ', 'x': 'k', 'ʔ': '_', 'ɒ': 'ɔ', 'y': 'i', 'ø': 'e', 'œ': 'ɛ' };
+const IPA_ALIASES: Record<string, string> = {
+  'ɐ': 'ə', 'ɡ': 'g', 'ʁ': 'r', 'ç': 'ʃ', 'x': 'k', 'ɒ': 'ɔ', 'y': 'i', 'ø': 'e', 'œ': 'ɛ', 'ɨ': 'ɪ', 'ᵻ': 'ɪ', 'ᵊ': 'ə', 'ʤ': 'dʒ', 'ʧ': 'tʃ',
+};
 
-/** Parses an IPA string into phones (stress marks ˈ, length marks ː). */
+/** Parses an IPA string into phones (stress marks ˈ ˌ, length marks ː). */
 export function parseIpa(s: string): Phone[] {
   const out: Phone[] = [];
-  let stressNext = false;
+  let stressNext: 0 | 1 | 2 = 0;
+  let wordStart = true;
   let i = 0;
+  const add = (p: Phone) => {
+    if (wordStart) { p.wordStart = true; wordStart = false; }
+    out.push(p);
+  };
   while (i < s.length) {
     const c = s[i];
-    if (c === 'ˈ') { stressNext = true; i++; continue; }
-    if (c === 'ˌ' || c === '.' || c === '/' || c === '[' || c === ']') { i++; continue; }
+    if (c === 'ˈ') { stressNext = 1; i++; continue; }
+    if (c === 'ˌ') { stressNext = 2; i++; continue; }
+    if (c === '.' || c === '/' || c === '[' || c === ']') { i++; continue; }
     if (c === 'ː' || c === ':') { if (out.length) out[out.length - 1].long = true; i++; continue; }
-    if (c === ' ') { if (out.length) out[out.length - 1].wordEnd = true; i++; continue; }
+    if (c === ' ') { if (out.length) out[out.length - 1].wordEnd = true; wordStart = true; i++; continue; }
     if (c === ',' || c === '|') { if (out.length) out[out.length - 1].pause = 'short'; i++; continue; }
     if (c === '‖' || c === '!' || c === ';') { if (out.length) out[out.length - 1].pause = 'long'; i++; continue; }
     if (c === '?') { if (out.length) { out[out.length - 1].pause = 'long'; out[out.length - 1].question = true; } i++; continue; }
     let matched = '';
     for (const sym of IPA_SYMBOLS) if (s.startsWith(sym, i)) { matched = sym; break; }
-    if (!matched && IPA_ALIASES[c]) { out.push({ ipa: IPA_ALIASES[c], stress: stressNext }); stressNext = false; i++; continue; }
-    if (matched) {
-      // stress applies to the next vowel
-      const ph = PHONEMES[matched];
-      const p: Phone = { ipa: matched };
-      if (stressNext && ph.manner === 'vowel') { p.stress = true; stressNext = false; }
-      out.push(p);
-      i += matched.length;
-      continue;
+    const ipa = matched || IPA_ALIASES[c];
+    if (!ipa) { i++; continue; }
+    const p: Phone = { ipa };
+    // stress applies to the next vowel
+    if (stressNext && PHONEMES[ipa]?.manner === 'vowel') {
+      if (stressNext === 1) p.stress = true; else p.stress2 = true;
+      stressNext = 0;
     }
-    i++;
+    add(p);
+    i += matched ? matched.length : 1;
   }
+  if (out.length) out[out.length - 1].wordEnd = true;
   return out;
 }
+
+const WH_WORDS = {
+  en: new Set(['what', 'where', 'when', 'who', 'whom', 'whose', 'why', 'which', 'how']),
+  it: new Set(['che', 'chi', 'cosa', 'come', 'dove', 'quando', 'perché', 'perche', 'quale', 'quali', 'quanto', 'quanta', 'quanti', 'quante']),
+};
 
 /** Text (Italian or English words, or /IPA/) to phones. */
 export function textToPhones(text: string, lang: Lang): Phone[] {
   const t = text.trim();
   if ((t.startsWith('/') && t.endsWith('/')) || (t.startsWith('[') && t.endsWith(']'))) return parseIpa(t.slice(1, -1));
   const out: Phone[] = [];
-  const tokens = t.split(/(\s+|[,.;!?])/).filter((x) => x && !/^\s+$/.test(x));
-  for (const tok of tokens) {
-    if (/^[,;]$/.test(tok)) { if (out.length) out[out.length - 1].pause = 'short'; continue; }
-    if (/^[.!]$/.test(tok)) { if (out.length) out[out.length - 1].pause = 'long'; continue; }
-    if (tok === '?') { if (out.length) { out[out.length - 1].pause = 'long'; out[out.length - 1].question = true; } continue; }
-    const word = tok.toLowerCase().replace(/[^a-zàèéìíòóùú']/g, '');
+  // numbers become words first
+  const spelled = t.replace(/\d+/g, (d) => ' ' + (lang === 'en' ? englishNumber(Number(d)) : italianNumber(Number(d))) + ' ');
+  const tokens = spelled.split(/(\s+|[,.;:!?—–-])/).filter((x) => x && !/^\s+$/.test(x));
+  let phraseStartIdx = 0;
+  let firstWord = '';
+  for (let ti = 0; ti < tokens.length; ti++) {
+    const tok = tokens[ti];
+    if (/^[,;:—–]$/.test(tok)) { if (out.length) out[out.length - 1].pause = 'short'; continue; }
+    if (/^[.!]$/.test(tok)) { if (out.length) out[out.length - 1].pause = 'long'; phraseStartIdx = out.length; firstWord = ''; continue; }
+    if (tok === '?') {
+      if (out.length) {
+        const last = out[out.length - 1];
+        last.pause = 'long';
+        last.question = true;
+        if (WH_WORDS[lang].has(firstWord)) last.whQuestion = true;
+      }
+      phraseStartIdx = out.length; firstWord = '';
+      continue;
+    }
+    if (tok === '-') continue;
+    const word = tok.toLowerCase().replace(/’/g, "'").replace(/[^a-zàèéìíòóùú']/g, '');
     if (!word) continue;
+    if (!firstWord && out.length === phraseStartIdx) firstWord = word;
     let phones: Phone[];
     if (lang === 'en') {
-      const ipa = ENGLISH_LEXICON[word];
-      phones = ipa ? parseIpa(ipa) : italianWord(word);
+      phones = englishWord(word);
+      // "the" before a vowel is ði
+      const prev = out.length ? out.slice(-2) : [];
+      if (prev.length === 2 && prev[0].ipa === 'ð' && prev[1].ipa === 'ə' && prev[0].wordStart && prev[1].wordEnd && PHONEMES[phones[0]?.ipa]?.manner === 'vowel') {
+        prev[1].ipa = 'i';
+      }
     } else phones = italianWord(word);
-    if (phones.length) phones[phones.length - 1].wordEnd = true;
     out.push(...phones);
   }
   return out;

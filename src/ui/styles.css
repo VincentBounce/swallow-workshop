@@ -165,6 +165,8 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 .teeth-canvas { width: 100%; height: 190px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 6px; }
 
 .timeline { display: flex; gap: 2px; margin-top: 8px; }
+.ingredient { margin: 2px 0 8px; }
+.ingredient p { margin: 2px 0 0 38px; }
 .timeline .ph { background: #171d29; border-radius: 4px; text-align: center; padding: 3px 0; font-size: 13px; min-width: 14px; transition: background 0.1s; }
 .timeline .ph.on { background: var(--amber); color: #1b1203; }
 

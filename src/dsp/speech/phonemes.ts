@@ -1,6 +1,7 @@
 import { Articulators } from '../tract/types';
 
-export type Manner = 'vowel' | 'fricative' | 'stop' | 'nasal' | 'approximant' | 'lateral' | 'trill' | 'affricate' | 'glottal' | 'silence';
+export type Manner =
+  | 'vowel' | 'fricative' | 'stop' | 'nasal' | 'approximant' | 'lateral' | 'trill' | 'tap' | 'affricate' | 'glottal' | 'glottalStop' | 'silence';
 
 /**
  * A phoneme as an articulatory target. Only the articulators that the sound
@@ -24,6 +25,8 @@ export interface Phoneme {
   parts?: [string, string];
   /** dorsal closure (velar stops/nasals) */
   dorsal?: boolean;
+  /** diphthongs: the vowel the tongue and lips glide to */
+  offglide?: string;
 }
 
 const V = (ipa: string, art: Partial<Articulators>, examples: string, dur = 0.14): Phoneme => ({
@@ -49,6 +52,21 @@ export const VOWELS: Record<string, Phoneme> = {
   'ʊ': V('ʊ', { jaw: 0.3, tongueX: -0.71, tongueY: -0.27, lipOpen: -0.05, lipRound: 0.93, lipProtrude: 0.93 }, 'hood'),
   u: V('u', { jaw: 0.18, tongueX: 0.08, tongueY: 1.18, lipOpen: -0.04, lipRound: 1, lipProtrude: 0.78 }, "who'd, luna"),
   'ʌ': V('ʌ', { jaw: 0.6, tongueX: -0.43, tongueY: -0.38, lipOpen: 0.38, lipRound: 0.21, lipProtrude: 0.32 }, 'hud'),
+  // r-coloured vowel of "heard": a bunched or retroflex tongue with the tip up
+  // and back plus rounded lips pull F3 down to about 1700 Hz (scripts/tune-rhotic.ts)
+  'ɝ': V('ɝ', { jaw: 0.31, tongueX: -0.52, tongueY: -0.42, tipX: -0.52, tipY: 2.2, lipOpen: 0.31, lipRound: 0.28, lipProtrude: 0.55 }, 'heard, bird', 0.16),
+};
+
+/** Sounds used by the speech sequencer that cannot be held as a steady shape. */
+export const GLIDING: Record<string, Phoneme> = {
+  // unstressed r-coloured vowel ("butter")
+  'ɚ': V('ɚ', VOWELS['ɝ'].art, 'butter', 0.1),
+  // American English diphthongs: a nucleus that glides toward a higher vowel
+  'eɪ': { ...V('eɪ', VOWELS.e.art, 'day', 0.19), offglide: 'ɪ' },
+  'aɪ': { ...V('aɪ', VOWELS.a.art, 'my', 0.22), offglide: 'ɪ' },
+  'oʊ': { ...V('oʊ', VOWELS.o.art, 'go', 0.2), offglide: 'ʊ' },
+  'aʊ': { ...V('aʊ', VOWELS.a.art, 'now', 0.23), offglide: 'ʊ' },
+  'ɔɪ': { ...V('ɔɪ', VOWELS['ɔ'].art, 'boy', 0.24), offglide: 'ɪ' },
 };
 
 const C = (
@@ -81,8 +99,13 @@ export const CONSONANTS: Record<string, Phoneme> = {
   // approximants, laterals, trill
   l: C('l', 'lateral', true, { jaw: 0.15, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.07, 'luna'),
   'ʎ': C('ʎ', 'lateral', true, { jaw: 0.1, tongueX: 0.9, tongueY: 0.962, tipY: 0.1, velum: 0 }, 0, 0.09, 'figlio'),
-  r: C('r', 'trill', true, { jaw: 0.15, tipX: 0.25, tipY: 1.004, groove: 0, velum: 0 }, 0, 0.08, 'raro (trill)'),
-  'ɹ': C('ɹ', 'approximant', true, { jaw: 0.2, tongueX: -0.3, tongueY: 0.3, tipX: -0.4, tipY: 1.656, lipRound: 0.4, velum: 0 }, 0, 0.08, 'red'),
+  // dark (velarised) l of English codas, "feel": the tongue body backs up, F2 near 1000 Hz
+  'ɫ': C('ɫ', 'lateral', true, { jaw: 0.2, tongueX: -1.19, tongueY: 0.38, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.08, 'feel, milk'),
+  // the tip rests just below the alveolar ridge; the sequencer adds the fast
+  // contacts (about 26 per second, Recasens 1991) on top of this posture
+  r: C('r', 'trill', true, { jaw: 0.15, tipX: 0.25, tipY: 1.25, groove: 0, velum: 0 }, 0, 0.08, 'raro (trill)'),
+  // American r: tip up and back, tongue body back, lips a little rounded: F3 about 1600 Hz
+  'ɹ': C('ɹ', 'approximant', true, { jaw: 0.16, tongueX: -0.75, tongueY: 0.13, tipX: -0.48, tipY: 2.03, lipOpen: 0.2, lipRound: 0.45, lipProtrude: 0, velum: 0 }, 0, 0.08, 'red'),
   j: C('j', 'approximant', true, { jaw: 0.06, tongueX: 1.0, tongueY: 0.925, lipRound: 0, velum: 0 }, 0, 0.06, 'ieri, yes'),
   w: C('w', 'approximant', true, { jaw: 0.1, tongueX: -0.8, tongueY: 0.3, lipOpen: -0.08, lipRound: 1, lipProtrude: 0.8, velum: 0 }, 0, 0.06, 'uomo, we'),
   // affricates
@@ -94,4 +117,14 @@ export const CONSONANTS: Record<string, Phoneme> = {
   _: C('_', 'silence', false, {}, 0.9, 0.2, 'pause'),
 };
 
-export const PHONEMES: Record<string, Phoneme> = { ...VOWELS, ...CONSONANTS };
+/** Consonants that only exist as fast gestures inside speech. */
+export const GESTURES: Record<string, Phoneme> = {
+  // one ballistic flick of the tongue tip against the ridge: Italian intervocalic r, American "butter"
+  'ɾ': C('ɾ', 'tap', true, { tipX: 0.25, groove: 0, velum: 0 }, 0, 0.025, 'caro, butter'),
+  // the vocal folds pressed together for a moment: "button", "uh-oh"
+  'ʔ': C('ʔ', 'glottalStop', false, {}, 0, 0.05, 'button'),
+};
+
+export const PHONEMES: Record<string, Phoneme> = { ...VOWELS, ...GLIDING, ...CONSONANTS, ...GESTURES };
+
+export const isVowel = (ipa: string): boolean => PHONEMES[ipa]?.manner === 'vowel';

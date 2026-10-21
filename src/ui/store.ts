@@ -7,6 +7,8 @@ import { computeGeometry, TractGeometry } from '../dsp/tract/geometry';
 import { AreaFunction, sectionsFromGeometry } from '../dsp/tract/areaFunction';
 import { formants, Formant } from '../dsp/tract/acoustics';
 import { portArea } from '../dsp/tract/nasal';
+import { loadEnglishLexicon, englishLexiconSize } from '../dsp/speech/english';
+import { NaturalnessOptions, NATURAL_ALL } from '../dsp/speech/sequencer';
 
 export type Lang = 'it' | 'en';
 export type Mode = 'tour' | 'lab';
@@ -38,7 +40,14 @@ export interface UiState {
   info: string | null;
   /** show numeric readouts everywhere (plain words otherwise) */
   numbers: boolean;
+  /** the speak panel: text, its language, rate, accent strength and naturalness ingredients */
+  speech: { text: string; lang: Lang; rate: number; accent: number; natural: NaturalnessOptions };
+  /** the American English pronunciation dictionary */
+  lexicon: 'idle' | 'loading' | 'ready' | 'error';
 }
+
+/** First sentence in the speak panel, in the language of the interface. */
+export const DEFAULT_SPEECH_TEXT: Record<Lang, string> = { en: 'a buzz, a hiss and a filter', it: 'la voce è fatta di aria' };
 
 const RING = 1 << 17;
 const LANG_KEY = 'voice-workshop.lang';
@@ -65,6 +74,8 @@ class Store {
     lang: initialLang(), mode: 'lab', chapter: 0, controlTab: 'source', viewTab: 'chart', specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
     speaking: null, info: null, numbers: false,
+    speech: { text: '', lang: 'en', rate: 1, accent: 3, natural: { ...NATURAL_ALL } },
+    lexicon: 'idle',
   };
   telemetry: Telemetry | null = null;
   telemetryTime = 0;
@@ -74,6 +85,7 @@ class Store {
   private version = 0;
 
   constructor() {
+    this.ui.speech = { ...this.ui.speech, text: DEFAULT_SPEECH_TEXT[this.ui.lang], lang: this.ui.lang };
     this.params.phonate = false;
     this.params.articulators = { ...this.params.articulators, ...{ jaw: 0.94, tongueX: 0.06, tongueY: -0.83, lipOpen: 0.5, lipProtrude: 0.04 } };
     this.audio.onTelemetry = (t) => { this.telemetry = t; this.telemetryTime = performance.now(); if (this.ui.speaking && !t.playing) this.setUi({ speaking: null }); };
@@ -152,6 +164,9 @@ class Store {
   setUi(u: Partial<UiState>): void {
     if (u.lang && u.lang !== this.ui.lang) {
       try { window.localStorage.setItem(LANG_KEY, u.lang); } catch { /* storage blocked */ }
+      // the untouched example sentence follows the interface language
+      const sp = this.ui.speech;
+      if (!u.speech && sp.text === DEFAULT_SPEECH_TEXT[this.ui.lang]) u = { ...u, speech: { ...sp, text: DEFAULT_SPEECH_TEXT[u.lang], lang: u.lang } };
     }
     this.ui = { ...this.ui, ...u };
     this.emit();
@@ -178,6 +193,20 @@ class Store {
   }
 
   stopSpeaking(): void { this.audio.stopScore(); this.setUi({ speaking: null }); }
+
+  /** Loads the English pronunciation dictionary once (spelling rules are used until it arrives). */
+  async ensureLexicon(): Promise<void> {
+    if (englishLexiconSize() > 0) { if (this.ui.lexicon !== 'ready') this.setUi({ lexicon: 'ready' }); return; }
+    if (this.ui.lexicon !== 'loading') this.setUi({ lexicon: 'loading' });
+    try {
+      await loadEnglishLexicon();
+      this.setUi({ lexicon: 'ready' });
+    } catch {
+      this.setUi({ lexicon: 'error' });
+    }
+  }
+
+  setSpeech(u: Partial<UiState['speech']>): void { this.setUi({ speech: { ...this.ui.speech, ...u } }); }
 
   // --------------------------------------------------------- derived data
 

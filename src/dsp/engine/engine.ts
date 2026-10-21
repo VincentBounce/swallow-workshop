@@ -99,8 +99,9 @@ export class VoiceEngine {
   private abduction = 0;
   private f0 = 120;
   private psCur = 0; // dyn/cm^2
-  private trill = 0;
-  private trillPhase = 0;
+  /** Rd change and glottal gate from the score */
+  private rdOffset = 0;
+  private gate = 1;
 
   // geometry
   geom: TractGeometry | null = null;
@@ -199,7 +200,7 @@ export class VoiceEngine {
 
   // ------------------------------------------------------------ control
 
-  private targetFrame(): { art: Articulators; abduction: number; f0: number; ps: number; trill: number } | null {
+  private targetFrame(): { art: Articulators; abduction: number; f0: number; ps: number; tip: number; rd: number; gate: number } | null {
     const sc = this.score;
     if (!sc) return null;
     if (this.scoreTime > sc.duration + this.scoreHold) { this.score = null; return null; }
@@ -210,7 +211,10 @@ export class VoiceEngine {
     const mix = (x: number, y: number) => x + (y - x) * t;
     const art = {} as Articulators;
     for (const k of ARTICULATOR_KEYS) art[k] = mix(a.art[k], b.art[k]);
-    return { art, abduction: mix(a.abduction, b.abduction), f0: mix(a.f0, b.f0), ps: mix(a.ps, b.ps), trill: mix(a.trill, b.trill) };
+    return {
+      art, abduction: mix(a.abduction, b.abduction), f0: mix(a.f0, b.f0), ps: mix(a.ps, b.ps),
+      tip: mix(a.tip ?? 0, b.tip ?? 0), rd: mix(a.rd ?? 0, b.rd ?? 0), gate: mix(a.gate ?? 1, b.gate ?? 1),
+    };
   }
 
   private control(): void {
@@ -220,15 +224,19 @@ export class VoiceEngine {
     if (this.score) this.scoreTime += dt;
     const artT = fr ? fr.art : p.articulators;
     for (const k of ARTICULATOR_KEYS) this.art[k] = this.tam[k].step(artT[k], dt);
-    // tongue-tip trill (alveolar trill, ~25-30 Hz, Recasens 1991)
-    this.trill = fr ? fr.trill : 0;
-    if (this.trill > 0.01) {
-      this.trillPhase += 2 * Math.PI * 27 * dt;
-      this.art.tipY -= this.trill * 0.22 * (0.5 + 0.5 * Math.sin(this.trillPhase));
-    }
+    // taps and trills: the contacts of the tongue tip are ballistic, added on
+    // top of the smoothed posture (alveolar trill about 26 Hz, Recasens 1991)
+    if (fr && fr.tip) this.art.tipY += fr.tip;
+    this.rdOffset = fr ? fr.rd : 0;
+    // a glottal stop closes within a few milliseconds
+    this.gate += ((fr ? fr.gate : 1) - this.gate) * (1 - Math.exp(-dt / 0.006));
     this.abduction = this.tam.abduction.step(fr ? fr.abduction : p.abduction, dt);
     const vib = p.source.vibratoDepth > 0 ? Math.pow(2, (p.source.vibratoDepth / 1200) * Math.sin(2 * Math.PI * p.source.vibratoRate * this.time)) : 1;
-    this.f0 = this.tam.f0.step(fr ? fr.f0 : p.source.f0, dt) * vib;
+    // flutter: slow quasi-random F0 wander of a living voice (Klatt & Klatt 1990)
+    const fl = this.score?.flutter ?? 0;
+    const tt = this.time;
+    const flutter = fl > 0 ? 1 + (fl / 50 / 100) * (Math.sin(2 * Math.PI * 12.7 * tt) + Math.sin(2 * Math.PI * 7.1 * tt) + Math.sin(2 * Math.PI * 4.7 * tt)) : 1;
+    this.f0 = this.tam.f0.step(fr ? fr.f0 : p.source.f0, dt) * vib * flutter;
     const psTarget = fr ? fr.ps : p.phonate ? p.source.ps : 0;
     this.psCur = this.tam.ps.step(psTarget, dt) * CMH2O;
 
@@ -345,7 +353,7 @@ export class VoiceEngine {
       if (p.source.model === 'lf') vib = 0.45 * p.source.peakArea * s2 * this.voicingAmp;
       else vib = Math.max(0, this.tm.amin) * 0.5 + 0.5 * Math.max(0, p.source.restArea);
     }
-    return vib + p.source.chink * s2 + abd;
+    return (vib + p.source.chink * s2) * this.gate + abd;
   }
 
   private updateAero(dt: number): void {
@@ -402,7 +410,8 @@ export class VoiceEngine {
     let amp = 1 + (s.shimmer / 100) * this.rng.gauss();
     if (s.diplophonia > 0 && (src.periodIndex & 1)) amp *= 1 - 0.8 * s.diplophonia;
     this.periodAmp = Math.max(0, amp);
-    const timing: LFTiming = s.advanced ? timingFromQuotients(s.oq, s.alphaM, s.ra) : rdToTiming(s.rd);
+    const rd = Math.max(0.3, Math.min(2.7, s.rd + this.rdOffset));
+    const timing: LFTiming = s.advanced ? timingFromQuotients(s.oq, s.alphaM, s.ra) : rdToTiming(rd);
     src.setShape(timing);
     // measured F0 (for display)
     this.measuredF0 = src.periodF0;
@@ -424,12 +433,12 @@ export class VoiceEngine {
     const dp = Math.max(ps - po, 0);
     const vg = Math.sqrt((2 * dp) / RHO);
     const z0 = wg.z0;
-    const steadyArea = p.source.chink * s2 + 0.55 * s2 * Math.max(0, this.abduction);
+    const steadyArea = p.source.chink * s2 * this.gate + 0.55 * s2 * Math.max(0, this.abduction);
     let u = 0; // total glottal flow (cm^3/s)
     let ag = steadyArea;
     if (p.source.model === 'lf') {
       this.lf.step(fs, this.nextPeriod);
-      const amp = p.voicing ? p.source.peakArea * s2 * this.voicingAmp * this.periodAmp : 0;
+      const amp = p.voicing ? p.source.peakArea * s2 * this.voicingAmp * this.periodAmp * this.gate : 0;
       const avib = amp * this.lf.flow;
       ag = avib + steadyArea;
       u = ag * vg;
@@ -451,7 +460,7 @@ export class VoiceEngine {
       tp.a0 = Math.max(0.0, sp.restArea) * s2 + (p.voicing ? 0 : 0.2);
       tp.d1 = 0.25 * p.anatomy.scale;
       tp.q = sp.tensionAuto ? this.tmQ : sp.q;
-      const uf = this.tm.step(dt, p.voicing ? ps : 0, po, wg.pMinus, z0, this.uMean);
+      const uf = this.tm.step(dt, p.voicing ? ps : 0, po, wg.pMinus, z0, this.uMean) * this.gate;
       ag = Math.max(0, this.tm.amin) + steadyArea;
       u = uf + steadyArea * vg;
       this.uMean = this.uMeanCoef * this.uMean + (1 - this.uMeanCoef) * uf;
