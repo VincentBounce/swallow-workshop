@@ -25,9 +25,18 @@ export class AudioBridge {
   get running(): boolean { return !!this.ctx && this.ctx.state === 'running'; }
   get sampleRate(): number { return this.ctx?.sampleRate ?? 48000; }
 
-  async start(params: EngineParams): Promise<void> {
-    if (!this.ctx) {
-      const ctx = new AudioContext({ latencyHint: 'interactive' });
+  private starting: Promise<void> | null = null;
+
+  /** Starts (or resumes) the audio; concurrent calls share one start, so only one engine ever runs. */
+  start(params: EngineParams): Promise<void> {
+    if (!this.starting) this.starting = this.doStart(params).finally(() => { this.starting = null; });
+    return this.starting;
+  }
+
+  private async doStart(params: EngineParams): Promise<void> {
+    if (!this.node) {
+      // a clip may have created the context already
+      const ctx = this.ctx ?? new AudioContext({ latencyHint: 'interactive' });
       await ctx.audioWorklet.addModule(workletUrl);
       const node = new AudioWorkletNode(ctx, 'voice-processor', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
       node.port.onmessage = (e: MessageEvent) => {
@@ -35,14 +44,15 @@ export class AudioBridge {
         if (d.type === 'telemetry') this.onTelemetry(d.telemetry as Telemetry);
         else if (d.type === 'stream') this.onStream(d as StreamBlock);
       };
-      const master = ctx.createGain();
-      master.gain.value = 1;
-      node.connect(master).connect(ctx.destination);
+      const master = this.master ?? ctx.createGain();
+      if (!this.master) { master.gain.value = 1; master.connect(ctx.destination); }
+      node.connect(master);
       this.ctx = ctx; this.node = node; this.master = master;
       node.port.postMessage({ type: 'params', params });
       ctx.onstatechange = () => this.onState(this.running);
     }
-    if (this.ctx.state !== 'running') await this.ctx.resume();
+    const ctx = this.ctx!;
+    if (ctx.state !== 'running') await ctx.resume();
     this.onState(this.running);
   }
 
