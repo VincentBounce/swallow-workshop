@@ -27,6 +27,23 @@ export const NOISE_K = { aspiration: 0.15, wall: 0.08, obstacle: 0.9, user: 0.04
 /** Length of the vocal folds (cm) for the glottal Reynolds number. */
 const FOLD_LENGTH = 1.4;
 
+/**
+ * A control-rate value carried into the sample loop as a straight line over
+ * one control period. Held as steps instead, it would modulate the glottal
+ * pulses at the control rate (1.5 kHz) and leave a comb of whistles at its
+ * multiples, heard as a fizz over the whole voice.
+ */
+class Ramp {
+  private from: number;
+  private to: number;
+  v: number;
+  constructor(v = 0) { this.from = this.to = this.v = v; }
+  /** a new control value: the ramp starts from where it is now */
+  set(target: number): void { this.from = this.v; this.to = target; }
+  snap(v: number): void { this.from = this.to = this.v = v; }
+  at(phase: number): number { this.v = this.from + (this.to - this.from) * phase; return this.v; }
+}
+
 export interface Telemetry {
   time: number;
   articulators: Articulators;
@@ -139,6 +156,8 @@ export class VoiceEngine {
   private poNow = 0;
   private psNow = 0;
   private mouthCoef = 0.1;
+  private pulseMean = 0;
+  private pulseMeanCoef = 0.004;
   private slowCoef = 0.003;
   private lastOpenTime = 0;
   private measuredF0 = 0;
@@ -148,6 +167,17 @@ export class VoiceEngine {
   // per-sample noise amplitudes (set at control rate)
   private wallAmp = 0;
   private obsAmp = 0;
+  // control-rate values ramped across each control period in the sample loop
+  private rVoicing = new Ramp(0);
+  private rGate = new Ramp(1);
+  private rAbd = new Ramp(0);
+  private rPs = new Ramp(0);
+  private rPo = new Ramp(0);
+  private rMouth = new Ramp(0);
+  private rUg = new Ramp(0);
+  private rWall = new Ramp(0);
+  private rObs = new Ramp(0);
+  private ctrlPhase = 1;
   private userAmp = 0;
   private userJunction = -1;
   private teethJunction = 40;
@@ -192,9 +222,10 @@ export class VoiceEngine {
     this.score = score;
     this.scoreTime = 0;
     this.scoreIdx = 0;
+    this.tam.f0.tau = score.f0Tau ?? TAM_TAU.f0;
   }
 
-  stopScore(): void { this.score = null; }
+  stopScore(): void { this.score = null; this.tam.f0.tau = TAM_TAU.f0; }
 
   get isPlaying(): boolean { return this.score !== null; }
 
@@ -203,7 +234,7 @@ export class VoiceEngine {
   private targetFrame(): { art: Articulators; abduction: number; f0: number; ps: number; tip: number; rd: number; gate: number } | null {
     const sc = this.score;
     if (!sc) return null;
-    if (this.scoreTime > sc.duration + this.scoreHold) { this.score = null; return null; }
+    if (this.scoreTime > sc.duration + this.scoreHold) { this.score = null; this.tam.f0.tau = TAM_TAU.f0; return null; }
     const fr = sc.frames;
     while (this.scoreIdx < fr.length - 2 && fr[this.scoreIdx + 1].t <= this.scoreTime) this.scoreIdx++;
     const a = fr[this.scoreIdx], b = fr[Math.min(this.scoreIdx + 1, fr.length - 1)];
@@ -247,6 +278,16 @@ export class VoiceEngine {
     // aerodynamics
     this.updateAero(dt);
     this.time += dt;
+    this.rVoicing.set(this.voicingAmp);
+    this.rGate.set(this.gate);
+    this.rAbd.set(Math.max(0, this.abduction));
+    this.rPs.set(this.psCur);
+    this.rPo.set(this.aero.po);
+    this.rMouth.set(this.aero.uMouth);
+    this.rUg.set(this.aero.ug);
+    this.rWall.set(this.wallAmp);
+    this.rObs.set(this.obsAmp);
+    this.ctrlPhase = 0;
   }
 
   private artKey(): string {
@@ -307,6 +348,7 @@ export class VoiceEngine {
       this.lpf.design(Math.min(0.42 * this.fsOut, 0.24 * this.fsT), this.fsT);
       this.uMeanCoef = Math.exp(-2 * Math.PI * 12 / this.fsT);
       this.mouthCoef = 1 - Math.exp(-2 * Math.PI * 1500 / this.fsT);
+      this.pulseMeanCoef = 1 - Math.exp(-1 / (0.003 * this.fsT));
       this.slowCoef = 1 - Math.exp(-2 * Math.PI * 40 / this.fsT);
     }
     const scale = p.anatomy.scale;
@@ -424,28 +466,36 @@ export class VoiceEngine {
     const dt = 1 / fs;
     this.tractTime += dt;
     const s2 = p.anatomy.scale * p.anatomy.scale;
+    // control-rate values, ramped across the control period
+    const ph = this.ctrlPhase = Math.min(1, this.ctrlPhase + 1 / (CTRL * this.ratio));
+    const voicingAmp = this.rVoicing.at(ph);
+    const gate = this.rGate.at(ph);
+    const abduction = this.rAbd.at(ph);
     // intraoral pressure and lung pressure come from the control-rate
     // aerodynamics: interpolate them per sample (no staircase in the flow)
-    this.poNow += (this.aero.po - this.poNow) * this.mouthCoef;
-    this.psNow += (this.psCur - this.psNow) * this.mouthCoef;
+    this.poNow += (this.rPo.at(ph) - this.poNow) * this.mouthCoef;
+    this.psNow += (this.rPs.at(ph) - this.psNow) * this.mouthCoef;
     const po = this.poNow;
     const ps = this.psNow;
     const dp = Math.max(ps - po, 0);
     const vg = Math.sqrt((2 * dp) / RHO);
     const z0 = wg.z0;
-    const steadyArea = p.source.chink * s2 * this.gate + 0.55 * s2 * Math.max(0, this.abduction);
+    const steadyArea = p.source.chink * s2 * gate + 0.55 * s2 * abduction;
     let u = 0; // total glottal flow (cm^3/s)
     let ag = steadyArea;
     if (p.source.model === 'lf') {
       this.lf.step(fs, this.nextPeriod);
-      const amp = p.voicing ? p.source.peakArea * s2 * this.voicingAmp * this.periodAmp * this.gate : 0;
+      const amp = p.voicing ? p.source.peakArea * s2 * voicingAmp * this.periodAmp * gate : 0;
       const avib = amp * this.lf.flow;
       ag = avib + steadyArea;
       u = ag * vg;
       // acoustic part of the flow: the pulses minus their period mean. The
       // quasi-steady flow (mean of the pulses plus any leak) belongs to the
-      // aerodynamic model and is not injected into the waveguide.
-      const uAc = amp * (this.lf.flow - this.lf.meanFlow) * vg;
+      // aerodynamic model and is not injected into the waveguide. The mean
+      // glides (3 ms): a new period with another amplitude (shimmer) or shape
+      // (Rd) would otherwise shift it in one step, a click at every period.
+      this.pulseMean += (amp * this.lf.meanFlow - this.pulseMean) * this.pulseMeanCoef;
+      const uAc = (avib - this.pulseMean) * vg;
       // glottal impedance (dynamic Bernoulli resistance) for source-tract interaction
       const zg = u > 1e-3 ? (2 * dp) / u : 1e12;
       const rgPhys = (zg - z0) / (zg + z0);
@@ -460,7 +510,7 @@ export class VoiceEngine {
       tp.a0 = Math.max(0.0, sp.restArea) * s2 + (p.voicing ? 0 : 0.2);
       tp.d1 = 0.25 * p.anatomy.scale;
       tp.q = sp.tensionAuto ? this.tmQ : sp.q;
-      const uf = this.tm.step(dt, p.voicing ? ps : 0, po, wg.pMinus, z0, this.uMean) * this.gate;
+      const uf = this.tm.step(dt, p.voicing ? ps : 0, po, wg.pMinus, z0, this.uMean) * gate;
       ag = Math.max(0, this.tm.amin) + steadyArea;
       u = uf + steadyArea * vg;
       this.uMean = this.uMeanCoef * this.uMean + (1 - this.uMeanCoef) * uf;
@@ -503,10 +553,11 @@ export class VoiceEngine {
       asp = amp * this.aspNoise.next();
     }
     // flow modulation of the supraglottal sources: the glottal pulses pass through the constriction
-    const ug = this.aero.ug;
+    const ug = this.rUg.at(ph);
     const mod = ug > 1 ? Math.min(3, Math.pow(Math.max(0, u) / Math.max(ug, 1), 1.5)) : 1;
-    const wall = this.wallAmp > 0 ? this.wallAmp * mod * this.wallNoise.next() : 0;
-    const obs = this.obsAmp > 0 ? this.obsAmp * mod * this.obsNoise.next() : 0;
+    const wallAmp = this.rWall.at(ph), obsAmp = this.rObs.at(ph);
+    const wall = wallAmp > 0 ? wallAmp * mod * this.wallNoise.next() : 0;
+    const obs = obsAmp > 0 ? obsAmp * mod * this.obsNoise.next() : 0;
     let user = 0;
     if (this.userAmp > 0) {
       const fl = p.source.peakArea > 0 ? Math.min(2, u / Math.max(p.source.peakArea * s2 * vg, 1)) : 0;
@@ -525,7 +576,7 @@ export class VoiceEngine {
     // release transient: the fast part of the mouth flow injected at the constriction
     // (the aerodynamic flow is updated at the control rate: smooth it to
     // remove the staircase, keeping the millisecond-scale release transient)
-    this.mouthNow += (this.aero.uMouth - this.mouthNow) * this.mouthCoef;
+    this.mouthNow += (this.rMouth.at(ph) - this.mouthNow) * this.mouthCoef;
     if (n.burstOn) {
       this.mouthSlow += (this.mouthNow - this.mouthSlow) * this.slowCoef;
       wg.monoJunction = Math.min(N_SECTIONS - 2, this.constrictionIndex);
@@ -672,6 +723,7 @@ export class VoiceEngine {
     this.tam.ps.set(ps);
     this.psCur = ps * CMH2O;
     this.psNow = this.psCur;
+    this.rPs.snap(this.psCur);
   }
 
   get tractRate(): number { return this.fsT; }

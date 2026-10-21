@@ -3,6 +3,8 @@
  * timing, pitch range and levels; with a folder argument it also writes WAVs.
  *   npx tsx scripts/say.ts [outDir] [--flat]
  *   npx tsx scripts/say.ts outDir en "any English sentence"
+ * --woman uses the woman preset of the source panel (210 Hz, shorter tract);
+ * ACCENT=5 sets the pitch-accent height in semitones.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -17,6 +19,7 @@ setEnglishLexicon(gunzipSync(readFileSync(new URL('../public/lexicon/en-us.lex',
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const SP = args[0];
 const flat = process.argv.includes('--flat');
+const woman = process.argv.includes('--woman');
 const natural: Partial<NaturalnessOptions> = flat ? { timing: false, intonation: false, micro: false, voiceQuality: false, coarticulation: true } : {};
 const items: [string, 'it' | 'en'][] = args[1] && args[2]
   ? [[args.slice(2).join(' '), args[1] as 'it' | 'en']]
@@ -25,8 +28,9 @@ const items: [string, 'it' | 'en'][] = args[1] && args[2]
     ['Is it raining in the city today?', 'en'], ['The little button on the water bottle', 'en']];
 for (const [t, lang] of items) {
   const ph = textToPhones(t, lang);
-  const sc = buildScore(ph, { lang, natural });
   const p = defaultParams();
+  if (woman) { p.anatomy.scale = 0.87; p.anatomy.pharynx = 0.86; p.source.f0 = 210; p.source.rd = 1.3; p.source.chink = 0.03; p.source.peakArea = 0.09; }
+  const sc = buildScore(ph, { lang, natural, f0: p.source.f0, ...(process.env.ACCENT ? { accent: Number(process.env.ACCENT) } : {}) });
   const t0 = performance.now();
   const { out } = renderOffline(p, sc.duration + 0.3, 48000, sc);
   let mx = 0, bad = 0;
@@ -36,5 +40,5 @@ for (const [t, lang] of items) {
   void syl;
   console.log(`${t}  [${lang}]  ${sc.duration.toFixed(2)} s, F0 ${Math.min(...f0s).toFixed(0)}-${Math.max(...f0s).toFixed(0)} Hz, peak ${mx.toFixed(2)}, bad ${bad}, ${(performance.now() - t0).toFixed(0)} ms`);
   console.log('   ' + sc.phones.map((q) => `${q.ipa}${Math.round((q.t1 - q.t0) * 1000)}`).join(' '));
-  if (SP) writeFileSync(`${SP}/${flat ? 'flat-' : ''}${t.replace(/[^a-zà-ú]+/gi, '_').slice(0, 24)}.wav`, encodeWav(out, 48000));
+  if (SP) writeFileSync(`${SP}/${flat ? 'flat-' : ''}${woman ? 'w-' : ''}${t.replace(/[^a-zà-ú]+/gi, '_').slice(0, 24)}.wav`, encodeWav(out, 48000));
 }

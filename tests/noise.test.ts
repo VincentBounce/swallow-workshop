@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderOffline } from '../src/dsp/engine/engine';
+import { renderOffline, VoiceEngine } from '../src/dsp/engine/engine';
 import { defaultParams, EngineParams } from '../src/dsp/engine/params';
 import { PHONEMES } from '../src/dsp/speech/phonemes';
 import { ShapedNoise, colourCurve } from '../src/dsp/noise/noise';
@@ -82,6 +82,32 @@ describe('breathy voice and pulsed aspiration', () => {
     const rModal = ratio(modal), rBreathy = ratio(breathy);
     note('breathiness', `HF/LF energy ratio rises by ${(10 * Math.log10(rBreathy / rModal)).toFixed(1)} dB with a 0.12 cm^2 chink and Rd 2.2`);
     expect(rBreathy).toBeGreaterThan(rModal);
+  });
+
+  it('shimmer and jitter leave no clicks at the period boundaries', () => {
+    // a new period amplitude must not shift the subtracted pulse mean in one step
+    const off = (p: EngineParams) => { p.noise.aspirationOn = false; };
+    const hf = (x: Float32Array) => bandPower(x, fs, 8000, 16000) / bandPower(x, fs, 80, 1000);
+    const clean = hf(render('a', (p) => { off(p); p.source.jitter = 0; p.source.shimmer = 0; }));
+    const shaky = hf(render('a', (p) => { off(p); p.source.jitter = 1; p.source.shimmer = 6; }));
+    const d = 10 * Math.log10(shaky / clean);
+    note('period boundaries', `8-16 kHz energy with jitter 1 % and shimmer 6 %: ${d >= 0 ? '+' : ''}${d.toFixed(1)} dB re a steady voice`);
+    expect(d).toBeLessThan(3);
+  });
+
+  it('a voice onset has no comb at the 1.5 kHz control rate', () => {
+    // lungs and folds start from rest: the control values change quickly, and
+    // held as steps they would modulate the pulses at 1.5 kHz
+    const p = phonemeParams('a');
+    p.noise.aspirationOn = false;
+    const e = new VoiceEngine(fs, p);
+    e.snapArticulators();
+    const x = new Float32Array(Math.round(0.06 * fs));
+    for (let i = 0; i < x.length; i += 128) e.process(x.subarray(i, Math.min(x.length, i + 128)));
+    const onset = x.subarray(0, Math.round(0.05 * fs));
+    const d = 10 * Math.log10(bandPower(onset, fs, 3000, 8000, 1024) / bandPower(onset, fs, 80, 1000, 1024));
+    note('control rate', `voice onset: 3-8 kHz ${d.toFixed(1)} dB re 0-1 kHz`);
+    expect(d).toBeLessThan(-18);
   });
 
   it('aspiration noise is modulated by the glottal cycle when pulsed', () => {

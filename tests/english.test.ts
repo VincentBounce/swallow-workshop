@@ -68,6 +68,16 @@ describe('English sounds in the tract model', () => {
     expect(er[2]).toBeLessThan(1850);
     expect(Math.abs(Math.log(er[1] / 1350))).toBeLessThan(0.12);
   });
+  it('American r and the r-coloured vowels stay open enough not to hiss', () => {
+    // narrowest passage on the fine grid the aerodynamics uses
+    const minArea = (ipa: string) => {
+      const g = computeGeometry({ ...DEFAULT_ARTICULATORS, ...PHONEMES['ə'].art, ...PHONEMES[ipa].art }, DEFAULT_ANATOMY, DEFAULT_TEETH);
+      let m = Infinity;
+      for (let i = 0; i <= g.lastRay; i++) if (g.s[i] >= 2.6) m = Math.min(m, g.hits[i].area);
+      return m;
+    };
+    for (const ph of ['ɹ', 'ɝ', 'ɚ']) expect(minArea(ph)).toBeGreaterThan(0.28);
+  });
   it('dark l has a lower F2 than clear l', () => {
     const clear = formantsOf('l'), dark = formantsOf('ɫ');
     note('dark l', `F2 clear ${clear[1].toFixed(0)} Hz, dark ${dark[1].toFixed(0)} Hz`);

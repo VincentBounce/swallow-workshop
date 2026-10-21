@@ -54,7 +54,7 @@ export const VOWELS: Record<string, Phoneme> = {
   'ʌ': V('ʌ', { jaw: 0.6, tongueX: -0.43, tongueY: -0.38, lipOpen: 0.38, lipRound: 0.21, lipProtrude: 0.32 }, 'hud'),
   // r-coloured vowel of "heard": a bunched or retroflex tongue with the tip up
   // and back plus rounded lips pull F3 down to about 1700 Hz (scripts/tune-rhotic.ts)
-  'ɝ': V('ɝ', { jaw: 0.31, tongueX: -0.52, tongueY: -0.42, tipX: -0.52, tipY: 2.2, lipOpen: 0.31, lipRound: 0.28, lipProtrude: 0.55 }, 'heard, bird', 0.16),
+  'ɝ': V('ɝ', { jaw: 0.317, tongueX: -0.459, tongueY: -0.939, tipX: -0.687, tipY: 2.2, lipOpen: 0.293, lipRound: 0.278, lipProtrude: 1 }, 'heard, bird', 0.16),
 };
 
 /** Sounds used by the speech sequencer that cannot be held as a steady shape. */
@@ -83,7 +83,8 @@ export const CONSONANTS: Record<string, Phoneme> = {
   v: C('v', 'fricative', true, { jaw: 0.12, lipOpen: 0.522, lipTuck: 1, lipRound: 0, lipProtrude: 0, velum: 0 }, 0.12, 0.08, 'voce'),
   'θ': C('θ', 'fricative', false, { jaw: 0.2, tipX: 1.05, tipY: 0.1, groove: 0, lipOpen: 0.25, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'thin'),
   'ð': C('ð', 'fricative', true, { jaw: 0.2, tipX: 1.05, tipY: 0.1, groove: 0, lipOpen: 0.25, lipTuck: 0, velum: 0 }, 0.12, 0.07, 'this'),
-  h: C('h', 'glottal', false, {}, 0.75, 0.08, 'heed, hiss'),
+  // glottis open about 0.27 cm^2: between vowels the folds keep flapping (breathy [ɦ])
+  h: C('h', 'glottal', false, {}, 0.5, 0.08, 'heed, hiss'),
   // stops
   p: C('p', 'stop', false, { jaw: 0.3, lipOpen: -0.35, lipTuck: 0, velum: 0 }, 0.5, 0.09, 'papà'),
   b: C('b', 'stop', true, { jaw: 0.3, lipOpen: -0.35, lipTuck: 0, velum: 0 }, 0.08, 0.07, 'buzz'),
@@ -104,8 +105,9 @@ export const CONSONANTS: Record<string, Phoneme> = {
   // the tip rests just below the alveolar ridge; the sequencer adds the fast
   // contacts (about 26 per second, Recasens 1991) on top of this posture
   r: C('r', 'trill', true, { jaw: 0.15, tipX: 0.25, tipY: 1.25, groove: 0, velum: 0 }, 0, 0.08, 'raro (trill)'),
-  // American r: tip up and back, tongue body back, lips a little rounded: F3 about 1600 Hz
-  'ɹ': C('ɹ', 'approximant', true, { jaw: 0.16, tongueX: -0.75, tongueY: 0.13, tipX: -0.48, tipY: 2.03, lipOpen: 0.2, lipRound: 0.45, lipProtrude: 0, velum: 0 }, 0, 0.08, 'red'),
+  // American r: tip up and back, tongue body low and back, lips rounded: F3
+  // about 1600 Hz with the passage kept at 0.3 cm^2, so it does not hiss
+  'ɹ': C('ɹ', 'approximant', true, { jaw: 0.2, tongueX: -0.707, tongueY: -0.975, tipX: -0.97, tipY: 2.197, lipOpen: 0.197, lipRound: 0.81, lipProtrude: 0.332, velum: 0 }, 0, 0.08, 'red'),
   j: C('j', 'approximant', true, { jaw: 0.06, tongueX: 1.0, tongueY: 0.925, lipRound: 0, velum: 0 }, 0, 0.06, 'ieri, yes'),
   w: C('w', 'approximant', true, { jaw: 0.1, tongueX: -0.8, tongueY: 0.3, lipOpen: -0.08, lipRound: 1, lipProtrude: 0.8, velum: 0 }, 0, 0.06, 'uomo, we'),
   // affricates

@@ -66,7 +66,7 @@ export interface ProsodyOptions {
 /** Options of buildScore: any prosody option, and any subset of the naturalness ingredients. */
 export type ScoreOptions = Partial<Omit<ProsodyOptions, 'natural'>> & { natural?: Partial<NaturalnessOptions> };
 
-export const DEFAULT_PROSODY: ProsodyOptions = { f0: 120, accent: 3, rate: 1, ps: 8, lang: 'it', lead: 0.03, natural: NATURAL_ALL };
+export const DEFAULT_PROSODY: ProsodyOptions = { f0: 120, accent: 5, rate: 1, ps: 8, lang: 'it', lead: 0.03, natural: NATURAL_ALL };
 
 type Part = 'closure' | 'release' | 'aspiration';
 
@@ -350,7 +350,8 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
         t += dur;
       }
     }
-    if (u.p.pause) {
+    // a pause inside the utterance; after the last sound the voice simply stops
+    if (u.p.pause && i < units.length - 1) {
       const d = (u.p.pause === 'long' ? 0.3 : 0.16) / rate;
       segs.push({ ipa: '_', ph: PHONEMES._, t0: t, t1: t + d, unit: i, label: '_' });
       t += d;
@@ -431,9 +432,12 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
 
   // ---------------------------------------------------------------- melody
   const vowelSeg = (ui: number) => segs.find((s) => s.unit === ui && s.ph.manner === 'vowel');
+  const sylStart = (ui: number) => segs.find((s) => units[s.unit].syl === units[ui].syl)?.t0 ?? 0;
   const phraseCmds: { t: number; a: number }[] = [];
   const accentCmds: Command[] = [];
-  const betaAcc = en ? 24 : 18;
+  // accent commands must last long enough for the step response to get near
+  // its top (1 - (1 + βt) e^(-βt) is 0.8 at βt = 3), or short syllables lose their accent
+  const betaAcc = en ? 26 : 28;
   {
     // phrases
     let phraseStart = 0;
@@ -460,22 +464,26 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
         // a yes/no question has a low nuclear accent before its final rise
         if (nuclear && yesNo) a = 0;
         if (en) {
-          // English H*: rise during the stressed vowel, peak inside it
-          if (a > 0) accentCmds.push({ t1: vs.t0 - 0.09, t2: vs.t1 - 0.03, a, beta: betaAcc });
+          // English H*: rise through the stressed syllable, peak inside its vowel
+          const t2 = vs.t1 - 0.03;
+          if (a > 0) accentCmds.push({ t1: Math.min(sylStart(j) - 0.03, t2 - 0.17), t2, a, beta: betaAcc });
         } else if (nuclear && !yesNo && boundary !== 'comma') {
           // Italian statement nucleus H+L*: high on the syllable before, falling onto the stressed one
           accentCmds.push({ t1: vs.t0 - 0.24, t2: vs.t0 + 0.02, a: a * 1.1, beta: betaAcc });
         } else if (a > 0) {
-          // Italian L+H*: the rise starts with the stressed vowel and peaks late
-          accentCmds.push({ t1: vs.t0 - 0.03, t2: vs.t1 + 0.04, a, beta: betaAcc });
+          // Italian L+H*: the rise starts with the stressed vowel and peaks late,
+          // still inside it (a peak on the next voiceless consonant is not heard)
+          const t2 = vs.t1 - 0.015;
+          accentCmds.push({ t1: Math.min(vs.t0 - 0.03, t2 - 0.13), t2, a, beta: betaAcc });
         }
-        height *= 0.82; // downstep
+        // downstep: each accent a little lower than the one before, never below 60 %
+        height = Math.max(0.6 * o.accent * ST, height * 0.9);
       });
       // boundary tones
       const lv = lastV >= 0 ? vowelSeg(lastV) : undefined;
       const endT = segs.filter((s) => s.unit <= i).reduce((m, s) => Math.max(m, s.t1), 0);
       if (lv) {
-        if (yesNo) accentCmds.push({ t1: lv.t0 - 0.06, t2: endT + 0.2, a: 0.42, beta: 14 });
+        if (yesNo) accentCmds.push({ t1: lv.t0 - 0.1, t2: endT + 0.2, a: 0.5, beta: 16 });
         else if (boundary === 'comma') accentCmds.push({ t1: lv.t0, t2: endT + 0.1, a: 0.13, beta: 16 });
         else accentCmds.push({ t1: lv.t0 - 0.02, t2: endT + 0.2, a: -0.13, beta: 12 }); // final lowering
       }
@@ -550,11 +558,14 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
     const sg = segAt(time + 0.01);
     let abd = 0;
     let gate = 1;
-    if (!sg) abd = time < 0.06 ? 0.25 : 0.9;
+    // before the first sound the folds are already together, ready to vibrate
+    // (no breathy [h] onset); after the last one they part a little while the
+    // lungs stop pushing, so the voice ends without a hiss of escaping air
+    if (!sg) abd = time < 0.06 ? 0.08 : 0.4;
     else {
       const m = sg.ph.manner;
       const unit = units[sg.unit];
-      if (m === 'silence') abd = 0.9;
+      if (m === 'silence') abd = 0.6;
       else if (m === 'glottalStop') { abd = 0; gate = 0; }
       else if (m === 'stop' && !sg.ph.voiced) {
         // the stop part of an affricate keeps the glottis open into its hiss
@@ -585,7 +596,8 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
           if (d >= 0 && d < 0.28) { const e = 1 - d / 0.28; ps *= 1 - 0.18 * e; rd += 0.55 * e; }
         }
       }
-      if (sg?.ph.manner === 'silence' && sg.t1 - sg.t0 > 0.1 && time > sg.t0 + 0.04 && time < sg.t1 - 0.06) ps *= 0.25;
+      // a pause is quiet: the lungs hold back instead of blowing through the open glottis
+      if (sg?.ph.manner === 'silence' && sg.t1 - sg.t0 > 0.1 && time > sg.t0 + 0.04 && time < sg.t1 - 0.06) ps *= 0.08;
     }
     frames.push({ t: time, art, abduction: abd, f0: f0At(time), ps, tip: tipAt(time), rd, gate });
   }
@@ -595,7 +607,10 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
     if (prev && prev.ipa === s.label && (s.part === 'release' || s.part === 'aspiration' || units[s.unit].ph.manner === 'affricate') && sp.length && segs[segs.indexOf(s) - 1]?.unit === s.unit) { prev.t1 = s.t1; continue; }
     sp.push({ ipa: s.label, t0: s.t0, t1: s.t1 });
   }
-  return { frames, phones: sp, duration, flutter: nat.micro ? 25 : 0 };
+  // the melody is already a smooth curve (Fujisaki's filters, the drawn
+  // contour): the engine only rounds off the 5 ms frame steps, without the
+  // slower glide it gives to a slider, which would shave the accent peaks
+  return { frames, phones: sp, duration, flutter: nat.micro ? 25 : 0, f0Tau: 0.006 };
 }
 
 /** A sustained vowel or a glide between targets, for the singing / A-B demos. */

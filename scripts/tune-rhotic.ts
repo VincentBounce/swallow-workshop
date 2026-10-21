@@ -35,13 +35,16 @@ const toArt = (x: number[]): Articulators => {
   });
   return a;
 };
+/** Narrowest oral passage on the fine grid of the geometry, as the engine's aerodynamics sees it. */
 const minArea = (a: Articulators): number => {
   const g = computeGeometry(a, DEFAULT_ANATOMY, DEFAULT_TEETH);
-  const af = sectionsFromGeometry(g);
   let m = Infinity;
-  for (let i = 3; i < af.areas.length; i++) m = Math.min(m, af.areas[i]);
+  for (let i = 0; i <= g.lastRay; i++) if (g.s[i] >= 2.6) m = Math.min(m, g.hits[i].area);
+  if (g.slit.area < m && g.teethPos > 0) m = g.slit.area;
   return m;
 };
+// an approximant must stay open enough not to hiss: about 0.3 cm^2 (Stevens 1998, glides 0.17-0.3)
+const MIN_OPEN = Number(process.env.MIN_OPEN ?? 0.3);
 const cost = (x: number[]): number => {
   const a = toArt(x);
   const f = evalFormants(a);
@@ -49,9 +52,8 @@ const cost = (x: number[]): number => {
   const w = [1, 1, 2];
   let c = 0;
   for (let k = 0; k < 3; k++) c += w[k] * Math.log(f[k] / target[k]) ** 2;
-  // an approximant: no constriction narrower than 0.15 cm^2 (otherwise it hisses)
   const m = minArea(a);
-  const pen = m < 0.15 ? ((0.15 - m) / 0.05) ** 2 : 0;
+  const pen = m < MIN_OPEN ? ((MIN_OPEN - m) / 0.03) ** 2 : 0;
   let reg = 0;
   x.forEach((xi, i) => { reg += (xi - x0[i]) ** 2; });
   return c + 0.002 * reg + 0.05 * pen;

@@ -74,7 +74,7 @@ class Store {
     lang: initialLang(), mode: 'lab', chapter: 0, controlTab: 'source', viewTab: 'chart', specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
     speaking: null, info: null, numbers: false,
-    speech: { text: '', lang: 'en', rate: 1, accent: 3, natural: { ...NATURAL_ALL } },
+    speech: { text: '', lang: 'en', rate: 1, accent: 5, natural: { ...NATURAL_ALL } },
     lexicon: 'idle',
   };
   telemetry: Telemetry | null = null;

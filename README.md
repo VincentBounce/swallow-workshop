@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 59 automated tests (physics, speech, analysis)
+npm test           # 64 automated tests (physics, speech, analysis)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -131,6 +131,9 @@ tp = 1/(2 Rg), te = tp (1 + Rk), ta = Ra. Rd 0.3-0.7 is pressed, about 1 modal,
 jitter, shimmer and alternate-cycle diplophonia, a posterior chink (incomplete
 closure) and vibrato complete the source. Only the AC part of the pulse train
 is injected into the tract; the mean flow belongs to the aerodynamic model.
+That mean glides over 3 ms: subtracted in one step at each new period (a
+shimmer amplitude, a new Rd), it would put a small click on every period, a
+broadband fizz above 5 kHz.
 
 **Two-mass model** (Ishizaka & Flanagan 1972, in the asymmetric form of
 Steinecke & Herzel 1995):
@@ -159,7 +162,11 @@ the constriction has a compliance C (mostly its walls),
 This gives intraoral pressure build-up in closures, the release of stops, and
 the aerodynamic limit of voicing (no transglottal pressure, no vibration).
 Lung and intraoral pressures are smoothed per sample, so a closure never
-produces steps.
+produces steps. Everything the sample loop takes from the control rate
+(pressures, mouth flow, voicing amplitude, glottal opening, the glottal-stop
+gate, the noise levels) is carried as a straight line across each 32-sample
+control period: held as steps, it would modulate the glottal pulses at
+1.5 kHz and leave a comb of whistles at its multiples.
 
 ### Vocal tract
 
@@ -259,7 +266,9 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   & Barney (1952) where available, Hillenbrand et al. (1995) for Italian
   /e o/, Italian /a/ between /æ/ and /ɑ/, and the uniform tube for /ə/. The
   American /ɹ/ and /ɝ/ have the tip up and back with rounded lips, which
-  pulls F3 down to about 1600-1750 Hz (scripts/tune-rhotic.ts); the dark /ɫ/
+  pulls F3 down to about 1600-1750 Hz (scripts/tune-rhotic.ts), with the
+  narrowest passage kept at 0.3 cm² on the fine grid the aerodynamics uses:
+  narrower, the jet turns them into fricatives that hiss; the dark /ɫ/
   of English codas backs the tongue body (F2 about 1000 Hz). Gestures that
   cannot be held: the tap /ɾ/ (one flick of the tongue tip) and the glottal
   stop /ʔ/ (the folds pressed shut).
@@ -295,9 +304,15 @@ sibilants. The teeth panel draws the front and side views with the live jet.
     + phrase commands (impulses through α² t e^(-αt), α = 2/s: the slow rise
     and declination of each phrase) + accent commands (steps through
     1 - (1 + βt) e^(-βt), capped at 0.9) on the stressed syllables of content
-    words, with downstep. English accents peak inside the stressed vowel;
-    Italian prenuclear accents peak late (L+H*) and the statement nucleus
-    falls onto the stressed syllable (H+L*). Statements end with a final
+    words, 5 semitones by default, with a gentle downstep (x0.9 per accent,
+    never below 60 %). Each command lasts at least 130-170 ms, so that short
+    syllables still reach their peak. English accents rise through the
+    stressed syllable and peak inside its vowel; Italian prenuclear accents
+    peak late (L+H*), at the end of the vowel rather than on the next
+    consonant, where a voiceless sound would hide them; the statement nucleus
+    falls onto the stressed syllable (H+L*). The engine follows this curve
+    with only a 6 ms smoothing (a slider gets 25 ms), so the accents keep
+    their height. Statements end with a final
     lowering, yes/no questions rise, questions with a question word fall, a
     comma leaves a small continuation rise.
   - *Micro-variation*: intrinsic F0 of vowels (+0.7 st for i u, -0.5 st for
@@ -307,7 +322,10 @@ sibilants. The teeth panel draws the front and side views with the live jet.
     2π 12.7 t + sin 2π 7.1 t + sin 2π 4.7 t)), FL = 25.
   - *Voice quality*: more lung pressure (+14 %) and a tenser source (Rd -0.12)
     on stressed syllables; lower pressure and a breathier source (Rd +0.55)
-    over the last 280 ms of each phrase; quiet pauses.
+    over the last 280 ms of each phrase; quiet pauses (the lungs hold back
+    instead of blowing through the open glottis). The utterance starts with
+    the folds already together, so there is no breathy onset, and ends when
+    the last sound ends, without a trailing breath.
   - *Coarticulation*: consonants only set the articulators they need; the
     others are interpolated from the neighbouring vowels (Öhman 1966), so lips
     round ahead of /u/ and the tongue glides through /p/. Off: every sound
@@ -378,20 +396,23 @@ in brackets are the adult male targets described under Speech.
 | /ʃ/ | peak 3797 Hz, centroid 3027 Hz, -2.4 dB re /a/ |
 | /f/ | centroid 6543 Hz, flat (2-10 kHz spread 9.9 dB vs 15.8 dB for /s/), -19.5 dB re /a/, -9.7 dB re /s/ |
 | Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 19.0 dB |
-| Breathiness | HF/LF ratio +11.5 dB with a 0.12 cm² chink and Rd 2.2 |
-| Aspiration | F0 envelope modulation depth: steady 0.043, pulsed 0.591 |
+| Breathiness | HF/LF ratio +18.8 dB with a 0.12 cm² chink and Rd 2.2 |
+| Aspiration | F0 envelope modulation depth: steady 0.043, pulsed 0.598 |
+| Period boundaries | jitter 1 % and shimmer 6 % change the 8-16 kHz energy by +0.1 dB (+32 dB when the pulse mean jumped at each period) |
+| Control rate | voice onset from rest: 3-8 kHz at -40.5 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF -6.3 dB in /sː/ vs -32.2 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.8 dB vs -10.9 dB in the vowel |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF -6.1 dB in /sː/ vs -34.1 dB in /a/ |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -33.2 dB vs -11.0 dB in the vowel |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
-| American r | /ɹ/ 416 / 1151 / 1591 Hz, /ɝ/ 464 / 1290 / 1744 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690) |
+| American r | /ɹ/ 420 / 1140 / 1608 Hz, /ɝ/ 474 / 1307 / 1758 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690), narrowest passage 0.3 cm² (no hiss) |
 | Dark l | F2 clear /l/ 1497 Hz, dark /ɫ/ 985 Hz |
 | Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
 | Voice onset time | /t/ English 69 ms, Italian 9 ms (typical 60-70 and 10-25 ms) |
 | Trill and tap | tongue-tip closures: "carro" 3, "caro" 1 |
-| Fujisaki intonation | final F0: statement 105 Hz, wh-question 101 Hz, yes/no question 163 Hz (base 120 Hz) |
+| Fujisaki intonation | final F0: statement 105 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
+| Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.61 st (90 %), 2.0 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
 
 ## Simplifications and limits
@@ -405,8 +426,9 @@ in brackets are the adult male targets described under Speech.
   spectra; the jet is not simulated as a flow field.
 - The nasal branch has a fixed number of sections that scales with the
   speaker; left and right passages are merged; only two sinus pairs.
-- The slow aerodynamics run at control rate (every 32 samples) with per-sample
-  smoothing; a strong closure damping term keeps closed cavities stable.
+- The slow aerodynamics run at control rate (every 32 samples), ramped
+  linearly in the sample loop; a strong closure damping term keeps closed
+  cavities stable.
 - The two-mass model is the 4-mass asymmetric form without collision
   dynamics beyond the contact spring.
 - English pronunciation is American only; unknown words use letter-to-sound
@@ -467,6 +489,12 @@ npx tsx scripts/g2p.ts en "the water bottle"    # phones of a text and where eac
 npx tsx scripts/trace.ts it "il carro"          # every 2 ms: phone, constriction area, oral pressure, voicing
 npx tsx scripts/build-lexicon.ts us_gold.json   # rebuild public/lexicon/en-us.lex
 npx tsx scripts/tune-rhotic.ts 490,1350,1690 ɹ  # fit an articulation to F1/F2/F3 with tip and lips free
+npx tsx scripts/areas.ts ɹ ɝ j l w              # narrowest passage and formants of each phoneme's posture
+npx tsx scripts/melody.ts en "is it raining?"   # planned F0 at each phone
+npx tsx scripts/noisemap.ts en "every voice"    # level of each noise source per phone
+npx tsx scripts/pitch.ts a.wav b.wav            # pitch track, level and F0 spread of recordings
+npx tsx scripts/hnr.ts a.wav b.wav              # harmonics-to-noise ratio, full band and above 2 kHz
+npx tsx scripts/specpng.ts out.png a.wav b.wav  # stacked spectrograms with pitch tracks
 npx tsx scripts/explore.ts a out.wav   # one phoneme: level, F0, LPC formants
 npx tsx scripts/tune-vowels.ts         # fit vowel articulations to reference formants
 npx tsx scripts/tune-consonants.ts     # consonant tuning helper

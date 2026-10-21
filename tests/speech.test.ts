@@ -191,6 +191,43 @@ describe('timing, melody and gestures of sequenced speech', () => {
     expect(wh).toBeLessThan(yn * 0.8);
   });
 
+  it('the accents of a long sentence keep their height, in the plan and in the voice', () => {
+    const text = 'Every voice you have ever heard is made of just two ingredients.';
+    const s = buildScore(textToPhones(text, 'en'), { lang: 'en', f0: 210 });
+    const f0s = s.frames.filter((f) => f.t > 0.06 && f.t < s.duration - 0.05).map((f) => f.f0);
+    const range = 12 * Math.log2(Math.max(...f0s) / Math.min(...f0s));
+    // the engine follows the planned curve closely (the score asks for a
+    // short F0 smoothing): the 90th percentile of its distance from the plan
+    const follow = (sc: typeof s) => {
+      const p = defaultParams();
+      p.source.f0 = 210; p.source.jitter = 0;
+      const e = new VoiceEngine(fs, p);
+      e.snapArticulators(); e.snapPressure(); e.playScore({ ...sc, flutter: 0 });
+      const buf = new Float32Array(96);
+      const err: number[] = [];
+      for (let t = 0; t < sc.duration; t += 96 / fs) {
+        e.process(buf, 96);
+        const tel = e.telemetry();
+        const fr = sc.frames[Math.min(sc.frames.length - 1, Math.round(t / 0.005))];
+        if (tel.f0 > 0 && t > 0.1) err.push(Math.abs(12 * Math.log2(tel.f0 / fr.f0)));
+      }
+      err.sort((a, b) => a - b);
+      return err[Math.floor(err.length * 0.9)];
+    };
+    const fast = follow(s), slow = follow({ ...s, f0Tau: undefined });
+    note('melody', `planned F0 range ${range.toFixed(1)} st in a 12-syllable sentence; the voice follows within ${fast.toFixed(2)} st (90 %), ${slow.toFixed(2)} st with the slider smoothing`);
+    expect(range).toBeGreaterThan(7);
+    expect(fast).toBeLessThan(0.8);
+    expect(fast).toBeLessThan(slow / 2);
+  });
+
+  it('an utterance ends with its last sound, without a trailing breath', () => {
+    const s = buildScore(textToPhones('is it raining in the city today?', 'en'), { lang: 'en' });
+    const last = s.phones[s.phones.length - 1];
+    expect(last.ipa).not.toBe('_');
+    expect(s.duration - last.t1).toBeLessThan(0.06);
+  });
+
   it('a glottal stop closes the folds ("button")', () => {
     const s = buildScore(textToPhones('button', 'en'), { lang: 'en' });
     expect(s.frames.some((f) => f.gate === 0)).toBe(true);

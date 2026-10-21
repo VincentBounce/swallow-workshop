@@ -199,4 +199,6 @@ export interface Score {
   duration: number;
   /** slow random wander of F0 while the score plays (Klatt's flutter, 0..100; 25 is natural) */
   flutter?: number;
+  /** time constant (s) of the F0 smoothing while the score plays, when its contour is already smooth */
+  f0Tau?: number;
 }
