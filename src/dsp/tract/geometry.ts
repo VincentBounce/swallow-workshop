@@ -446,6 +446,13 @@ function makeXf(an: Anatomy, a: Articulators): Xf {
   return { k: lp / BEND_Y, s: an.scale * CANON_SCALE };
 }
 
+/** A speaker's size (world cm per canonical cm) and the vertical stretch of
+ *  the canonical drawing below BEND_Y (the pharynx length and the larynx height). */
+export function canonTransform(an: Anatomy, a: Articulators): { s: number; k: number } {
+  const xf = makeXf(an, a);
+  return { s: xf.s, k: xf.k };
+}
+
 function xfPts(pts: number[], xf: Xf): number[] {
   const out = new Array<number>(pts.length);
   for (let i = 0; i < pts.length; i += 2) {

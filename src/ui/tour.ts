@@ -17,7 +17,9 @@ type Bi = { it: string; en: string };
 export interface TourAction { label: Bi; run: () => void }
 /** The quick controls a chapter shows next to the head in the Learn mode. */
 export type QuickId = 'vowels' | 'consonants' | 'fricatives' | 'nasals' | 'pitch' | 'voices' | 'say' | 'mri' | 'nose';
-export interface Chapter { title: Bi; kicker: Bi; paragraphs: Bi[]; actions: TourAction[]; experiments?: GuidedExperiment[]; quick?: QuickId[] }
+/** A hint the Learn mode draws on the head: the handle to drag, and what to do with it. */
+export interface HeadGuide { handle: 'tongue' | 'tip' | 'jaw' | 'lips' | 'velum'; text: Bi }
+export interface Chapter { title: Bi; kicker: Bi; paragraphs: Bi[]; actions: TourAction[]; experiments?: GuidedExperiment[]; quick?: QuickId[]; guide?: HeadGuide }
 
 /*
  * Every action of the tour is an explicit choice of the reader, so it takes
@@ -542,10 +544,22 @@ const QUICK: QuickId[][] = [
   ['vowels', 'pitch'], ['pitch', 'vowels'], ['pitch', 'voices'], ['vowels', 'voices'], ['vowels', 'pitch'], ['fricatives', 'voices'],
   ['say', 'vowels'], ['nasals', 'nose'], ['mri', 'vowels'], ['say'], ['say', 'voices'], [],
 ];
+/** The hint on the head in each chapter, in order (none where the chapter is not about a hand). */
+const GUIDES: (HeadGuide | undefined)[] = [
+  { handle: 'tongue', text: { it: 'Trascina la lingua', en: 'Drag the tongue' } },
+  undefined,
+  undefined,
+  { handle: 'jaw', text: { it: 'Apri la mascella', en: 'Open the jaw' } },
+  { handle: 'tongue', text: { it: 'Trascina la lingua', en: 'Drag the tongue' } },
+  { handle: 'tip', text: { it: 'Alza la punta', en: 'Raise the tip' } },
+  { handle: 'lips', text: { it: 'Chiudi le labbra', en: 'Close the lips' } },
+  { handle: 'velum', text: { it: 'Abbassa il velo', en: 'Lower the velum' } },
+];
 const cancelling = (a: TourAction): TourAction => ({ ...a, run: () => { pending?.(); pending = null; a.run(); } });
 export const CHAPTERS: Chapter[] = CHAPTER_LIST.map((c, i) => ({
   ...c,
   quick: QUICK[i] ?? [],
+  guide: GUIDES[i],
   actions: c.actions.map(cancelling),
   experiments: c.experiments?.map((e) => ({ ...e, steps: e.steps.map(cancelling) })),
 }));

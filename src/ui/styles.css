@@ -240,6 +240,8 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 .vf-body { position: relative; flex: 1; min-height: 0; }
 .view-frame.max { position: fixed; inset: 104px 16px 16px; z-index: 30; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.65); }
 .head-view { position: relative; height: 100%; min-height: 0; }
+/* over the painted head the buttons need a ground of their own */
+.head-view .overlay-top .seg, .head-view .overlay-top .chip { background: rgba(11,14,20,0.82); backdrop-filter: blur(3px); }
 
 /* ------------------------------------------------------------ quick controls (Learn, Play) */
 .quick { display: flex; flex-wrap: wrap; gap: 10px 26px; align-items: center; padding: 10px 14px; background: #0f141d; border: 1px solid var(--line); border-radius: 10px; }

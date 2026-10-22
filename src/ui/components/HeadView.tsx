@@ -9,11 +9,21 @@ import { useAnimatedCanvas, C, fieldColor, label } from '../canvas';
 import {
   canonToWorld, tongueOffsetFromWorld, tipOffsetFromWorld, velumFromWorld, velumTip, GEOMETRY_CONST, TractGeometry, Solid,
 } from '../../dsp/tract/geometry';
-import { Articulators, ARTICULATOR_RANGES, Teeth } from '../../dsp/tract/types';
+import { Anatomy, Articulators, ARTICULATOR_RANGES, Teeth } from '../../dsp/tract/types';
 import { N_SECTIONS } from '../../dsp/tract/areaFunction';
 import type { Telemetry } from '../../dsp/engine/engine';
+import { HEAD_BACK, HEAD_FRONT_UP, CHIN, NASAL_CENTRE, NASAL_HALF, chinWeight } from '../head/outline';
+import { headScene, mul, Mat, HeadScene } from '../head/scene';
+import { getBackdrop, paintBackdrop, paintSoftParts, paintRim, paintGlow, fadeNeck } from '../head/painter';
 
 type HandleId = 'tongue' | 'tip' | 'jaw' | 'lips' | 'velum' | 'larynx' | 'teeth';
+
+/** A hint on the head: which handle to drag and what to do, until it is dragged. A new
+ *  `id` shows it again. */
+export interface Guide { id: string; handle: HandleId; text: string }
+
+/** Where the hint sits (world cm, at the scale of a man's head): above the face. */
+const GUIDE_AT: [number, number] = [9.0, 15.4];
 
 /** The control each handle moves (it is locked while someone else drives it). */
 const HANDLE_CONTROL: Record<HandleId, ControlId> = { tongue: 'posture', tip: 'posture', jaw: 'posture', lips: 'posture', larynx: 'posture', velum: 'velum', teeth: 'teeth' };
@@ -22,29 +32,25 @@ interface Particle { s: number; off: number; nose: boolean; age: number }
 
 const clampArt = (k: keyof Articulators, v: number) => Math.max(ARTICULATOR_RANGES[k][0], Math.min(ARTICULATOR_RANGES[k][1], v));
 
-// decorative head silhouette, canonical cm (glottis at the origin)
-const HEAD_BACK = [-4.6, -3.6, -4.3, 1.0, -4.7, 5.0, -5.5, 8.6, -6.1, 12.0, -5.8, 15.6, -4.2, 18.6, -1.0, 20.6, 3.0, 21.2];
-const HEAD_FRONT_UP = [3.0, 21.2, 6.6, 20.3, 8.4, 18.9, 9.0, 17.2, 8.4, 15.8, 9.3, 14.2, 10.2, 12.8, 10.7, 12.0, 10.5, 11.35, 9.6, 11.05, 9.05, 10.9, 9.0, 10.3, 9.15, 9.5];
-const CHIN = [8.95, 7.6, 8.55, 7.0, 8.25, 6.55, 8.6, 5.7, 8.55, 4.7, 7.7, 3.8, 5.6, 3.25, 3.7, 2.7, 2.75, 0.6, 2.65, -3.6];
-const NASAL_CENTRE = [-0.25, 10.75, 0.1, 11.6, 0.9, 12.3, 2.2, 12.75, 4.0, 12.95, 5.8, 12.85, 7.3, 12.5, 8.6, 11.95, 9.55, 11.25];
-const NASAL_HALF = [0.42, 0.5, 0.62, 0.8, 0.88, 0.85, 0.7, 0.45, 0.22];
-const chinWeight = (x: number) => Math.max(0, Math.min(1, (x - 3.2) / 3.0));
-
-export function HeadView() {
+export function HeadView({ guide }: { guide?: Guide } = {}) {
   const t = useT();
   const L = useL();
   const ui = useUi();
   const sound = useSoundOn();
   const postureLock = useVoice((v) => v.lock('posture'));
   const [labels, setLabels] = useState(true);
+  // the hint that was followed: it stays hidden until another one comes
+  const followed = useRef<string | null>(null);
   const drag = useRef<{ id: HandleId; x0: number; y0: number; a0: Articulators; t0: Teeth; ang0: number } | null>(null);
   const hover = useRef<HandleId | null>(null);
   const view = useRef({ ox: 0, oy: 0, k: 1 });
   const handles = useRef<Record<HandleId, [number, number]>>({} as Record<HandleId, [number, number]>);
   const parts = useRef<Particle[]>([]);
   const sparks = useRef<{ x: number; y: number; vx: number; vy: number; life: number; c: string }[]>([]);
+  // the painted head on a layer of its own, painted again only when the posture or the view changes
+  const layer = useRef<{ cv: HTMLCanvasElement; key: string; sc: HeadScene | null }>({ cv: document.createElement('canvas'), key: '', sc: null });
 
-  const ref = useAnimatedCanvas(({ ctx, w, h, dt, t: time }) => {
+  const ref = useAnimatedCanvas(({ ctx, w, h, dt, t: time, dpr }) => {
     // what sounds: a sentence or a clip moves the head by itself
     const p = voice.sounding();
     const an = p.anatomy;
@@ -52,8 +58,10 @@ export function HeadView() {
     const { geom } = store.derived();
     const tel = store.ui.audioOn ? store.telemetry : null;
     const s = an.scale * 0.9;
-    // fixed frame (for scale 1) so a child's head looks smaller
-    const X0 = -5.4, X1 = 11.8, Y0 = -3.4, Y1 = 16.8;
+    // fixed frame (for scale 1) so a child's head looks smaller; a tall view shows the whole head
+    const X0 = -5.4, X1 = 11.8, Y0 = -3.4;
+    let Y1 = 16.8;
+    if (h / w > (Y1 - Y0) / (X1 - X0)) Y1 = Math.min(19.9, Y0 + (h / w) * (X1 - X0));
     const k = Math.min(w / (X1 - X0), h / (Y1 - Y0));
     const ox = (w - (X1 - X0) * k) / 2 - X0 * k;
     const oy = h - ((h - (Y1 - Y0) * k) / 2) + Y0 * k;
@@ -74,88 +82,45 @@ export function HeadView() {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
-    // head silhouette
-    const back = canonToWorld(HEAD_BACK, { ...an, pharynx: 1 }, { ...a, larynx: 0 });
-    const frontUp = canonToWorld(HEAD_FRONT_UP, an, a);
-    const chin = canonToWorld(CHIN, { ...an, pharynx: 1 }, { ...a, larynx: 0 }, chinWeight);
-    const head = [...back, ...frontUp, ...chin.slice(0)];
-    const sk = ctx.createLinearGradient(X(-5), 0, X(10), 0);
-    sk.addColorStop(0, '#1a1622');
-    sk.addColorStop(0.6, '#2a2130');
-    sk.addColorStop(1, '#3a2836');
-    path([...back, ...frontUp, ...chin]);
-    ctx.fillStyle = sk;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(247,112,138,0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    void head;
-    // eye and ear (decorative)
-    const eye = canonToWorld([7.4, 15.9], an, a);
-    ctx.strokeStyle = 'rgba(231,235,243,0.25)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(X(eye[0]), Y(eye[1]), 0.55 * k * s, 0.22 * k * s, 0, Math.PI * 0.05, Math.PI * 0.95);
-    ctx.stroke();
-    const ear = canonToWorld([-2.6, 13.4], an, a);
-    ctx.beginPath();
-    ctx.ellipse(X(ear[0]), Y(ear[1]), 0.9 * k * s, 1.5 * k * s, -0.15, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // vertebrae (decorative)
-    ctx.fillStyle = 'rgba(216,210,194,0.07)';
-    for (let i = 0; i < 6; i++) {
-      const v = canonToWorld([-2.9, -2.6 + i * 1.9, -1.7, -1.1 + i * 1.9], an, a);
-      ctx.beginPath();
-      ctx.roundRect(X(v[0]), Y(v[3]), (v[2] - v[0]) * k, (v[3] - v[1]) * k, 4);
-      ctx.fill();
-    }
-
-    // nasal cavity
     const nc = canonToWorld(NASAL_CENTRE, an, a);
-    const up: number[] = [], lo: number[] = [];
-    for (let i = 0; i < NASAL_HALF.length; i++) {
-      const j = Math.min(NASAL_HALF.length - 2, i);
-      const dx = nc[2 * j + 2] - nc[2 * j], dy = nc[2 * j + 3] - nc[2 * j + 1];
-      const L = Math.hypot(dx, dy) || 1;
-      const nx = -dy / L, ny = dx / L;
-      const hw = NASAL_HALF[i] * s;
-      up.push(nc[2 * i] + nx * hw, nc[2 * i + 1] + ny * hw);
-      lo.unshift(nc[2 * i + 1] - ny * hw);
-      lo.unshift(nc[2 * i] - nx * hw);
-    }
-    path([...up, ...lo]);
     const nasalFlow = tel ? Math.min(1, Math.abs(tel.uNose) / 250) : 0;
     const port = tel ? tel.nasalPort : 0;
-    ctx.fillStyle = '#06080d';
-    ctx.fill();
-    if (port > 0.02) {
-      ctx.fillStyle = `rgba(42,212,189,${0.1 + 0.45 * Math.min(1, port / 1.2) * (0.35 + 0.65 * nasalFlow)})`;
-      ctx.fill();
-    }
-    ctx.strokeStyle = 'rgba(200,107,124,0.5)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // turbinates
-    ctx.strokeStyle = 'rgba(200,107,124,0.35)';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 3; i++) {
-      const c0 = canonToWorld([3.0 + i * 1.6, 12.95 + 0.05 * i], an, a);
-      ctx.beginPath();
-      ctx.ellipse(X(c0[0]), Y(c0[1]), 0.75 * k * s, 0.16 * k * s, 0.06, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // vocal tract air channel coloured by the sound field
-    drawChannel(ctx, geom, X, Y, store.ui.field, tel, s);
-
-    // solids (the soft tissue behind and below the tract is clipped to the head)
-    const silhouette = [...back, ...frontUp, ...chin];
-    for (const sol of geom.solids) {
-      const soft = sol.id === 'wall' || sol.id === 'larynx' || sol.id === 'floor';
-      if (soft) { ctx.save(); path(silhouette); ctx.clip(); }
-      drawSolid(ctx, sol, path, X, Y, k, s);
-      if (soft) ctx.restore();
+    const bd = getBackdrop();
+    if (bd) {
+      // the painted head, with everything that bounds the air drawn from the geometry
+      const world: Mat = mul([dpr, 0, 0, dpr, 0, 0], [k, 0, 0, -k, ox, oy]);
+      const lay = layer.current;
+      const key = JSON.stringify([w, h, dpr, a, an, p.teeth]);
+      if (lay.key !== key || !lay.sc) {
+        const cw = ctx.canvas.width, ch = ctx.canvas.height;
+        if (lay.cv.width !== cw || lay.cv.height !== ch) { lay.cv.width = cw; lay.cv.height = ch; }
+        const lc = lay.cv.getContext('2d')!;
+        lc.setTransform(1, 0, 0, 1, 0, 0);
+        lc.clearRect(0, 0, cw, ch);
+        lay.sc = headScene(geom, an, a);
+        paintBackdrop(lc, lay.sc, world, bd);
+        paintSoftParts(lc, lay.sc, world, bd);
+        fadeNeck(lc, lay.sc, world);
+        lay.key = key;
+      }
+      const sc = lay.sc;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(lay.cv, 0, 0);
+      paintGlow(ctx, sc, world, port > 0.02 ? Math.min(1, port / 1.2) * (0.35 + 0.65 * nasalFlow) : 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // the opening between the lips is air too, as dark as silent air
+      if (sc.mouth.length) {
+        path(sc.mouth);
+        ctx.fillStyle = '#05070c';
+        ctx.fill();
+        ctx.fillStyle = fieldColor(0.12, 0.28);
+        ctx.fill();
+      }
+      drawChannel(ctx, geom, X, Y, store.ui.field, tel);
+      paintRim(ctx, sc, world);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    } else {
+      paintFlat(ctx, geom, an, a, X, Y, path, k, s, tel, nc, port, nasalFlow);
     }
 
     // glottis pulse
@@ -185,7 +150,7 @@ export function HeadView() {
     }
 
     // airflow particles
-    drawParticles(ctx, geom, X, Y, k, s, tel, parts.current, dt, up, lo, nc);
+    drawParticles(ctx, geom, X, Y, s, tel, parts.current, dt, nc);
 
     // turbulence sparkles
     if (tel) emitSparks(geom, tel, sparks.current, s);
@@ -215,35 +180,42 @@ export function HeadView() {
       teeth: [0.5 * (ue[0] + le[0]) + 0.05, 0.5 * (ue[1] + le[1])],
     };
     handles.current = H;
+    // the hint, until its handle is dragged (and not while someone else drives it)
+    const guided = guide && followed.current !== guide.id && !voice.lock(HANDLE_CONTROL[guide.handle]) ? guide : null;
     const names: Record<HandleId, string> = { tongue: t('hTongue'), tip: t('hTip'), jaw: t('hJaw'), lips: t('hLips'), velum: t('hVelum'), larynx: t('hLarynx'), teeth: t('hTeeth') };
-    const col: Record<HandleId, string> = { tongue: C.rose, tip: C.rose, jaw: C.bone, lips: C.rose, velum: C.teal, larynx: C.amber, teeth: C.tooth };
+    const col: Record<HandleId, string> = { tongue: C.teal, tip: C.teal, jaw: C.teal, lips: C.teal, velum: C.teal, larynx: C.amber, teeth: C.teal };
     for (const id of Object.keys(H) as HandleId[]) {
       const [hx, hy] = H[id];
       // a handle someone else drives is hollow and grey
       const locked = !!voice.lock(HANDLE_CONTROL[id]);
       const active = !locked && (drag.current?.id === id || hover.current === id);
       const c = locked ? C.muted : col[id];
+      ctx.save();
+      if (!locked) { ctx.shadowColor = c; ctx.shadowBlur = active ? 16 : 9; }
       ctx.beginPath();
       ctx.arc(X(hx), Y(hy), active ? 9 : 6.5, 0, Math.PI * 2);
-      ctx.fillStyle = active ? c : locked ? 'rgba(11,14,20,0.2)' : 'rgba(11,14,20,0.55)';
+      ctx.fillStyle = active ? c : locked ? 'rgba(11,14,20,0.2)' : 'rgba(8,20,24,0.7)';
       ctx.fill();
-      ctx.lineWidth = locked ? 1.5 : 2;
+      ctx.lineWidth = locked ? 1.5 : 2.2;
       if (locked) ctx.setLineDash([2.5, 2.5]);
       ctx.strokeStyle = c;
       ctx.stroke();
-      ctx.setLineDash([]);
-      if (labels || active) {
+      ctx.restore();
+      if ((labels || active) && guided?.handle !== id) {
         const dxl = id === 'larynx' ? 34 : id === 'lips' || id === 'jaw' ? 30 : 0;
         const dyl = id === 'larynx' || id === 'lips' || id === 'jaw' ? 0 : -16;
         label(ctx, names[id], X(hx) + dxl, Y(hy) + dyl, c);
       }
     }
     if (id_larynxLine) {
-      ctx.strokeStyle = 'rgba(246,168,35,0.35)';
+      ctx.strokeStyle = 'rgba(246,168,35,0.45)';
       ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.moveTo(X(gl[0]), Y(gl[1])); ctx.lineTo(X(H.larynx[0]), Y(H.larynx[1])); ctx.stroke();
       ctx.setLineDash([]);
     }
+    // the hint: the handle to drag, a curved arrow to it and what to do
+    if (guided) drawGuide(ctx, guided.text, X(H[guided.handle][0]), Y(H[guided.handle][1]), X(GUIDE_AT[0]), Y(GUIDE_AT[1]), w, h, time);
+
     // phone being spoken
     if (tel?.phone) label(ctx, `/${tel.phone}/`, w - 40, 22, C.amber);
   });
@@ -267,6 +239,7 @@ export function HeadView() {
     const id = hit(x, y);
     if (!id || voice.lock(HANDLE_CONTROL[id])) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    if (guide?.handle === id) followed.current = guide.id;
     // the drag starts from the posture you see, and gives it air if the audio runs
     voice.grab({ blow: true });
     const J = store.derived().geom.landmarks.jawPivot;
@@ -349,12 +322,156 @@ export function HeadView() {
 
 const id_larynxLine = true;
 
-function drawSolid(ctx: CanvasRenderingContext2D, sol: Solid, path: (pts: number[], close?: boolean) => void, X: (x: number) => number, Y: (y: number) => number, k: number, s: number): void {
+/**
+ * The hint of the Learn mode: a ring breathing around the handle at (hx, hy), a pill
+ * with the text near (gx, gy), kept inside the w x h canvas, and a curved arrow from
+ * the pill down to the handle (all in CSS pixels).
+ */
+function drawGuide(ctx: CanvasRenderingContext2D, text: string, hx: number, hy: number, gx: number, gy: number, w: number, h: number, time: number): void {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = `rgba(246,168,35,${(0.35 + 0.5 * pulse).toFixed(2)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(hx, hy, 12 + 5 * pulse, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.font = '600 13px system-ui, sans-serif';
+  const pw = ctx.measureText(text).width + 24, ph = 26;
+  const px = Math.max(8, Math.min(w - pw - 8, gx - pw / 2));
+  const py = Math.max(8, Math.min(h - ph - 8, gy - ph / 2));
+  // the arrow leaves the pill downwards and bends towards the handle
+  const sx = Math.max(px + 14, Math.min(px + pw - 14, hx + 0.35 * (px + pw / 2 - hx))), sy = py + ph;
+  const d = Math.hypot(hx - sx, hy - sy) || 1;
+  const ex = hx + ((sx - hx) / d) * 20, ey = hy + ((sy - hy) / d) * 20;
+  const cx = sx, cy = ey;
+  const ang = Math.hypot(ex - cx, ey - cy) > 1 ? Math.atan2(ey - cy, ex - cx) : Math.atan2(ey - sy, ex - sx);
+  const arrow = () => {
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(cx, cy, ex, ey);
+    ctx.moveTo(ex - 9 * Math.cos(ang - 0.45), ey - 9 * Math.sin(ang - 0.45));
+    ctx.lineTo(ex, ey);
+    ctx.lineTo(ex - 9 * Math.cos(ang + 0.45), ey - 9 * Math.sin(ang + 0.45));
+  };
+  if (Math.hypot(ex - sx, ey - sy) > 24) {
+    arrow();
+    ctx.strokeStyle = 'rgba(11,14,20,0.6)';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    arrow();
+    ctx.strokeStyle = C.amber;
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+  }
+
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = C.amber;
+  ctx.beginPath();
+  ctx.roundRect(px, py, pw, ph, ph / 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#1a1206';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, px + pw / 2, py + ph / 2 + 0.5);
+  ctx.restore();
+}
+
+/** The plain drawing, while the painted head loads (or if it cannot). */
+function paintFlat(
+  ctx: CanvasRenderingContext2D, geom: TractGeometry, an: Anatomy, a: Articulators, X: (x: number) => number, Y: (y: number) => number,
+  path: (pts: number[], close?: boolean) => void, k: number, s: number, tel: Telemetry | null, nc: number[], port: number, nasalFlow: number,
+): void {
+  // head silhouette
+  const back = canonToWorld(HEAD_BACK, { ...an, pharynx: 1 }, { ...a, larynx: 0 });
+  const frontUp = canonToWorld(HEAD_FRONT_UP, an, a);
+  const chin = canonToWorld(CHIN, { ...an, pharynx: 1 }, { ...a, larynx: 0 }, chinWeight);
+  const silhouette = [...back, ...frontUp, ...chin];
+  const sk = ctx.createLinearGradient(X(-5), 0, X(10), 0);
+  sk.addColorStop(0, '#1a1622');
+  sk.addColorStop(0.6, '#2a2130');
+  sk.addColorStop(1, '#3a2836');
+  path(silhouette);
+  ctx.fillStyle = sk;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(247,112,138,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // eye and ear (decorative)
+  const eye = canonToWorld([7.4, 15.9], an, a);
+  ctx.strokeStyle = 'rgba(231,235,243,0.25)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(X(eye[0]), Y(eye[1]), 0.55 * k * s, 0.22 * k * s, 0, Math.PI * 0.05, Math.PI * 0.95);
+  ctx.stroke();
+  const ear = canonToWorld([-2.6, 13.4], an, a);
+  ctx.beginPath();
+  ctx.ellipse(X(ear[0]), Y(ear[1]), 0.9 * k * s, 1.5 * k * s, -0.15, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // vertebrae (decorative)
+  ctx.fillStyle = 'rgba(216,210,194,0.07)';
+  for (let i = 0; i < 6; i++) {
+    const v = canonToWorld([-2.9, -2.6 + i * 1.9, -1.7, -1.1 + i * 1.9], an, a);
+    ctx.beginPath();
+    ctx.roundRect(X(v[0]), Y(v[3]), (v[2] - v[0]) * k, (v[3] - v[1]) * k, 4);
+    ctx.fill();
+  }
+
+  // nasal cavity
+  const up: number[] = [], lo: number[] = [];
+  for (let i = 0; i < NASAL_HALF.length; i++) {
+    const j = Math.min(NASAL_HALF.length - 2, i);
+    const dx = nc[2 * j + 2] - nc[2 * j], dy = nc[2 * j + 3] - nc[2 * j + 1];
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+    const hw = NASAL_HALF[i] * s;
+    up.push(nc[2 * i] + nx * hw, nc[2 * i + 1] + ny * hw);
+    lo.unshift(nc[2 * i + 1] - ny * hw);
+    lo.unshift(nc[2 * i] - nx * hw);
+  }
+  path([...up, ...lo]);
+  ctx.fillStyle = '#06080d';
+  ctx.fill();
+  if (port > 0.02) {
+    ctx.fillStyle = `rgba(42,212,189,${0.1 + 0.45 * Math.min(1, port / 1.2) * (0.35 + 0.65 * nasalFlow)})`;
+    ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(200,107,124,0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // turbinates
+  ctx.strokeStyle = 'rgba(200,107,124,0.35)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 3; i++) {
+    const c0 = canonToWorld([3.0 + i * 1.6, 12.95 + 0.05 * i], an, a);
+    ctx.beginPath();
+    ctx.ellipse(X(c0[0]), Y(c0[1]), 0.75 * k * s, 0.16 * k * s, 0.06, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // vocal tract air channel coloured by the sound field
+  drawChannel(ctx, geom, X, Y, store.ui.field, tel);
+
+  // solids (the soft tissue behind and below the tract is clipped to the head)
+  for (const sol of geom.solids) {
+    const soft = sol.id === 'wall' || sol.id === 'larynx' || sol.id === 'floor';
+    if (soft) { ctx.save(); path(silhouette); ctx.clip(); }
+    drawSolid(ctx, sol, path, X, s);
+    if (soft) ctx.restore();
+  }
+}
+
+function drawSolid(ctx: CanvasRenderingContext2D, sol: Solid, path: (pts: number[], close?: boolean) => void, X: (x: number) => number, s: number): void {
   const pts = sol.pts;
   path(pts);
   switch (sol.id) {
     case 'tongue': {
-      const g = ctx.createLinearGradient(X(sol.minX), Y(sol.maxY), X(sol.maxX), Y(sol.minY));
+      const g = ctx.createLinearGradient(X(sol.minX), 0, X(sol.maxX), 0);
       g.addColorStop(0, '#f08aa0'); g.addColorStop(1, '#a8445e');
       ctx.fillStyle = g; break;
     }
@@ -377,7 +494,6 @@ function drawSolid(ctx: CanvasRenderingContext2D, sol: Solid, path: (pts: number
   ctx.fill();
   if (sol.id === 'upperIncisor' || sol.id === 'lowerIncisor') { ctx.strokeStyle = '#b9b09b'; ctx.lineWidth = 1; ctx.stroke(); }
   else if (sol.id === 'tongue' || sol.id === 'upperLip' || sol.id === 'lowerLip' || sol.id === 'velum') { ctx.strokeStyle = 'rgba(255,220,225,0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
-  void k;
 }
 
 function rayPoints(geom: TractGeometry, i: number): [number, number, number, number] {
@@ -385,7 +501,7 @@ function rayPoints(geom: TractGeometry, i: number): [number, number, number, num
   return [r.sx + r.nx * (r.t0 + h.tLow), r.sy + r.ny * (r.t0 + h.tLow), r.sx + r.nx * (r.t0 + h.tUp), r.sy + r.ny * (r.t0 + h.tUp)];
 }
 
-function drawChannel(ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: number) => number, Y: (y: number) => number, mode: FieldMode, tel: Telemetry | null, s: number): void {
+function drawChannel(ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: number) => number, Y: (y: number) => number, mode: FieldMode, tel: Telemetry | null): void {
   const n = geom.lastRay;
   // dark air first
   ctx.beginPath();
@@ -399,8 +515,9 @@ function drawChannel(ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: 
     const h = geom.hits[i], h2 = geom.hits[i + 1];
     if (h.d <= 0 && h2.d <= 0) continue;
     const k = Math.max(0, Math.min(N_SECTIONS - 1, Math.floor((geom.s[i] / L) * N_SECTIONS)));
-    let v = 0.15;
-    let alpha = 0.55;
+    // silent air stays dark, with a hint of the field's colour
+    let v = 0.12;
+    let alpha = 0.28;
     if (tel) {
       if (mode === 'pressure') v = tel.pRms[k];
       else if (mode === 'velocity') v = tel.uRms[k];
@@ -418,12 +535,11 @@ function drawChannel(ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: 
     ctx.fillStyle = fieldColor(v, alpha);
     ctx.fill();
   }
-  void s;
 }
 
 function drawParticles(
-  ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: number) => number, Y: (y: number) => number, k: number, s: number,
-  tel: Telemetry | null, parts: Particle[], dt: number, up: number[], lo: number[], nc: number[],
+  ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: number) => number, Y: (y: number) => number, s: number,
+  tel: Telemetry | null, parts: Particle[], dt: number, nc: number[],
 ): void {
   const n = geom.lastRay;
   const L = geom.length;
@@ -470,7 +586,6 @@ function drawParticles(
       ctx.globalAlpha = 1;
       continue;
     }
-    const i = rayPoints;
     const r = rayAt(q.s);
     const h = geom.hits[r];
     const sec = Math.floor((q.s / L) * N_SECTIONS);
@@ -483,12 +598,11 @@ function drawParticles(
       q.nose = true; q.s = 0; continue;
     }
     if (h.d <= 0.001) { q.s = 0; continue; }
-    const pts = i(geom, r);
+    const pts = rayPoints(geom, r);
     const t = 0.5 + q.off * 0.8;
     const x = pts[0] + (pts[2] - pts[0]) * t, y = pts[1] + (pts[3] - pts[1]) * t;
     ctx.beginPath(); ctx.arc(X(x), Y(y), 1.3, 0, Math.PI * 2); ctx.fill();
   }
-  void up; void lo; void k;
 }
 
 function emitSparks(geom: TractGeometry, tel: Telemetry, out: { x: number; y: number; vx: number; vy: number; life: number; c: string }[], s: number): void {

@@ -78,7 +78,7 @@ export function Learn() {
   return (
     <main className="learn">
       <section className="learn-stage ds-card">
-        <div className="stage-head"><HeadView /></div>
+        <div className="stage-head"><HeadView guide={ch.guide && { id: String(n), handle: ch.guide.handle, text: L(ch.guide.text) }} /></div>
         <ViewFrame className="stage-view" view={ui.viewTab} onView={(v) => store.setUi({ viewTab: v })} />
         {!!ch.quick?.length && <div className="stage-quick"><QuickControls ids={ch.quick} /></div>}
       </section>

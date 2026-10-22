@@ -59,7 +59,9 @@ Three modes, switchable in the header and remembered in the browser:
   experiments: a question, the steps to try, what to look and listen for,
   and the answer on demand, with the live numbers behind it when Numbers is
   on. Steps that need a tool (A/B, melody, machine voice, your own noise)
-  open it inside the card.
+  open it inside the card. Where a chapter is about a hand, a hint on the
+  head points at the handle to drag (the tongue, the jaw, the tip, the lips,
+  the velum) until you drag it.
 - **Play**, for someone who wants to try things without the theory: a big
   head with its handles and a caption of what you are holding, four cards
   (say something, pick a sound, who is speaking, find your vowel on the map)
@@ -89,7 +91,7 @@ Views:
 
 | View | What it shows |
 |---|---|
-| Head | Mid-sagittal head with draggable handles for tongue body, tongue tip, jaw, lips, velum, larynx and incisors. The airway is coloured by the live acoustic field (pressure, particle velocity or airflow), with glottal pulses, nasal airflow, turbulence particles at the jet and the teeth, and sparks on releases. |
+| Head | Mid-sagittal head, drawn as an anatomical illustration, with draggable handles for tongue body, tongue tip, jaw, lips, velum, larynx and incisors. Everything that bounds the air is drawn from the acoustic geometry of the moment, so what you see is what sounds. The airway is coloured by the live acoustic field (pressure, particle velocity or airflow), with glottal pulses, nasal airflow, turbulence particles at the jet and the teeth, and sparks on releases. |
 | Vowel map | F1-F2 chart (log axes) with Peterson & Barney (men, women, children), Hillenbrand et al. and the narrator's vowels of the video; the model's vowels are clickable, dragging blends articulations; the live trail and the microphone's formants are drawn on it. |
 | Spectrum | Measured output spectrum, predicted harmonics (source harmonics x filter), filter envelope, formant labels, optional microphone overlay. |
 | Waveform | Output pressure, glottal flow and noise. |
@@ -145,6 +147,8 @@ src/
   ui/ds/                  small design system: card, pills, icon button, value with unit
   ui/                     React 19 views, panels, store, i18n, guided tour
   ui/three/meshes.ts      pure mesh builder for the 3D view (tested in Node); three.js loads only with that view
+  ui/head/                the illustrated head: the scene (pure, tested in Node) and the painter
+public/anatomy/head.jpg   the painted backdrop of the illustrated head
 tests/                    Vitest suites with the validation numbers
 scripts/                  validate.ts, say.ts (renders sentences to WAV), tuning and debug tools
 ```
@@ -169,6 +173,40 @@ about 60 times per second; the views draw what sounds, from that telemetry.
 Canvases read a shared ring buffer in `requestAnimationFrame`. Offline renders
 (tests, the machine excitation, exports) use the same engine class
 synchronously.
+
+The illustrated head keeps the rule that what you see is what sounds. A
+painting of the head in section (`public/anatomy/head.jpg`) was generated
+from a guide image of the canonical head at rest (`scripts/head-guide.ts`)
+and is registered on it: 51.2 pixels per centimetre over a fixed frame. It
+was retouched where the painting did not match the model: a dark fringe
+along the profile, a translucent velum painted over the pharynx, and a pocket
+of air under the tongue that the model fills with tissue. The painting
+shows what the model does not move (skull, brain, vertebrae, the nose and
+its sinuses, the back wall of the throat, skin and neck); everything that
+moves and bounds the air is placed from the geometry of the moment
+(`src/ui/head/scene.ts`, pure, tested in Node):
+
+- the painting is cut in bands (neck, cranium, the jaw above and below the
+  hinge) that follow the same transform as the geometry, the jaw's rotation
+  and the pharynx stretch included, with a zone of triangles under the jaw
+  that bends between them as the model's outline does;
+- the tongue, the lower incisor and the faces of the lips carry their own
+  painting stretched onto their shape of the moment, triangle by triangle
+  from the same shape at rest; the palate and the upper teeth are rigid;
+- the velum, the air above it, the mucosa behind the lips and wherever the
+  painting's air is tissue now are drawn, not painted;
+- the air itself is the acoustic channel, drawn last with the sound field,
+  so nothing can hide it. A test (`tests/head-overlay.test.ts`) checks, in
+  every phoneme's posture and at the ends of each articulator's range, that
+  the drawn air is the acoustic channel on every grid line and that no air
+  of the painting is left where the model has tissue; and, at rest, that
+  the painting sits exactly where it was painted.
+
+The painter (`src/ui/head/painter.ts`) draws the painting and the soft parts
+on a layer of its own, painted again only when the posture, the size or the
+view changes (about a millisecond on a GPU canvas); each frame then draws
+that layer, the glow of the nose, the air and the handles. Until the painting
+loads, or if it cannot, the head is drawn in flat shapes.
 
 ## The model
 
@@ -708,6 +746,11 @@ in brackets are the adult male targets described under Speech.
   the sound is computed with, one colour across each section as plane waves
   have; the tissues around it are sheets of a fixed thickness and the teeth
   are boxes along a typical dental arch, drawn for orientation.
+- The illustrated head is one painting of an adult man, scaled for the other
+  sizes. The painting under the tongue (the floor of the mouth, the hyoid)
+  stays with the jaw and the neck, so a tongue root pushed far back or
+  forward leaves a visible step below the tongue; the soft parts the model
+  adds where the painting had air are plain mucosa.
 
 ## References
 
@@ -794,6 +837,7 @@ npx tsx scripts/areas3d.ts i a u l     # narrowest passage, perimeter, hydraulic
 npx tsx scripts/noise-transfer.ts s    # transfer from a noise source at each front junction
 npx tsx scripts/scan-variants.ts ʃ '[{"jaw":0.2}]'
 npx tsx scripts/debug-geometry.ts geometry.html
+npx tsx scripts/head-guide.ts out/      # the guide image the head's painting was generated from
 ```
 
 In development builds the store is exposed as `window.voiceStore` for
