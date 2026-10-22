@@ -101,6 +101,14 @@ export function HeadView({ guide }: { guide?: Guide } = {}) {
         paintBackdrop(lc, lay.sc, world, bd);
         paintSoftParts(lc, lay.sc, world, bd);
         fadeNeck(lc, lay.sc, world);
+        // the crown fades into the top edge instead of being cut by it
+        const top = lc.createLinearGradient(0, 0, 0, 36 * dpr);
+        top.addColorStop(0, 'rgba(0,0,0,1)');
+        top.addColorStop(1, 'rgba(0,0,0,0)');
+        lc.globalCompositeOperation = 'destination-out';
+        lc.fillStyle = top;
+        lc.fillRect(0, 0, cw, 36 * dpr);
+        lc.globalCompositeOperation = 'source-over';
         lay.key = key;
       }
       const sc = lay.sc;
