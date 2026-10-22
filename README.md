@@ -63,13 +63,13 @@ Three modes, switchable in the header and remembered in the browser:
   tract in 3D (the side channels of an "l", the piriform fossae); the
   spectrogram (slices, window trade-off, log-mel); from sounds to sentences
   (coarticulation, timing, melody, each one switched off); a machine voice.
-  Steps that need a tool (A/B, melody, machine voice) open it under the
-  step. Where a step is about a hand, a hint on the head points at the
-  handle to drag (the tongue, the jaw, the lips, the velum) until you drag
-  it. A test keeps the steps short (at most 220 characters of text, three
-  sounds, seven steps a chapter) and checks that every step opens in
-  silence, that every sound of it is heard as it is shown, and that it rests
-  a breath later.
+  Steps that need a tool (A/B, melody, machine voice) open it on the
+  stage, beside the view. Where a step is about a hand, a hint on the head
+  points at the handle to drag (the tongue, the jaw, the lips, the velum)
+  until you drag it. A test keeps the steps short (at most 220 characters of
+  text, three sounds, seven steps a chapter) and checks that every step
+  opens in silence, that every sound of it is heard as it is shown, and that
+  it rests a breath later.
 - **Play**, for someone who wants to try things without the theory, one
   activity at a time. Four big tabs (Speak, Sounds, Voices, Vowels) each
   show the head with its handles beside the one view that suits them (the
@@ -132,7 +132,12 @@ Inspector (Lab) and tools (Learn):
 | Output | Volume, sample rate and level; harmonics, filter envelope, log-mel, analysis window; numbers everywhere; freeze the views; the microphone (opt-in, analysed locally, never played back). |
 
 The header holds the three modes, the Sound button (and in the Lab, Hold),
-the volume and EN / IT; reset sits at the end of the Lab's chain.
+the volume and EN / IT; reset sits at the end of the Lab's chain. On a
+desktop the page fits the window, with no page scroll: the header and the
+bar at the bottom (Learn's step, Play's controls) stay in view, the stage
+takes the height that is left, and whatever is long (a step with its "Why?",
+the Lab's inspector) scrolls inside its own panel. On a phone, or a window
+less than 640 px tall, the page scrolls as usual.
 
 ## Architecture
 

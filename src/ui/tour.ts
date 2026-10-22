@@ -45,7 +45,7 @@ export interface Step {
   why?: Bi;
   /** the live numbers behind it (with the Numbers switch on) */
   numbers?: () => Bi;
-  /** a tool opened under the step; for the A/B tool, the experiment it starts on */
+  /** a tool opened on the stage, beside the view; for the A/B tool, the experiment it starts on */
   tool?: { tab: ControlTab; ab?: string };
 }
 export interface Lesson { title: Bi; steps: Step[] }
@@ -306,7 +306,7 @@ const LESSON_LIST: Lesson[] = [
         text: { it: 'Parlando la nota non sta mai ferma: è l’intonazione. Suonata col solo ronzio si segue la melodia, ma non ci sono parole.', en: 'When we talk the pitch never stays still: that is intonation. Played on the buzz alone you can follow the tune, but there are no words.' },
         view: 'spectrogram', setup: () => { clean(); pose('a', 110); },
         tool: { tab: 'melody' },
-        look: { it: 'Suona la melodia qui sotto e guarda le righe salire e scendere.', en: 'Play the melody below and watch the stripes rise and fall.' },
+        look: { it: 'Suona la melodia e guarda le righe salire e scendere.', en: 'Play the melody and watch the stripes rise and fall.' },
       },
     ],
   },
@@ -393,7 +393,7 @@ const LESSON_LIST: Lesson[] = [
         text: { it: 'Per questo puoi cantare più in alto e suonare ancora come te: melodia e colore sono due manopole diverse. Confrontale una accanto all’altra.', en: 'That is why you can sing higher and still sound like yourself: melody and color are two different knobs. Compare them side by side.' },
         view: 'spectrum', setup: () => { clean(); pose('a', 120); spectrum(); },
         tool: { tab: 'ab', ab: 'pitch' },
-        look: { it: 'Suona A e B qui sotto e confronta i loro spettri.', en: 'Play A and B below and compare their spectra.' },
+        look: { it: 'Suona A e B e confronta i loro spettri.', en: 'Play A and B and compare their spectra.' },
       },
     ],
   },
@@ -431,7 +431,7 @@ const LESSON_LIST: Lesson[] = [
         text: { it: 'E non è costante: pulsa a ogni battito delle corde, più forte quando sono aperte.', en: 'And it is not steady: it pulses with each beat of the folds, strongest while they are open.' },
         view: 'scope', setup: () => { clean(); pose('a', 110); },
         tool: { tab: 'ab', ab: 'pulse' },
-        look: { it: 'Suona A e B qui sotto: nell’onda il fruscio pulsato arriva a ondate.', en: 'Play A and B below: in the waveform the pulsed hiss comes in bursts.' },
+        look: { it: 'Suona A e B: nell’onda il fruscio pulsato arriva a ondate.', en: 'Play A and B: in the waveform the pulsed hiss comes in bursts.' },
       },
     ],
   },
@@ -661,7 +661,7 @@ const LESSON_LIST: Lesson[] = [
         text: { it: 'Un piccolo modello vocale, quello del lavoro «Teacher in the Loop», costruisce una voce con gli stessi ingredienti: una melodia, un ronzio, un fruscio e un filtro.', en: 'A small speech model, the one of the “Teacher in the Loop” paper, builds a voice from the same ingredients: a melody, a buzz, a hiss and a filter.' },
         view: 'spectrum', setup: () => { clean(); pose('a', 120); spectrum(); },
         tool: { tab: 'machine' },
-        look: { it: 'Qui sotto la parte del ronzio: nove sinusoidi agganciate alla nota, un rumore leggero, un mix. Il resto è un filtro appreso.', en: 'Below, the buzz part: nine sines locked to the pitch, a soft noise, a mix. The rest is a learned filter.' },
+        look: { it: 'Il pannello mostra la parte del ronzio: nove sinusoidi agganciate alla nota, un rumore leggero, un mix. Il resto è un filtro appreso.', en: 'The panel shows the buzz part: nine sines locked to the pitch, a soft noise, a mix. The rest is a learned filter.' },
       },
     ],
   },

@@ -103,9 +103,10 @@ export function Learn() {
   const nextToTry = sounds.findIndex((_, i) => !tried.includes(i));
   return (
     <main className="lesson">
-      <section className="lesson-stage">
+      <section className={step.tool ? 'lesson-stage with-tool' : 'lesson-stage'}>
         <div className="stage-head ds-card"><HeadView guide={step.guide && { id: `${c}-${k}`, handle: step.guide.handle, text: L(step.guide.text) }} /></div>
         <ViewFrame className="stage-view" view={ui.viewTab} onView={(v) => store.setUi({ viewTab: v })} />
+        {step.tool && <Tool key={`${c}-${k}`} tool={step.tool} />}
       </section>
       <section className="lesson-card ds-card" aria-live="polite">
         <header className="lesson-head">
@@ -144,7 +145,6 @@ export function Learn() {
           )}
         </div>
         {step.quick && <QuickControls ids={[step.quick]} />}
-        {step.tool && <Tool key={`${c}-${k}`} tool={step.tool} />}
         <footer className="lesson-nav">
           <button className="btn" disabled={first} onClick={back}>← {L({ it: 'Indietro', en: 'Back' })}</button>
           <button className="chip" title={L({ it: 'Tutti i controlli, ordinati lungo la catena del segnale', en: 'Every control, ordered along the signal chain' })} onClick={() => store.setUi({ mode: 'lab' })}>{L({ it: 'Apri il laboratorio', en: 'Open the lab' })}</button>
