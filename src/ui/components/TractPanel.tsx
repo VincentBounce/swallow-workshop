@@ -54,7 +54,7 @@ export function TractPanel() {
         <div className="chips ipa">
           {MRI_VOWELS.map((v) => (
             <button key={v.ipa} className="chip ipa" title={`${v.areas.length} × ${(10 * v.dx).toFixed(1)} mm`} onClick={() => {
-              store.setParams((q) => { q.tubeAreas = v.areas.slice(); q.tubeLength = v.areas.length * v.dx; q.tubeMode = true; q.phonate = true; q.voicing = true; q.abduction = 0; });
+              store.setParams((q) => { q.tubeAreas = v.areas.slice(); q.tubeLength = v.areas.length * v.dx; q.tubeMode = true; q.articulators.velum = 0; q.phonate = true; q.voicing = true; q.abduction = 0; });
               store.setUi({ viewTab: 'tube' });
               if (!store.audio.running) void store.startAudio();
             }}>{v.ipa}</button>

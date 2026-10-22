@@ -181,10 +181,18 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 .tour-card h2 { margin: 2px 0 8px; font-size: 19px; }
 .tour-card p { margin: 0 0 8px; color: #d3d9e4; }
 .kicker { color: var(--amber); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
-.tour-nav { display: flex; gap: 4px; margin-bottom: 8px; }
+.tour-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
 .tour-nav .dot { width: 24px; height: 24px; margin: 0; border: 1px solid var(--line2); background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .tour-nav .dot.on { border-color: var(--amber); color: var(--amber); }
 .tour-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.experiment { margin-top: 12px; padding: 10px 12px; border: 1px dashed #3a5570; border-radius: var(--radius); background: rgba(20, 32, 48, 0.55); display: flex; flex-direction: column; gap: 6px; }
+.experiment .chip { align-self: flex-start; }
+.exp-q { color: var(--amber); font-weight: 600; }
+.exp-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.exp-steps .btn.try.done { border-color: var(--amber); }
+.tour-card .exp-look, .tour-card .exp-answer, .tour-card .exp-numbers { margin: 0; }
+.tour-card .exp-numbers { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tour-card .exp-answer { border-left: 2px solid var(--amber); padding-left: 8px; }
 
 /* meters */
 .meters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; padding: 8px 12px 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }

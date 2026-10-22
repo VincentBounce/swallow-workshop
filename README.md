@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 79 automated tests (physics, speech, analysis)
+npm test           # 80 automated tests (physics, speech, analysis, interface text)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -39,13 +39,19 @@ user gesture), then **Soffia / Blow** or any phoneme, preset or example.
 
 Two modes, switchable in the header:
 
-- **Guided tour** (8 chapters that follow the video): a buzz and a filter;
-  waves, harmonics and spectrum; the source (pulses, pitch, melody with the
-  buzz alone); the filter (formants, vowels, the F1-F2 map, what belongs to
-  the person); two independent knobs (source and filter); the hiss (s, f,
-  breathy voice, pulsed aspiration); the spectrogram (slices, window
-  trade-off, log-mel); a machine voice. Every chapter has buttons that set up
-  the experiment it describes.
+- **Guided tour** (a welcome and 11 chapters, the first ones following the
+  video): a buzz and a filter; waves, harmonics and spectrum; the source
+  (pulses, pitch, melody with the buzz alone); the filter (formants, vowels,
+  the F1-F2 map, what belongs to the person); two independent knobs (source
+  and filter); the hiss (s, f, breathy voice, pulsed aspiration); consonants
+  (closures, the pressure behind them, voice onset time); the nose (velum,
+  antiresonances, the two passages); vocal tracts measured by MRI; the
+  spectrogram (slices, window trade-off, log-mel); from sounds to sentences
+  (coarticulation, timing, melody, each one switched off); a machine voice.
+  Every chapter has buttons that set up what it describes, and most have
+  guided experiments: a question, the steps to try, what to look and listen
+  for, and the answer on demand, with the live numbers behind it when
+  Numbers is on.
 - **Lab**: every control at once.
 
 Views:

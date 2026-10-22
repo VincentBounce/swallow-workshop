@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { store, useUi, useParams, ViewTab, ControlTab } from './store';
+import { store, useUi, useParams, useTick, ViewTab, ControlTab } from './store';
 import { useT, useL } from './i18n';
 import { HeadView } from './components/HeadView';
 import { Spectrum } from './components/Spectrum';
@@ -17,7 +17,7 @@ import { MelodyPanel } from './components/MelodyPanel';
 import { ABPanel } from './components/ABPanel';
 import { MachinePanel } from './components/MachinePanel';
 import { Meters } from './components/Meters';
-import { CHAPTERS } from './tour';
+import { CHAPTERS, GuidedExperiment } from './tour';
 import { resetAll } from './presets';
 
 function Header() {
@@ -69,6 +69,32 @@ function Header() {
   );
 }
 
+/** A guided experiment: question, steps to try, what to watch, the answer on demand. */
+function Experiment({ ex }: { ex: GuidedExperiment }) {
+  const ui = useUi();
+  const L = useL();
+  const [done, setDone] = useState(-1);
+  const [open, setOpen] = useState(false);
+  useTick(ex.numbers && ui.numbers ? 4 : 0);
+  return (
+    <div className="experiment">
+      <div className="exp-q">{L({ it: 'Esperimento', en: 'Experiment' })} · {L(ex.question)}</div>
+      <ol className="exp-steps">
+        {ex.steps.map((s, i) => (
+          <li key={i}><button className={i <= done ? 'btn try done' : 'btn try'} onClick={() => { s.run(); setDone(Math.max(done, i)); }}>{L(s.label)}</button></li>
+        ))}
+      </ol>
+      <p className="exp-look"><b>{L({ it: 'Guarda e ascolta.', en: 'Look and listen.' })}</b> {L(ex.look)}</p>
+      {ex.numbers && (ui.numbers
+        ? <p className="exp-numbers">123 · {L(ex.numbers())}</p>
+        : <button className="chip" onClick={() => store.setUi({ numbers: true })}>123 {L({ it: 'mostra i numeri', en: 'show the numbers' })}</button>)}
+      {open
+        ? <p className="exp-answer">{L(ex.answer)}</p>
+        : <button className="chip" onClick={() => setOpen(true)}>{L({ it: 'Che cosa è successo?', en: 'What happened?' })}</button>}
+    </div>
+  );
+}
+
 function TourCard() {
   const ui = useUi();
   const L = useL();
@@ -86,6 +112,7 @@ function TourCard() {
       <div className="tour-actions">
         {ch.actions.map((a, i) => <button key={i} className="btn try" onClick={a.run}>▸ {L(a.label)}</button>)}
       </div>
+      {ch.experiments?.map((ex, i) => <Experiment key={`${ui.chapter}-${i}`} ex={ex} />)}
       <div className="row space">
         <button className="chip" disabled={ui.chapter === 0} onClick={() => store.setUi({ chapter: Math.max(0, ui.chapter - 1) })}>← {L({ it: 'indietro', en: 'back' })}</button>
         <button className="chip on" disabled={ui.chapter === CHAPTERS.length - 1} onClick={() => store.setUi({ chapter: Math.min(CHAPTERS.length - 1, ui.chapter + 1) })}>{L({ it: 'avanti', en: 'next' })} →</button>
