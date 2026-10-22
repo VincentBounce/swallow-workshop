@@ -4,7 +4,7 @@ import { TwoMassGlottis } from '../glottis/twoMass';
 import { Waveguide } from '../tract/waveguide';
 import { computeGeometry, TractGeometry } from '../tract/geometry';
 import { AreaFunction, N_SECTIONS, sectionsFromGeometry, resampleTube } from '../tract/areaFunction';
-import { buildNasal, NasalTract, portArea } from '../tract/nasal';
+import { buildNasal, NasalTract, noseOf, nostrilArea, portArea } from '../tract/nasal';
 import { Aero, newJetInfo, JetInfo, RE_CRIT, kineticResistances } from '../aero/aero';
 import { TurbulenceSource, ShapedNoise } from '../noise/noise';
 import { ButterworthLowpass } from '../util/biquad';
@@ -294,7 +294,7 @@ export class VoiceEngine {
     const a = this.art, an = this.params.anatomy, t = this.params.teeth;
     let s = '';
     for (const k of ARTICULATOR_KEYS) s += (Math.round(a[k] * 400) / 400) + ',';
-    s += `${an.scale},${an.pharynx},${an.pharynxWidth},${an.nasalLeak}|${t.slitWidth},${t.diastema},${t.overjet},${t.advance},${t.upperLength},${t.lowerLength},${t.slitOpen}`;
+    s += `${an.scale},${an.pharynx},${an.pharynxWidth},${an.nasalLeak},${an.nasalCycle},${an.nostrilLeft},${an.nostrilRight}|${t.slitWidth},${t.diastema},${t.overjet},${t.advance},${t.upperLength},${t.lowerLength},${t.slitOpen}`;
     if (this.params.tubeMode) s += '|tube' + this.params.tubeAreas.join(',') + this.params.tubeLength;
     return s;
   }
@@ -351,7 +351,7 @@ export class VoiceEngine {
     const scale = p.anatomy.scale;
     const port = portArea(this.art.velum, p.anatomy.nasalLeak, scale);
     const coupling = Math.round(0.43 * n) - 1;
-    this.nasal = buildNasal(af.dx, scale, port, coupling, this.nasal.dx === af.dx ? this.nasal : undefined);
+    this.nasal = buildNasal(af.dx, scale, port, coupling, this.nasal.dx === af.dx ? this.nasal : undefined, noseOf(p.anatomy));
     const steps = Math.round(this.fsT * GEOM_INTERVAL * 1.05);
     this.wg.lossParams.base = 70 * p.losses;
     this.wg.lossParams.narrow = 45 * p.losses;
@@ -399,7 +399,8 @@ export class VoiceEngine {
     const p = this.params;
     const scale = p.anatomy.scale;
     const ag = this.meanGlottalArea();
-    const nasalArea = Math.min(portArea(this.art.velum, p.anatomy.nasalLeak, scale), 1.0 * scale * scale);
+    // the air leaves the nose through the nostrils: pinched, they stop it
+    const nasalArea = Math.min(portArea(this.art.velum, p.anatomy.nasalLeak, scale), 1.0 * scale * scale, nostrilArea(scale, noseOf(p.anatomy)));
     const oral = Math.max(0, this.fineMinArea);
     // sub-steps for the stiff closure/release dynamics
     const sub = 4;

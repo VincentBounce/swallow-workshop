@@ -23,6 +23,9 @@ import { NasalTract } from './nasal';
  * impedance (parallel R-L) by the bilinear transform; the radiated sound is the
  * time derivative of the lip plus nostril volume velocity.
  *
+ * Nose: a common nasopharynx from the velum to the choanae, then a three-way
+ * junction into the left and right passages, each ending at its own nostril.
+ *
  * Losses: each wave is attenuated per section by exp(-sigma_i / fs), with a
  * decay rate that grows in narrow sections (perimeter/area of the walls);
  * calibrated against the frequency-domain model (see tests).
@@ -80,10 +83,10 @@ export interface WaveguideLossParams {
 }
 
 // The nasal passages are narrow, folded (the turbinates) and lined with soft
-// mucosa: their resonances are heavily damped (Fujimura 1962). x12 puts a held
-// /m/ about 9 dB below /a/ and 3 dB below /i/, as in the measured relative
+// mucosa: their resonances are heavily damped (Fujimura 1962). x10 puts a held
+// /m/ about 7-9 dB below /a/ and 3 dB below /i/, as in the measured relative
 // intensities of speech sounds (Fletcher 1953; Fry 1979).
-export const DEFAULT_LOSSES: WaveguideLossParams = { base: 70, narrow: 45, nasal: 12 };
+export const DEFAULT_LOSSES: WaveguideLossParams = { base: 70, narrow: 45, nasal: 10 };
 
 class Branch {
   readonly n: number;
@@ -154,18 +157,23 @@ class Branch {
   }
 }
 
-interface Sinus { tube: Branch; at: number }
+interface Sinus { tube: Branch; at: number; part: number }
 
 export class Waveguide {
   readonly n: number;
   readonly oral: Branch;
+  /** common nasopharynx (index 0 at the velum) */
   nasal: Branch;
+  /** left and right nasal passages, from the choana to the nostril */
+  nasalL: Branch = new Branch(2);
+  nasalR: Branch = new Branch(2);
   sinuses: Sinus[] = [];
   /** oral junction where the nose joins (between sections J and J+1) */
   coupling: number;
   private rampLeft = 0;
   private lipRad: RadFilter = newRad();
-  private nosRad: RadFilter = newRad();
+  private nosRadL: RadFilter = newRad();
+  private nosRadR: RadFilter = newRad();
 
   /** glottal boundary: reflection and injected pressure wave (set before step) */
   rg = 0.99;
@@ -230,10 +238,11 @@ export class Waveguide {
   }
 
   reset(): void {
-    this.oral.reset(); this.nasal.reset();
+    this.oral.reset(); this.nasal.reset(); this.nasalL.reset(); this.nasalR.reset();
     for (const s of this.sinuses) s.tube.reset();
     this.lipRad.x1 = this.lipRad.y1 = 0;
-    this.nosRad.x1 = this.nosRad.y1 = 0;
+    this.nosRadL.x1 = this.nosRadL.y1 = 0;
+    this.nosRadR.x1 = this.nosRadR.y1 = 0;
     this.pAcc.fill(0); this.uAcc.fill(0); this.accCount = 0;
     this.wallY.fill(0); this.wallV.fill(0);
     this.resValue.fill(0); this.resOn = false;
@@ -245,10 +254,12 @@ export class Waveguide {
       this.nasal = new Branch(nt.areas.length);
       this.sinuses = [];
     }
+    if (nt.left.length !== this.nasalL.n) this.nasalL = new Branch(nt.left.length);
+    if (nt.right.length !== this.nasalR.n) this.nasalR = new Branch(nt.right.length);
     if (this.sinuses.length !== nt.sinuses.length || this.sinuses.some((s, i) => s.tube.n !== nt.sinuses[i].areas.length)) {
-      this.sinuses = nt.sinuses.map((sb) => ({ tube: new Branch(sb.areas.length), at: sb.at }));
+      this.sinuses = nt.sinuses.map((sb) => ({ tube: new Branch(sb.areas.length), at: sb.at, part: sb.part }));
     }
-    this.sinuses.forEach((s, i) => { s.at = nt.sinuses[i].at; });
+    this.sinuses.forEach((s, i) => { s.at = nt.sinuses[i].at; s.part = nt.sinuses[i].part; });
     this.coupling = nt.coupling;
   }
 
@@ -262,10 +273,14 @@ export class Waveguide {
     this.configureNasal(nt);
     this.oral.setAreas(af.areas, steps);
     this.nasal.setAreas(nt.areas, steps);
+    this.nasalL.setAreas(nt.left, steps);
+    this.nasalR.setAreas(nt.right, steps);
     for (let i = 0; i < this.sinuses.length; i++) this.sinuses[i].tube.setAreas(nt.sinuses[i].areas, steps);
     const lp = this.lossParams;
     this.oral.setLoss(fs, lp.base, lp.narrow, 1);
     this.nasal.setLoss(fs, lp.base, lp.narrow, lp.nasal);
+    this.nasalL.setLoss(fs, lp.base, lp.narrow, lp.nasal);
+    this.nasalR.setLoss(fs, lp.base, lp.narrow, lp.nasal);
     for (const s of this.sinuses) s.tube.setLoss(fs, lp.base, lp.narrow, lp.nasal);
     // lumped wall surface (perimeter x length of two sections) at each wall junction
     for (let i = 0; i < this.wallJ.length; i++) {
@@ -278,7 +293,8 @@ export class Waveguide {
     }
     const first = steps <= 1;
     designRadiation(this.oral.target[this.n - 1], fs, this.lipRad, first);
-    designRadiation(this.nasal.target[this.nasal.n - 1], fs, this.nosRad, first);
+    designRadiation(this.nasalL.target[this.nasalL.n - 1], fs, this.nosRadL, first);
+    designRadiation(this.nasalR.target[this.nasalR.n - 1], fs, this.nosRadR, first);
     this.rampLeft = Math.max(1, steps);
   }
 
@@ -297,16 +313,17 @@ export class Waveguide {
     if (ramp) {
       this.rampLeft--;
       if (this.rampLeft === 0) {
-        o.settle(); ns.settle();
+        o.settle(); ns.settle(); this.nasalL.settle(); this.nasalR.settle();
         for (const s of this.sinuses) s.tube.settle();
       } else {
-        o.glide(); ns.glide();
+        o.glide(); ns.glide(); this.nasalL.glide(); this.nasalR.glide();
         for (const s of this.sinuses) s.tube.glide();
       }
       // radiation filters glide with the end areas
       const w = 1 / (this.rampLeft + 1);
       glideRad(this.lipRad, w);
-      glideRad(this.nosRad, w);
+      glideRad(this.nosRadL, w);
+      glideRad(this.nosRadR, w);
     }
     const f = o.f, b = o.b, fn = o.fn, bn = o.bn, k = o.k, loss = o.loss;
 
@@ -400,35 +417,18 @@ export class Waveguide {
       this.lipFlow = (o.area[n - 1] / (RHO * C_SOUND)) * (x - y);
     }
 
-    // nasal branch
+    // nasal branch: common part, choanae, left and right passages
+    this.stepNasalPart(ns, 0);
     {
-      const nf = ns.f, nb = ns.b, nfn = ns.fn, nbn = ns.bn, nk = ns.k, nl = ns.loss;
-      const nn = ns.n;
-      for (let i = 0; i < nn - 1; i++) {
-        let sinus: Sinus | null = null;
-        for (let q = 0; q < this.sinuses.length; q++) if (this.sinuses[q].at === i + 1) { sinus = this.sinuses[q]; break; }
-        if (sinus) {
-          // three-way junction between nasal i, nasal i+1 and the sinus neck
-          const t = sinus.tube;
-          const a1 = ns.area[i], a2 = ns.area[i + 1], a3 = t.area[0];
-          const pj = (2 * (a1 * nf[i] + a2 * nb[i + 1] + a3 * t.b[0])) / (a1 + a2 + a3);
-          nfn[i + 1] = nl[i + 1] * (pj - nb[i + 1]);
-          nbn[i] = nl[i] * (pj - nf[i]);
-          t.fn[0] = t.loss[0] * (pj - t.b[0]);
-        } else {
-          const fin = nf[i], bin = nb[i + 1];
-          const w = nk[i] * (fin - bin);
-          nfn[i + 1] = nl[i + 1] * (fin + w);
-          nbn[i] = nl[i] * (bin + w);
-        }
-      }
-      const x = nf[nn - 1];
-      const r = this.nosRad;
-      const y = r.b0 * x + r.b1 * r.x1 - r.a1 * r.y1;
-      r.x1 = x; r.y1 = y;
-      nbn[nn - 1] = nl[nn - 1] * y;
-      this.nosFlow = (ns.area[nn - 1] / (RHO * C_SOUND)) * (x - y);
+      // three-way junction at the choanae (common last, left 0, right 0)
+      const L = this.nasalL, R = this.nasalR, c = ns.n - 1;
+      const a1 = ns.area[c], a2 = L.area[0], a3 = R.area[0];
+      const pj = (2 * (a1 * ns.f[c] + a2 * L.b[0] + a3 * R.b[0])) / (a1 + a2 + a3);
+      ns.bn[c] = ns.loss[c] * (pj - ns.f[c]);
+      L.fn[0] = L.loss[0] * (pj - L.b[0]);
+      R.fn[0] = R.loss[0] * (pj - R.b[0]);
     }
+    this.nosFlow = this.stepNasalPart(this.nasalL, 1, this.nosRadL) + this.stepNasalPart(this.nasalR, 2, this.nosRadR);
     // sinus tubes (closed far end)
     for (let q = 0; q < this.sinuses.length; q++) {
       const t = this.sinuses[q].tube;
@@ -459,5 +459,43 @@ export class Waveguide {
 
     o.swap();
     ns.swap();
+    this.nasalL.swap();
+    this.nasalR.swap();
+  }
+
+  /**
+   * Internal junctions of one part of the nose (with the sinus ostia) and,
+   * for a passage, its nostril; returns the nostril volume velocity.
+   */
+  private stepNasalPart(br: Branch, part: number, rad?: RadFilter): number {
+    const nf = br.f, nb = br.b, nfn = br.fn, nbn = br.bn, nk = br.k, nl = br.loss;
+    const nn = br.n;
+    for (let i = 0; i < nn - 1; i++) {
+      let sinus: Sinus | null = null;
+      for (let q = 0; q < this.sinuses.length; q++) {
+        const sq = this.sinuses[q];
+        if (sq.part === part && sq.at === i + 1) { sinus = sq; break; }
+      }
+      if (sinus) {
+        // three-way junction between sections i, i+1 and the sinus neck
+        const t = sinus.tube;
+        const a1 = br.area[i], a2 = br.area[i + 1], a3 = t.area[0];
+        const pj = (2 * (a1 * nf[i] + a2 * nb[i + 1] + a3 * t.b[0])) / (a1 + a2 + a3);
+        nfn[i + 1] = nl[i + 1] * (pj - nb[i + 1]);
+        nbn[i] = nl[i] * (pj - nf[i]);
+        t.fn[0] = t.loss[0] * (pj - t.b[0]);
+      } else {
+        const fin = nf[i], bin = nb[i + 1];
+        const w = nk[i] * (fin - bin);
+        nfn[i + 1] = nl[i + 1] * (fin + w);
+        nbn[i] = nl[i] * (bin + w);
+      }
+    }
+    if (!rad) return 0;
+    const x = nf[nn - 1];
+    const y = rad.b0 * x + rad.b1 * rad.x1 - rad.a1 * rad.y1;
+    rad.x1 = x; rad.y1 = y;
+    nbn[nn - 1] = nl[nn - 1] * y;
+    return (br.area[nn - 1] / (RHO * C_SOUND)) * (x - y);
   }
 }

@@ -6,7 +6,7 @@ import { Articulators } from '../dsp/tract/types';
 import { computeGeometry, TractGeometry } from '../dsp/tract/geometry';
 import { AreaFunction, sectionsFromGeometry, resampleTube } from '../dsp/tract/areaFunction';
 import { formants, Formant } from '../dsp/tract/acoustics';
-import { portArea } from '../dsp/tract/nasal';
+import { noseOf, portArea } from '../dsp/tract/nasal';
 import { loadEnglishLexicon, englishLexiconSize } from '../dsp/speech/english';
 import { NaturalnessOptions, NATURAL_ALL } from '../dsp/speech/sequencer';
 
@@ -234,7 +234,7 @@ class Store {
       if (p.tubeMode) af = tubeAreaFunction(p);
       let fm: Formant[] = [];
       try {
-        fm = formants(af, { port: portArea(a.velum, p.anatomy.nasalLeak, p.anatomy.scale), scale: p.anatomy.scale }, 5000, 30);
+        fm = formants(af, { port: portArea(a.velum, p.anatomy.nasalLeak, p.anatomy.scale), scale: p.anatomy.scale, nose: noseOf(p.anatomy) }, 5000, 30);
       } catch { fm = []; }
       this.geomCache = { geom, af, formants: fm };
     }

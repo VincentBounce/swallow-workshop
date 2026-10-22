@@ -51,6 +51,13 @@ const EXPERIMENTS: Experiment[] = [
     answer: { it: 'Il ramo nasale aggiunge risonanze e antirisonanze: F1 si allarga e si abbassa, compaiono valli nello spettro.', en: 'The nasal branch adds resonances and anti-resonances: F1 broadens and drops, valleys appear in the spectrum.' },
   },
   {
+    id: 'nostril', title: { it: 'Una narice tappata', en: 'One nostril pinched' },
+    question: { it: 'Il naso ha due strade: cosa succede se ne chiudo una?', en: 'The nose has two passages: what happens if I close one?' },
+    a: { it: '«m» con il naso libero', en: '“m” with a free nose' }, b: { it: '«m» con la narice sinistra tappata', en: '“m” with the left nostril pinched' },
+    setA: vowelAt('m', 130), setB: (p) => { vowelAt('m', 130)(p); p.anatomy.nostrilLeft = 0; },
+    answer: { it: 'La fossa tappata diventa un ramo chiuso: aggiunge un’antirisonanza verso 560 Hz e abbassa la prima risonanza del ronzio da circa 320 a 240 Hz. Tappandole tutte e due l’aria non esce più e il ronzio si spegne.', en: 'The pinched passage becomes a closed side branch: it adds an antiresonance near 560 Hz and lowers the first resonance of the hum from about 320 to 240 Hz. Pinch both and the air has no way out: the hum dies.' },
+  },
+  {
     id: 'pulse', title: { it: 'Fruscio costante contro pulsato', en: 'Steady versus pulsed hiss' },
     question: { it: 'Il fruscio della voce soffiata è costante?', en: 'Is the hiss of a breathy voice steady?' },
     a: { it: 'fruscio costante', en: 'steady hiss' }, b: { it: 'fruscio pulsato (fisico)', en: 'pulsed hiss (physical)' },

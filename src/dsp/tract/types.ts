@@ -38,6 +38,11 @@ export interface Anatomy {
   pharynxWidth: number;
   /** extra leakage into the nose (adds to the velum), 0..1 */
   nasalLeak: number;
+  /** nasal cycle: -1 left passage congested ... 0 equal ... +1 right congested */
+  nasalCycle: number;
+  /** opening of each nostril, 0 pinched ... 1 open */
+  nostrilLeft: number;
+  nostrilRight: number;
 }
 
 /**
@@ -77,7 +82,7 @@ export const DEFAULT_ARTICULATORS: Articulators = {
   larynx: 0,
 };
 
-export const DEFAULT_ANATOMY: Anatomy = { scale: 1, pharynx: 1, pharynxWidth: 1, nasalLeak: 0 };
+export const DEFAULT_ANATOMY: Anatomy = { scale: 1, pharynx: 1, pharynxWidth: 1, nasalLeak: 0, nasalCycle: 0, nostrilLeft: 1, nostrilRight: 1 };
 
 export const DEFAULT_TEETH: Teeth = {
   slitWidth: 2.2,

@@ -1,7 +1,7 @@
 import { getFFT, hann } from '../dsp/util/fft';
 import { lfDerivative, rdToTiming, solveLF, timingFromQuotients } from '../dsp/glottis/lf';
 import { transferMagnitudes } from '../dsp/tract/acoustics';
-import { portArea } from '../dsp/tract/nasal';
+import { noseOf, portArea } from '../dsp/tract/nasal';
 import type { EngineParams } from '../dsp/engine/params';
 import type { AreaFunction } from '../dsp/tract/areaFunction';
 import { lpcFormants, decimate } from '../dsp/analysis/lpc';
@@ -66,7 +66,7 @@ export function filterResponse(af: AreaFunction, p: EngineParams, velum: number,
   if (key === envKey && envCache) return envCache;
   const freqs = new Float64Array(n);
   for (let i = 0; i < n; i++) freqs[i] = 20 + ((fmax - 20) * i) / (n - 1);
-  const mag = transferMagnitudes(af, freqs, { port: portArea(velum, p.anatomy.nasalLeak, p.anatomy.scale), scale: p.anatomy.scale });
+  const mag = transferMagnitudes(af, freqs, { port: portArea(velum, p.anatomy.nasalLeak, p.anatomy.scale), scale: p.anatomy.scale, nose: noseOf(p.anatomy) });
   envKey = key;
   envCache = { freqs, mag };
   return envCache;

@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 74 automated tests (physics, speech, analysis)
+npm test           # 79 automated tests (physics, speech, analysis)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -65,12 +65,12 @@ Control tabs:
 | Tab | Controls |
 |---|---|
 | Source | Blow, voicing, buzz only (no filter), F0, lung pressure, glottal opening, vibrato; voice presets (man, woman, child, deep, whisper, vocal fry, breathy, pressed, raspy); LF (Rd or Oq / alpha_m / Ra) or two-mass (tension, asymmetry, rest area); peak area, source-tract interaction, posterior chink; jitter, shimmer, diplophonia. |
-| Tract & person | Articulators as sliders, phoneme buttons (IPA), the vowels measured by MRI (Story 2008) loaded as the tube, anatomy (size, pharynx length and width, nasal leak), timbre presets, losses. |
+| Tract & person | Articulators as sliders, phoneme buttons (IPA), the vowels measured by MRI (Story 2008) loaded as the tube, anatomy (size, pharynx length and width, nasal leak, nasal cycle, each nostril, pinch the nose), timbre presets, losses. |
 | Teeth & slit | Front view and side view of the incisors with the jet; slit width, extra opening, diastema, overjet, advance, upper / lower incisor length, tongue groove; presets (open bite, gap teeth, overjet, short teeth); s / ʃ / f / θ / z shortcuts; live jet readouts (velocity, Reynolds number, share of the jet hitting the teeth). |
 | Noise | The physical sources (aspiration, constriction jet, teeth obstacle, release bursts) with trims and pulsing; your own noise: colour (white, pink, brown, blue, violet), a drawable 32-point spectrum, band limits, level, pulsing by the glottal flow, injection point (glottis, constriction, teeth, lips or anywhere along the tract) or straight to the ears (bypassing the tract). |
 | Speak | English or Italian text (numbers are read out), or IPA between slashes; rate, accent strength; examples in both languages; a phone timeline that follows the playback; "what makes it sound natural": timing, intonation, micro-variation, voice quality and coarticulation, each switchable, with a plain explanation and a one-click robot voice. |
 | Melody | Draw a pitch contour (erase = unvoiced) and play it with the buzz alone or through the current vowel; contour presets (sample sentence, question, flat); a two-octave keyboard (mouse or computer keys) with vibrato. |
-| A/B experiment | Eight ready-made experiments (same filter other pitch, same pitch other filter, same vowel another body, dark vs bright, velum closed vs open, steady vs pulsed hiss, voice vs whisper, LF vs two-mass) plus your own A/B captures, rendered offline, played and overlaid as long-term spectra. |
+| A/B experiment | Nine ready-made experiments (same filter other pitch, same pitch other filter, same vowel another body, dark vs bright, velum closed vs open, one nostril pinched, steady vs pulsed hiss, voice vs whisper, LF vs two-mass) plus your own A/B captures, rendered offline, played and overlaid as long-term spectra. |
 | Machine voice | Only what the video narration says about the excitation of a neural speech model: nine sines at 1..9 x F0, locked to the pitch, switched off where the melody is zero and replaced by soft noise, mixed by learned weights (here by hand). |
 
 Header extras: microphone (opt-in, analysed locally, never played back),
@@ -86,7 +86,7 @@ src/
     glottis/twoMass.ts    Steinecke-Herzel asymmetric two-mass model
     tract/geometry.ts     mid-sagittal articulatory model, teeth and slit
     tract/areaFunction.ts grid -> area function (44 sections)
-    tract/nasal.ts        nasal tract with maxillary and sphenoidal sinuses
+    tract/nasal.ts        nasal tract: nasopharynx, left and right passages and nostrils, sinuses
     tract/waveguide.ts    real-time Kelly-Lochbaum waveguide
     tract/acoustics.ts    frequency-domain reference (lossy ABCD chain)
     aero/aero.ts          slow aerodynamics, jets, Reynolds number, obstacle
@@ -233,11 +233,28 @@ several times (the sharpest one below 4 kHz in /ʃ/ 3.6 times at
 150 cm³/s). The output is low-passed (8th-order
 Butterworth) and resampled to the audio rate with Catmull-Rom interpolation.
 
-**Nasal tract**: a fixed 28-section branch (about 11 cm, scaled with the
-speaker) with the area profile of Dang, Honda & Suzuki (1994), joined at the
-velopharyngeal port, with maxillary and sphenoidal sinuses as neck + closed
-cavity side branches (resonating near 450-650 Hz, Dang & Honda 1996) and
-higher wall losses for the convoluted turbinates.
+**Nasal tract**: 28 sections (about 11 cm, scaled with the speaker) with the
+area profile of Dang, Honda & Suzuki (1994), joined at the velopharyngeal
+port. The first 7 sections (the nasopharynx) are common; at the choanae a
+three-way junction splits them into the left and right passages, each with
+half the area and its own radiating nostril. Two equal passages sound like
+the merged tube; unequal ones add a pole-zero pair (Dang et al. 1994): with
+one side congested by the nasal cycle (the turbinates of one side swell
+while the other side's shrink, every few hours) /m/ gains a resonance near
+2.2 kHz with its antiresonance. A pinched nostril closes its passage, which
+becomes a closed side branch: a new antiresonance near 560 Hz, and the first
+resonance of /m/ falls from about 320 to 240 Hz. With both pinched the air of
+a held /m/ has no way out (the aerodynamics take the nostril area too): the
+mouth pressure rises to the lung pressure and the hum dies. The maxillary
+sinuses (one per side) and the sphenoidal sinus (on the nasopharynx) are
+neck + closed cavity side branches, resonating near 450-650 Hz (Dang & Honda
+1996). The convoluted turbinates give the passages more wall surface, hence
+higher viscous and thermal losses; their walls are bone and cartilage under a
+thin mucosa, so unlike the cheeks they hardly yield. With soft walls the
+first resonance of the murmur would rise to about 390 Hz; with bony ones it
+stays near 310-330 Hz, close to the 250-300 Hz measured in men (Stevens
+1998), in both models. The waveguide damps the nose ten times more than the
+plain wall losses, which puts a held /m/ 7-9 dB below /a/ (Fletcher 1953).
 
 **Frequency-domain reference** (Sondhi & Schroeter 1987; Story, Titze &
 Hoffman 1996): the same area function as a chain of lossy ABCD sections with
@@ -490,7 +507,12 @@ in brackets are the adult male targets described under Speech.
 | Control rate | voice onset from rest: 3-8 kHz at -41.2 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
 | "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +6.1 dB in /sː/ vs -37.3 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.2 dB vs -9.9 dB in the vowel |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.0 dB vs -9.8 dB in the vowel |
+| Nasal murmur, waveguide vs reference | lowest resonance /m/ 317 vs 316, /n/ 332 vs 327, /ŋ/ 323 vs 311 Hz (392-416 Hz in the reference while it gave the nose soft walls) |
+| Nasal cycle | /m/ with one passage congested (cycle 0.6): a new resonance at 2210 Hz with its antiresonance; first resonance 320 -> 310 Hz |
+| Pinched nostril | /m/ with the left nostril pinched: first resonance 320 -> 240 Hz, new antiresonance at 560 Hz |
+| Asymmetric nose, waveguide vs reference | congested left side, right nostril 40 % open, lossless: worst difference 0.41 % over 7 resonances below 3 kHz |
+| Pinched nose | held /m/: nasal airflow 236 -> 0 cm³/s, mouth pressure 8.0 cmH2O (the lung pressure), the hum silent |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
 | American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.7 cmH2O (glottal stop, no puff) vs 6.5 cmH2O in "it." |
@@ -500,7 +522,7 @@ in brackets are the adult male targets described under Speech.
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
 | Voice onset time | /t/ English 79 ms, Italian 7 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian 10-25 ms) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
-| Consonant dips | nasals 6.0-12.4 dB, /v/ 13.3-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
+| Consonant dips | nasals 5.9-12.0 dB, /v/ 13.3-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
 | Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
 | Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.58 st (90 %), 1.9 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
@@ -526,7 +548,11 @@ in brackets are the adult male targets described under Speech.
 - The consonant postures are fitted to formants and fricative spectra, not to
   measured area functions.
 - The nasal branch has a fixed number of sections that scales with the
-  speaker; left and right passages are merged; only two sinus pairs.
+  speaker. Its damping in the waveguide is set by the level of /m/, not by
+  measured bandwidths: the murmur's peaks are wider than in the frequency
+  model, which keeps the plain wall losses (the resonance frequencies agree).
+  No frontal or ethmoid sinuses; a pinched nose is silent (no sound through
+  the tissues).
 - The slow aerodynamics run at control rate (every 32 samples), ramped
   linearly in the sample loop; a strong closure damping term keeps closed
   cavities stable.

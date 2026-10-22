@@ -2,7 +2,7 @@ import {
   C_SOUND, RHO, MU, GAMMA_AIR, LAMBDA_HEAT, CP_AIR, WALL_MASS, WALL_RES, WALL_STIFF, AREA_CLOSED,
 } from '../constants';
 import { AreaFunction } from './areaFunction';
-import { NasalTract, buildNasal, portArea } from './nasal';
+import { NasalTract, NasalSides, buildNasal, passagePerimeter, portArea } from './nasal';
 import { goldenMax } from '../util/math';
 
 /**
@@ -44,6 +44,8 @@ export interface AcousticOptions {
   glottalImpedance?: number;
   /** precomputed nasal tract */
   nasal?: NasalTract;
+  /** nasal cycle and nostrils, for a nasal tract built here */
+  nose?: NasalSides;
   /** flow resistances (acoustic ohms) at the exit of each oral section, the
    *  last one at the lips: the kinetic pressure a jet loses where it leaves a
    *  narrow passage (see kineticResistances) */
@@ -68,9 +70,12 @@ const tmp: C = { re: 0, im: 0 };
 function section(
   area: number, len: number, w: number, perimFactor: number, losses: boolean,
   m: { ar: number; ai: number; br: number; bi: number; cr: number; ci: number },
+  wallFactor = perimFactor,
 ): void {
   const A = Math.max(area, AREA_CLOSED);
   const S = 2 * Math.sqrt(Math.PI * A) * perimFactor;
+  // yielding surface (soft tissue); bony walls, as in the nose, barely yield
+  const Sw = 2 * Math.sqrt(Math.PI * A) * wallFactor;
   // series impedance per unit length
   let zr = 0, zi = (w * RHO) / A;
   // shunt admittance per unit length
@@ -80,8 +85,8 @@ function section(
     yr = ((S * (GAMMA_AIR - 1)) / (RHO * C_SOUND * C_SOUND)) * Math.sqrt((LAMBDA_HEAT * w) / (2 * CP_AIR * RHO));
     const xw = w * WALL_MASS - WALL_STIFF / w;
     const den = WALL_RES * WALL_RES + xw * xw;
-    yr += (S * WALL_RES) / den;
-    yi += (-S * xw) / den;
+    yr += (Sw * WALL_RES) / den;
+    yi += (-Sw * xw) / den;
   }
   // gamma = sqrt(Z Y)
   const pr = zr * yr - zi * yi, pi = zr * yi + zi * yr;
@@ -106,8 +111,8 @@ function section(
 const M = { ar: 0, ai: 0, br: 0, bi: 0, cr: 0, ci: 0 };
 
 /** Propagates (P, U) from the output end of a section to its input end. */
-function back(p: C, u: C, area: number, len: number, w: number, pf: number, losses: boolean): void {
-  section(area, len, w, pf, losses, M);
+function back(p: C, u: C, area: number, len: number, w: number, pf: number, losses: boolean, wf = pf): void {
+  section(area, len, w, pf, losses, M, wf);
   const pr = M.ar * p.re - M.ai * p.im + M.br * u.re - M.bi * u.im;
   const pi = M.ar * p.im + M.ai * p.re + M.br * u.im + M.bi * u.re;
   const ur = M.cr * p.re - M.ci * p.im + M.ar * u.re - M.ai * u.im;
@@ -134,9 +139,9 @@ function cdiv(ar: number, ai: number, br: number, bi: number, out: C): void {
 }
 
 /** Input impedance of a closed side branch (areas from neck to closed end). */
-function branchImpedance(areas: Float64Array, dx: number, w: number, pf: number, losses: boolean, out: C): void {
+function branchImpedance(areas: Float64Array, dx: number, w: number, pf: number, losses: boolean, out: C, wf = pf): void {
   const p: C = { re: 1, im: 0 }, u: C = { re: 0, im: 0 };
-  for (let i = areas.length - 1; i >= 0; i--) back(p, u, areas[i], dx, w, pf, losses);
+  for (let i = areas.length - 1; i >= 0; i--) back(p, u, areas[i], dx, w, pf, losses, wf);
   cdiv(p.re, p.im, u.re, u.im, out);
 }
 
@@ -144,28 +149,46 @@ interface NasalState { zin: C; nosPerPort: C }
 
 /** Nasal input impedance at the port and nostril flow per unit port flow. */
 function nasalAt(n: NasalTract, w: number, losses: boolean, radiation: 'piston' | 'ideal'): NasalState {
-  const p: C = { re: 0, im: 0 }, u: C = { re: 1, im: 0 };
-  const zr: C = { re: 0, im: 0 };
-  if (radiation === 'piston') radiationImpedance(n.areas[n.areas.length - 1], w, zr);
-  p.re = zr.re; p.im = zr.im;
-  const zb: C = { re: 0, im: 0 };
-  for (let i = n.areas.length - 1; i >= 0; i--) {
-    back(p, u, n.areas[i], n.dx, w, n.perimeterFactor, losses);
+  const zb: C = { re: 0, im: 0 }, t: C = { re: 0, im: 0 };
+  // shunt sinus branches at the junction before section i of a part: U += P / Zb
+  const shunts = (part: number, i: number, p: C, u: C) => {
     for (const sb of n.sinuses) {
-      if (sb.at === i) {
-        // shunt branch at the junction before section i: U += P / Zb
-        branchImpedance(sb.areas, n.dx, w, n.perimeterFactor, losses, zb);
-        const t: C = { re: 0, im: 0 };
-        cdiv(p.re, p.im, zb.re, zb.im, t);
-        u.re += t.re; u.im += t.im;
-      }
+      if (sb.part !== part || sb.at !== i) continue;
+      branchImpedance(sb.areas, n.dx, w, n.perimeterFactor, losses, zb, n.wallFactor);
+      cdiv(p.re, p.im, zb.re, zb.im, t);
+      u.re += t.re; u.im += t.im;
     }
+  };
+  // each passage from its nostril (unit nostril flow) back to the choana
+  const pf = passagePerimeter(n);
+  const side = (areas: Float64Array, part: number) => {
+    const p: C = { re: 0, im: 0 }, u: C = { re: 1, im: 0 };
+    const zr: C = { re: 0, im: 0 };
+    if (radiation === 'piston') radiationImpedance(areas[areas.length - 1], w, zr);
+    p.re = zr.re; p.im = zr.im;
+    for (let i = areas.length - 1; i >= 0; i--) {
+      back(p, u, areas[i], n.dx, w, pf, losses, n.wallFactor);
+      shunts(part, i, p, u);
+    }
+    return { p, u };
+  };
+  const l = side(n.left, 1), r = side(n.right, 2);
+  // at the choanae both passages share the pressure P = 1: each takes the
+  // flow u / p and lets 1 / p out of its nostril
+  const p: C = { re: 1, im: 0 }, u: C = { re: 0, im: 0 }, nos: C = { re: 0, im: 0 };
+  for (const s of [l, r]) {
+    cdiv(s.u.re, s.u.im, s.p.re, s.p.im, t); u.re += t.re; u.im += t.im;
+    cdiv(1, 0, s.p.re, s.p.im, t); nos.re += t.re; nos.im += t.im;
+  }
+  for (let i = n.areas.length - 1; i >= 0; i--) {
+    back(p, u, n.areas[i], n.dx, w, n.perimeterFactor, losses, n.wallFactor);
+    shunts(0, i, p, u);
   }
   const zin: C = { re: 0, im: 0 };
   cdiv(p.re, p.im, u.re, u.im, zin);
-  const nos: C = { re: 0, im: 0 };
-  cdiv(1, 0, u.re, u.im, nos); // nostril flow per unit port flow
-  return { zin, nosPerPort: nos };
+  const nosPerPort: C = { re: 0, im: 0 };
+  cdiv(nos.re, nos.im, u.re, u.im, nosPerPort); // nostril flow per unit port flow
+  return { zin, nosPerPort };
 }
 
 export interface TransferPoint {
@@ -187,7 +210,7 @@ export function resolveOptions(af: AreaFunction, o: AcousticOptions = {}): Resol
   const scale = o.scale ?? 1;
   const port = o.port ?? portArea(o.velum ?? 0, o.nasalLeak ?? 0, scale);
   const coupling = o.coupling ?? Math.round(0.43 * af.areas.length) - 1;
-  const nasal = o.nasal ?? (port > 2 * AREA_CLOSED ? buildNasal(af.dx, scale, port, coupling) : null);
+  const nasal = o.nasal ?? (port > 2 * AREA_CLOSED ? buildNasal(af.dx, scale, port, coupling, undefined, o.nose) : null);
   return { losses: o.losses ?? true, radiation: o.radiation ?? 'piston', zg: o.glottalImpedance ?? Infinity, nasal, resistances: o.resistances ?? null };
 }
 

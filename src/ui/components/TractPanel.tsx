@@ -85,6 +85,19 @@ export function TractPanel() {
         <Slider label={L({ it: 'Faringe: lunghezza', en: 'Pharynx: length' })} value={p.anatomy.pharynx} min={0.72} max={1.25} onChange={(v) => store.setParams((x) => { x.anatomy.pharynx = v; })} />
         <Slider label={L({ it: 'Faringe: larghezza', en: 'Pharynx: width' })} value={p.anatomy.pharynxWidth} min={0.55} max={1.6} onChange={(v) => store.setParams((x) => { x.anatomy.pharynxWidth = v; })} />
         <Slider label={L({ it: 'Perdita nasale', en: 'Nasal leak' })} value={p.anatomy.nasalLeak} min={0} max={1} onChange={(v) => store.setParams((x) => { x.anatomy.nasalLeak = v; })} />
+        <Slider label={L({ it: 'Ciclo nasale (lato congestionato)', en: 'Nasal cycle (congested side)' })} value={p.anatomy.nasalCycle} min={-1} max={1}
+          hint={L({ it: 'Il setto divide il naso in due fosse. Ogni poche ore i turbinati di un lato si gonfiano e quelli dell’altro si sgonfiano. Due fosse diverse non suonano come una: le due strade interferiscono e aggiungono una risonanza con la sua antirisonanza (prova una «m»).', en: 'The septum splits the nose into two passages. Every few hours the turbinates of one side swell while the other side’s shrink. Two unequal passages do not sound like one: the two paths interfere and add a resonance with its antiresonance (try an “m”).' })}
+          onChange={(v) => store.setParams((x) => { x.anatomy.nasalCycle = v; })}
+          format={(v) => (Math.abs(v) < 0.05 ? L({ it: 'uguali', en: 'equal' }) : v < 0 ? L({ it: `sinistro ${Math.round(-100 * v)} %`, en: `left ${Math.round(-100 * v)} %` }) : L({ it: `destro ${Math.round(100 * v)} %`, en: `right ${Math.round(100 * v)} %` }))} />
+        <Slider label={L({ it: 'Narice sinistra aperta', en: 'Left nostril open' })} value={p.anatomy.nostrilLeft} min={0} max={1} onChange={(v) => store.setParams((x) => { x.anatomy.nostrilLeft = v; })} format={(v) => `${Math.round(100 * v)} %`} />
+        <Slider label={L({ it: 'Narice destra aperta', en: 'Right nostril open' })} value={p.anatomy.nostrilRight} min={0} max={1} onChange={(v) => store.setParams((x) => { x.anatomy.nostrilRight = v; })} format={(v) => `${Math.round(100 * v)} %`} />
+        <div className="chips">
+          <button className={`chip${p.anatomy.nostrilLeft + p.anatomy.nostrilRight === 0 ? ' on' : ''}`}
+            title={L({ it: 'Con le labbra chiuse e il naso tappato l’aria di una «m» non ha più uscita: la pressione in bocca sale fino a quella dei polmoni e le corde vocali smettono di vibrare.', en: 'With the lips closed and the nose pinched the air of an “m” has no way out: the mouth pressure rises to the lung pressure and the vocal folds stop vibrating.' })}
+            onClick={() => store.setParams((x) => { const shut = x.anatomy.nostrilLeft + x.anatomy.nostrilRight === 0; x.anatomy.nostrilLeft = shut ? 1 : 0; x.anatomy.nostrilRight = shut ? 1 : 0; })}>
+            {L({ it: 'Tappa il naso', en: 'Pinch the nose' })}
+          </button>
+        </div>
         <Slider label={L(names.larynx)} value={a.larynx} min={-1.5} max={1.2} onChange={(v) => setA('larynx', v)} format={(v) => `${v.toFixed(1)} cm`} />
         <Slider label={L({ it: 'Perdite delle pareti', en: 'Wall losses' })} value={p.losses} min={0.3} max={3} onChange={(v) => store.setParams((x) => { x.losses = v; })} format={(v) => `×${v.toFixed(1)}`} />
         <Readout items={[
