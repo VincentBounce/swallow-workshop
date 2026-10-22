@@ -1,4 +1,7 @@
 import { Anatomy, Articulators, Teeth } from './types';
+import {
+  newLens, newSection, lensSection, lensFromLaw, ellipsePerimeter, archHalfWidth, PHARYNX_HALF, LARYNX_HALF, PIRIFORM,
+} from './section3d';
 
 /**
  * Mid-sagittal articulatory model of the vocal tract.
@@ -9,13 +12,15 @@ import { Anatomy, Articulators, Teeth } from './types';
  * A grid of lines perpendicular to a reference spine (horizontal in the
  * pharynx, radial around the tongue body, near vertical at the front - the
  * classical "semi-polar" grid) is intersected with those structures to get the
- * mid-sagittal width d(s) of the airway. Widths become cross-sectional areas
- * with the power law A = alpha d^beta (Heinz & Stevens 1965; Sundberg et al.
- * 1987), with region-specific coefficients, except at the lips (elliptic
- * opening of width w_lip) and at the teeth (an explicit slit between the
- * incisor edges). The centreline length is measured through the midpoints of
- * the grid lines, so lip protrusion and larynx lowering really lengthen the
- * tube.
+ * mid-sagittal width d(s) of the airway. Each grid line then cuts the tract
+ * in three dimensions (section3d.ts): a lens between the tongue and the
+ * palate or the pharyngeal wall, closed at the sides by the teeth or the
+ * lateral walls of the pharynx, with the tongue's groove and lateral channels;
+ * an elliptic opening of width w_lip at the lips; an explicit slit between the
+ * incisor edges at the teeth. Each section has its area, its perimeter and the
+ * part of the perimeter that is soft tissue. The centreline length is measured
+ * through the midpoints of the grid lines, so lip protrusion and larynx
+ * lowering really lengthen the tube.
  *
  * All coordinates are in cm. The canonical frame (adult male) has the glottis
  * at (0, 0), x towards the lips, y upwards.
@@ -53,6 +58,26 @@ export interface RayHit {
   d: number;
   /** cross-sectional area (cm^2) */
   area: number;
+  /** wetted perimeter of the section (cm) and the part of it that is soft tissue (cm) */
+  perimeter: number;
+  soft: number;
+  /** area of the lateral channels beside the tongue (cm^2) */
+  lateral: number;
+  /** lateral extent of the channel (cm): the width of the jet a narrow passage makes */
+  width: number;
+  /** the part of the area, perimeter and yielding perimeter that is the
+   *  supralingual cavity of a lateral: the central channel the lateral
+   *  channels have left, ending at the tip contact (0 = none) */
+  supra: number;
+  supraPerimeter: number;
+  supraSoft: number;
+  /** the cross-section lens of a tongue, pharynx or larynx section (canonical
+   *  units, see section3d.ts); lensP = 0 for the lips, teeth and slits */
+  lensK: number;
+  lensP: number;
+  lensHalf: number;
+  lensGroove: number;
+  lensSides: number;
   /** air pocket below the tongue blade (cm), counted for the front rays */
   sub: number;
   /** the last air pocket below the channel: where it starts along the
@@ -84,6 +109,8 @@ export interface Slit {
   area: number;
   /** hydraulic diameter of the slit (cm) */
   hydraulic: number;
+  /** wetted perimeter of the slit (cm) */
+  perimeter: number;
   /** world coordinates of the upper and lower incisor edges */
   ux: number; uy: number; lx: number; ly: number;
 }
@@ -114,6 +141,12 @@ export interface TractGeometry {
   jawAngle: number;
   /** spine polyline (world) */
   spine: number[];
+  /** size of the drawing: world cm per canonical cm */
+  scale: number;
+  /** the piriform fossae: where they open along the centreline, how deep the
+   *  air in them reaches and how deep they are (cm), and the area of both
+   *  together at the opening and at the bottom (cm^2) */
+  piriform: { at: number; length: number; full: number; areaOpen: number; areaBottom: number };
 }
 
 // ---------------------------------------------------------------- spine ---
@@ -458,6 +491,11 @@ for (let i = 0; i < 128; i++) evBuf.push({ t: 0, solid: 0 });
 
 /** Thickness (cm, scaled) of lower lip over which a split gap stays connected. */
 const LIP_SPLIT = 0.3;
+/** The lateral channels of a lateral are fully open up to SIDES_FULL behind the
+ *  incisal edge and close again over SIDES_FADE as the margins of the tongue
+ *  brace against the molars (canonical cm). */
+const SIDES_FULL = 4.3;
+const SIDES_FADE = 1.0;
 
 function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
   const px = ray.sx + ray.nx * ray.t0, py = ray.sy + ray.ny * ray.t0;
@@ -501,6 +539,9 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
   let airStartId: SolidId | null = null;
   let lastLowerExit = 0;
   let lastLowerId: SolidId | null = null;
+  // the lower solid the ray is in (the one an upper solid touches at a contact)
+  let inLowerId: SolidId | null = null;
+  for (let si = 0; si < solids.length; si++) if (inside[si] && !solids[si].upper) inLowerId = solids[si].id;
   let sub = 0;
   let pocketT = -1, pocketId: SolidId | null = null, chordStart = 0;
   hit.outside = true;
@@ -512,6 +553,7 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
     const wasIn = inside[ev.solid];
     inside[ev.solid] = !wasIn;
     if (sol.upper) upperIn += wasIn ? -1 : 1; else lowerIn += wasIn ? -1 : 1;
+    if (!sol.upper && !wasIn) inLowerId = sol.id;
     if (!sol.upper && wasIn && lowerIn === 0) { lastLowerExit = ev.t; lastLowerId = sol.id; }
     if (lowerIn === 0 && upperIn === 0) {
       if (pocketT >= 0 && airStart < 0) hit.chord = ev.t - chordStart;
@@ -531,7 +573,7 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
     } else if (!wasIn && sol.upper && lowerIn > 0) {
       // upper solid entered while still inside a lower solid: contact
       hit.tLow = ev.t; hit.tUp = ev.t; hit.d = 0;
-      hit.lowId = lastLowerId ?? sol.id; hit.upId = sol.id; hit.outside = false; hit.sub = sub;
+      hit.lowId = inLowerId ?? lastLowerId ?? sol.id; hit.upId = sol.id; hit.outside = false; hit.sub = sub;
       return;
     }
   }
@@ -540,7 +582,11 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
 
 // ------------------------------------------------------- area conversion
 
-/** Region coefficients of the power law A = alpha d^beta (cm). */
+/**
+ * Region coefficients of the cross-section lenses, written as the power law
+ * A = alpha d^beta (cm) of the uncapped lens they are equivalent to (see
+ * section3d.ts).
+ */
 export const AREA_LAW = {
   // the epilaryngeal tube above the glottis is about 0.3-0.6 cm^2 (Story 2008)
   larynx: { alpha: 0.55, beta: 1.3 },
@@ -578,7 +624,8 @@ function computeSlit(upper: number[], lower: number[], t: Teeth, scale: number, 
   const dia = Math.max(0, t.diastema) * scale;
   const area = AREA_LAW.slitShape * height * width + dia * Math.min(0.7 * scale, height + 0.5 * scale) + AREA_LAW.leak * scale * scale;
   const hydraulic = (2 * height * width) / (height + width + 1e-9);
-  return { vertical, horizontal, height, width, area, hydraulic: Math.max(hydraulic, 0.02), ux, uy, lx, ly };
+  const perimeter = 2 * (height + width) + (dia > 0 ? 2 * Math.min(0.7 * scale, height + 0.5 * scale) : 0);
+  return { vertical, horizontal, height, width, area, hydraulic: Math.max(hydraulic, 0.02), perimeter, ux, uy, lx, ly };
 }
 
 // ---------------------------------------------------------------- main
@@ -628,7 +675,7 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
     const r = rays[i];
     r.sx = wx; r.sy = wy; r.nx = nx; r.ny = ny; r.t0 = t0 * s; r.t1 = t1 * s; r.sc = sc;
     spine.push(wx, wy);
-    if (!hits[i]) hits[i] = { tLow: 0, tUp: 0, d: 0, area: 0, sub: 0, pocketT: -1, pocketId: null, chord: 0, lowId: null, upId: null, outside: true, mx: 0, my: 0, rule: 'oral' };
+    if (!hits[i]) hits[i] = { tLow: 0, tUp: 0, d: 0, area: 0, perimeter: 0, soft: 0, lateral: 0, width: 0, supra: 0, supraPerimeter: 0, supraSoft: 0, lensK: 0, lensP: 0, lensHalf: 0, lensGroove: 0, lensSides: 0, sub: 0, pocketT: -1, pocketId: null, chord: 0, lowId: null, upId: null, outside: true, mx: 0, my: 0, rule: 'oral' };
   }
   rays.length = GRID_SC.length;
   hits.length = GRID_SC.length;
@@ -637,6 +684,11 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
   const wLip = lipWidth(a, s);
   const law = AREA_LAW;
   const scaleArea = (alpha: number, beta: number) => alpha * Math.pow(s, 2 - beta);
+  const pw = an.pharynxWidth;
+  const lens = newLens(), pocket = newLens();
+  const sec = newSection(), sec2 = newSection();
+  lensFromLaw(law.oral.alpha, law.oral.beta, pocket);
+  const tongueSides = Math.min(1, Math.max(0, a.tongueSides));
 
   let lastRay = rays.length - 1;
   let firstOutside = -1;
@@ -646,54 +698,94 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
     castRay(ray, solids, h);
     if (h.outside) {
       if (i > 10 && firstOutside < 0) firstOutside = i;
-      h.area = 0; h.rule = 'oral';
+      h.area = 0; h.perimeter = 0; h.soft = 0; h.lateral = 0; h.width = 0; h.rule = 'oral';
+      h.supra = 0; h.supraPerimeter = 0; h.supraSoft = 0;
       continue;
     }
     let tLowW = ray.t0 + h.tLow;
     const tUpW = ray.t0 + h.tUp;
     const d = Math.max(0, h.d);
     const sc = ray.sc;
-    let area: number;
+    let area = 0, perim = 0, soft = 0, lateral = 0, width = 0;
+    let supra = 0, supraP = 0, supraS = 0;
     let rule: RayHit['rule'];
+    h.lensP = 0;
     const isLipU = h.upId === 'upperLip', isLipL = h.lowId === 'lowerLip';
     const isTeethU = h.upId === 'upperIncisor', isTeethL = h.lowId === 'lowerIncisor';
     if (isTeethU && isLipL) {
       rule = 'labiodental';
-      area = law.labiodentalWidth * s * d * 0.8;
+      const w = law.labiodentalWidth * s * 0.8;
+      area = w * d; width = w;
+      perim = 2 * (w + d); soft = 0.5 * perim; // a soft lip under hard teeth
     } else if (isTeethL && isLipU) {
       // from the lower incisors up to the upper lip, across the space behind
       // the lips: the lips, not the slit between the incisors, bound it at
       // the sides (the rule keeps the name of the teeth region)
       rule = 'teeth';
-      area = (Math.PI / 4) * d * wLip;
+      area = (Math.PI / 4) * d * wLip; width = wLip;
+      perim = ellipsePerimeter(wLip, d); soft = 0.5 * perim;
     } else if (isTeethU || isTeethL) {
       rule = 'teeth';
-      const oral = scaleArea(law.oral.alpha, law.oral.beta) * Math.pow(d, law.oral.beta);
-      area = isTeethU && isTeethL ? slit.area : Math.min(oral, Math.max(slit.area, law.slitShape * d * slit.width));
+      if (isTeethU && isTeethL) {
+        area = slit.area; perim = slit.perimeter; soft = 0; width = slit.width;
+      } else {
+        const oral = scaleArea(law.oral.alpha, law.oral.beta) * Math.pow(d, law.oral.beta);
+        area = Math.min(oral, Math.max(slit.area, law.slitShape * d * slit.width));
+        // a slit between the teeth and the tongue or a lip
+        const w = Math.min(slit.width, area / Math.max(d, 0.01 * s));
+        perim = 2 * (w + area / Math.max(w, 0.01 * s)); soft = 0.5 * perim; width = w;
+      }
     } else if (isLipU || isLipL) {
       rule = 'lips';
-      area = (Math.PI / 4) * d * wLip;
-    } else if (sc < SC_LARYNX) {
-      rule = 'larynx';
-      area = scaleArea(law.larynx.alpha, law.larynx.beta) * Math.pow(d, law.larynx.beta);
-    } else if (sc <= SC_PHARYNX) {
-      rule = 'pharynx';
-      area = scaleArea(law.pharynx.alpha * an.pharynxWidth, law.pharynx.beta) * Math.pow(d, law.pharynx.beta);
-    } else if (sc <= SC_FRONT) {
-      rule = 'velar';
-      const f = (sc - SC_PHARYNX) / (SC_FRONT - SC_PHARYNX);
-      const al = law.pharynx.alpha * an.pharynxWidth * (1 - f) + law.oral.alpha * f;
-      const be = law.pharynx.beta * (1 - f) + law.oral.beta * f;
-      area = scaleArea(al, be) * Math.pow(d, be);
+      area = (Math.PI / 4) * d * wLip; width = wLip;
+      perim = ellipsePerimeter(wLip, d); soft = perim;
     } else {
-      rule = 'oral';
-      const oral = scaleArea(law.oral.alpha, law.oral.beta) * Math.pow(d, law.oral.beta);
-      const g = Math.min(1, Math.max(0, a.groove));
-      area = (1 - g) * oral + g * Math.min(oral, law.grooveWidth * s * d);
+      // a lens between the tongue (or the larynx) and the pharyngeal wall,
+      // the velum or the palate, closed at the sides
+      const mxc = (ray.sx + ray.nx * 0.5 * (tLowW + tUpW)) / s;
+      const behind = slit.ux / s - mxc; // canonical distance behind the incisal edge
+      let f = 0;
+      if (sc < SC_LARYNX) {
+        rule = 'larynx';
+        lensFromLaw(law.larynx.alpha, law.larynx.beta, lens);
+        lens.half = LARYNX_HALF;
+      } else if (sc <= SC_PHARYNX) {
+        rule = 'pharynx';
+        lensFromLaw(law.pharynx.alpha * pw, law.pharynx.beta, lens);
+        lens.half = PHARYNX_HALF * pw;
+      } else {
+        rule = sc <= SC_FRONT ? 'velar' : 'oral';
+        f = sc <= SC_FRONT ? (sc - SC_PHARYNX) / (SC_FRONT - SC_PHARYNX) : 1;
+        lensFromLaw(law.pharynx.alpha * pw * (1 - f) + law.oral.alpha * f, law.pharynx.beta * (1 - f) + law.oral.beta * f, lens);
+        lens.half = PHARYNX_HALF * pw * (1 - f) + archHalfWidth(behind) * f;
+      }
+      lens.groove = rule === 'oral' ? Math.min(1, Math.max(0, a.groove)) : 0;
+      lens.grooveHalf = 0.5 * law.grooveWidth;
+      // the lateral channels of a lateral run from the tip contact back to
+      // where the margins of the tongue brace against the molars again
+      const brace = Math.min(1, Math.max(0, (behind - SIDES_FULL) / SIDES_FADE));
+      lens.sides = h.lowId === 'tongue' && f > 0 ? tongueSides * (1 - brace) : 0;
+      // the hard palate does not yield; the teeth and cheeks close the oral cavity at the sides
+      lens.softUp = h.upId === 'palate' ? 0 : 1;
+      lens.softLow = 1;
+      lens.softSide = 1 - 0.5 * f;
+      lensSection(d / s, lens, sec);
+      h.lensK = lens.K; h.lensP = lens.p; h.lensHalf = lens.half; h.lensGroove = lens.groove; h.lensSides = lens.sides;
+      area = sec.area * s * s; perim = sec.perimeter * s; soft = sec.soft * s; lateral = sec.lateral * s * s; width = sec.width * s;
+      // the flow splits where the channels are fully open: in front of that
+      // the central channel is a blind cavity
+      if (brace <= 0 && sec.supra > 0) { supra = sec.supra * s * s; supraP = sec.supraPerimeter * s; supraS = sec.supraSoft * s; }
       // the air pocket under a raised blade is laterally connected to the channel
-      if (h.sub > 0.05 * s) area += 0.7 * scaleArea(law.oral.alpha, law.oral.beta) * Math.pow(h.sub, law.oral.beta);
+      if (rule === 'oral' && d > 0 && h.sub > 0.05 * s) {
+        pocket.half = lens.half;
+        lensSection(h.sub / s, pocket, sec2);
+        area += 0.7 * sec2.area * s * s; perim += 0.7 * sec2.perimeter * s; soft += 0.7 * sec2.soft * s;
+      }
     }
-    if (d <= 0) { area = rule === 'teeth' && isTeethU && isTeethL ? slit.area : 0; if (area === 0) rule = 'closed'; }
+    if (d <= 0 && lateral <= 0) {
+      if (rule === 'teeth' && isTeethU && isTeethL) { area = slit.area; perim = slit.perimeter; soft = 0; width = slit.width; }
+      else { area = 0; perim = 0; soft = 0; width = 0; rule = 'closed'; }
+    }
     // the tip of the lower lip entering the gap above the lower incisors
     // splits it in two; while the part of the lip on the line is thin the
     // air still flows around it, so the area and the midpoint pass smoothly
@@ -702,15 +794,36 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
       const w = (1 - h.chord / (LIP_SPLIT * s)) ** 2;
       const dFull = h.tUp - h.pocketT;
       const full = isTeethU ? slit.area : (Math.PI / 4) * dFull * wLip;
+      const fullP = isTeethU ? slit.perimeter : ellipsePerimeter(wLip, dFull);
       area = w * full + (1 - w) * area;
+      soft = w * (isTeethU ? 0 : 0.5 * fullP) + (1 - w) * soft;
+      perim = w * fullP + (1 - w) * perim;
+      width = w * (isTeethU ? slit.width : wLip) + (1 - w) * width;
       tLowW = ray.t0 + (w * h.pocketT + (1 - w) * h.tLow);
     }
     h.mx = ray.sx + ray.nx * 0.5 * (tLowW + tUpW);
     h.my = ray.sy + ray.ny * 0.5 * (tLowW + tUpW);
     h.area = area;
+    h.perimeter = perim;
+    h.soft = soft;
+    h.lateral = lateral;
+    h.width = width;
+    h.supra = supra; h.supraPerimeter = supraP; h.supraSoft = supraS;
     h.rule = rule;
   }
   if (firstOutside > 0) lastRay = firstOutside - 1;
+  // a central channel apart from the lateral channels is a blind cavity only
+  // when the tip closes it in front; otherwise the channels join again
+  for (let i = 0; i <= lastRay; i++) {
+    if (hits[i].supra <= 0) continue;
+    let j = i;
+    while (j < lastRay && hits[j + 1].supra > 0) j++;
+    const front = hits[j + 1];
+    if (!(j < lastRay && front.d <= 0 && front.lateral > 0)) {
+      for (let q = i; q <= j; q++) { hits[q].supra = 0; hits[q].supraPerimeter = 0; hits[q].supraSoft = 0; }
+    }
+    i = j;
+  }
 
   // centreline length through the channel midpoints
   const sArr = prev?.s && prev.s.length === rays.length ? prev.s : new Float64Array(rays.length);
@@ -754,9 +867,18 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
     nostril: lm([8.0, 10.6]),
   };
 
+  // the piriform fossae open where the epilaryngeal tube ends
+  let pirAt = 0;
+  for (let i = 0; i <= lastRay; i++) if (rays[i].sc >= PIRIFORM.sc) { pirAt = sArr[i]; break; }
+  const pirFull = PIRIFORM.length * an.scale;
+  const piriform = {
+    at: pirAt, full: pirFull, length: pirFull * Math.min(1, Math.max(0, an.piriform)),
+    areaOpen: PIRIFORM.areaOpen * an.scale * an.scale, areaBottom: PIRIFORM.areaBottom * an.scale * an.scale,
+  };
+
   return {
     solids, rays, hits, lastRay, s: sArr, length, slit, teethPos, lipsPos, lipArea, landmarks,
-    tongueCenter: lm(tongue.c), tipPoint: lm(tongue.tip), jawAngle, spine,
+    tongueCenter: lm(tongue.c), tipPoint: lm(tongue.tip), jawAngle, spine, scale: s, piriform,
   };
 }
 

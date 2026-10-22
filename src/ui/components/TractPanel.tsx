@@ -24,6 +24,7 @@ export function TractPanel() {
     tipX: { it: 'Punta avanti/indietro', en: 'Tip front/back' },
     tipY: { it: 'Punta su/giù', en: 'Tip up/down' },
     groove: { it: 'Solco della lingua', en: 'Tongue groove' },
+    tongueSides: { it: 'Fianchi della lingua abbassati (l)', en: 'Tongue sides lowered (l)' },
     lipOpen: { it: 'Apertura labbra', en: 'Lip opening' },
     lipRound: { it: 'Arrotondamento labbra', en: 'Lip rounding' },
     lipProtrude: { it: 'Labbra in fuori (sotto zero: tirate)', en: 'Lip protrusion (below zero: spread)' },
@@ -98,6 +99,9 @@ export function TractPanel() {
             {L({ it: 'Tappa il naso', en: 'Pinch the nose' })}
           </button>
         </div>
+        <Slider label={L({ it: 'Seni piriformi: aria dentro', en: 'Piriform fossae: air inside' })} value={p.anatomy.piriform} min={0} max={1}
+          hint={L({ it: 'Ai lati della laringe ci sono due tasche cieche, profonde circa 2 cm. Il suono ci entra e torna indietro sfasato: intorno a 4-5 kHz cancella quello che arriva, e ogni vocale ha lì una valle. Riempirle (come con l’acqua negli esperimenti) accorcia le tasche: la valle sale e alla fine sparisce.', en: 'Beside the larynx there are two blind pouches, about 2 cm deep. The sound goes in and comes back out of step: around 4-5 kHz it cancels what arrives, and every vowel has a valley there. Filling them (as with water in experiments) shortens the pouches: the valley rises and finally disappears.' })}
+          onChange={(v) => store.setParams((x) => { x.anatomy.piriform = v; })} format={(v) => `${Math.round(100 * v)} %`} />
         <Slider label={L(names.larynx)} value={a.larynx} min={-1.5} max={1.2} onChange={(v) => setA('larynx', v)} format={(v) => `${v.toFixed(1)} cm`} />
         <Slider label={L({ it: 'Perdite delle pareti', en: 'Wall losses' })} value={p.losses} min={0.3} max={3} onChange={(v) => store.setParams((x) => { x.losses = v; })} format={(v) => `×${v.toFixed(1)}`} />
         <Readout items={[

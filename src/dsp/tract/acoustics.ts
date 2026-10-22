@@ -1,7 +1,7 @@
 import {
   C_SOUND, RHO, MU, GAMMA_AIR, LAMBDA_HEAT, CP_AIR, WALL_MASS, WALL_RES, WALL_STIFF, AREA_CLOSED,
 } from '../constants';
-import { AreaFunction } from './areaFunction';
+import { AreaFunction, BlindBranch } from './areaFunction';
 import { NasalTract, NasalSides, buildNasal, passagePerimeter, portArea } from './nasal';
 import { goldenMax } from '../util/math';
 
@@ -17,10 +17,15 @@ import { goldenMax } from '../util/math';
  *   section:          [P_in; U_in] = [[cosh gl, Zc sinh gl],[sinh gl / Zc, cosh gl]] [P_out; U_out]
  *                     gamma = sqrt(Z Y), Zc = sqrt(Z / Y)
  *
- * with S the perimeter (2 sqrt(pi A) for a circular duct). The lips radiate
- * into a piston-in-a-baffle load approximated by Flanagan's (1972) parallel
- * R-L network, R = 128 rho c / (9 pi^2 A), L = 8 rho / (3 pi sqrt(pi A)).
- * A nasal branch with sinus side-branches joins the oral tract at the velum.
+ * with S the perimeter of the section (2 sqrt(pi A) for a circular duct, more
+ * for the flat lenses and slits of the real tract) and Yw counted only on its
+ * soft-tissue part. The lips radiate into a piston-in-a-baffle load
+ * approximated by Flanagan's (1972) parallel R-L network,
+ * R = 128 rho c / (9 pi^2 A), L = 8 rho / (3 pi sqrt(pi A)). A nasal branch
+ * with sinus side-branches joins the oral tract at the velum; the piriform
+ * fossae join it as a blind branch just above the larynx, and in a lateral
+ * the supralingual cavity joins it where the flow splits into the lateral
+ * channels.
  *
  * This model is used for the envelope and formant read-outs and to validate
  * the real-time waveguide.
@@ -44,6 +49,10 @@ export interface AcousticOptions {
   glottalImpedance?: number;
   /** precomputed nasal tract */
   nasal?: NasalTract;
+  /** include the piriform fossae of the area function (default true) */
+  piriform?: boolean;
+  /** include the supralingual cavity of a lateral (default true) */
+  supralingual?: boolean;
   /** nasal cycle and nostrils, for a nasal tract built here */
   nose?: NasalSides;
   /** flow resistances (acoustic ohms) at the exit of each oral section, the
@@ -141,8 +150,23 @@ function cdiv(ar: number, ai: number, br: number, bi: number, out: C): void {
 /** Input impedance of a closed side branch (areas from neck to closed end). */
 function branchImpedance(areas: Float64Array, dx: number, w: number, pf: number, losses: boolean, out: C, wf = pf): void {
   const p: C = { re: 1, im: 0 }, u: C = { re: 0, im: 0 };
-  for (let i = areas.length - 1; i >= 0; i--) back(p, u, areas[i], dx, w, pf, losses, wf);
+  // sections closed at the bottom (filled, or past the end) end the branch
+  let end = areas.length - 1;
+  while (end > 0 && areas[end] <= 1.01 * AREA_CLOSED) end--;
+  for (let i = end; i >= 0; i--) back(p, u, areas[i], dx, w, pf, losses, wf);
   cdiv(p.re, p.im, u.re, u.im, out);
+}
+
+/**
+ * Flow into a blind side branch at pressure p: u += p / Zb. Its walls are
+ * taken as rigid, as in the waveguide: the fossae lie on the cartilages of
+ * the larynx, and the hard palate roofs the supralingual cavity.
+ */
+function shuntBranch(areas: Float64Array, dx: number, w: number, losses: boolean, p: C, u: C): void {
+  const zb: C = { re: 0, im: 0 }, t: C = { re: 0, im: 0 };
+  branchImpedance(areas, dx, w, 1, losses, zb, 0);
+  cdiv(p.re, p.im, zb.re, zb.im, t);
+  u.re += t.re; u.im += t.im;
 }
 
 interface NasalState { zin: C; nosPerPort: C }
@@ -204,6 +228,8 @@ export interface ResolvedOptions {
   zg: number;
   nasal: NasalTract | null;
   resistances: ArrayLike<number> | null;
+  piriform: BlindBranch | null;
+  supra: BlindBranch | null;
 }
 
 export function resolveOptions(af: AreaFunction, o: AcousticOptions = {}): ResolvedOptions {
@@ -211,7 +237,10 @@ export function resolveOptions(af: AreaFunction, o: AcousticOptions = {}): Resol
   const port = o.port ?? portArea(o.velum ?? 0, o.nasalLeak ?? 0, scale);
   const coupling = o.coupling ?? Math.round(0.43 * af.areas.length) - 1;
   const nasal = o.nasal ?? (port > 2 * AREA_CLOSED ? buildNasal(af.dx, scale, port, coupling, undefined, o.nose) : null);
-  return { losses: o.losses ?? true, radiation: o.radiation ?? 'piston', zg: o.glottalImpedance ?? Infinity, nasal, resistances: o.resistances ?? null };
+  const piriform = o.piriform === false || !af.piriform || af.piriform.areas[0] <= 2 * AREA_CLOSED ? null : af.piriform;
+  const sl = af.supralingual;
+  const supra = o.supralingual === false || !sl || sl.at < 0 || sl.areas[0] <= 2 * AREA_CLOSED ? null : sl;
+  return { losses: o.losses ?? true, radiation: o.radiation ?? 'piston', zg: o.glottalImpedance ?? Infinity, nasal, resistances: o.resistances ?? null, piriform, supra };
 }
 
 /**
@@ -229,11 +258,14 @@ export function transferAt(af: AreaFunction, f: number, o: ResolvedOptions, prof
   let outRe = 1, outIm = 0; // U_lip = 1
   const ns = o.nasal ? nasalAt(o.nasal, w, o.losses, o.radiation) : null;
   const rs = o.resistances;
+  const pir = o.piriform, sup = o.supra;
   for (let i = n - 1; i >= 0; i--) {
     if (profile) { profile.p[i + 1] = Math.hypot(p.re, p.im); profile.u[i + 1] = Math.hypot(u.re, u.im); }
     // series resistance at the exit of section i: the pressure is higher upstream
     if (rs && rs[i]) { p.re += rs[i] * u.re; p.im += rs[i] * u.im; }
-    back(p, u, af.areas[i], af.dx, w, 1, o.losses);
+    back(p, u, af.areas[i], af.dx, w, af.shape?.[i] ?? 1, o.losses, af.soft?.[i] ?? 1);
+    if (pir && i === pir.at + 1) shuntBranch(pir.areas, af.dx, w, o.losses, p, u);
+    if (sup && i === sup.at + 1) shuntBranch(sup.areas, af.dx, w, o.losses, p, u);
     if (ns && o.nasal && i === o.nasal.coupling + 1) {
       // junction between oral sections (coupling) and (coupling+1): add nasal flow
       const un: C = { re: 0, im: 0 };
@@ -328,9 +360,12 @@ export function sourceTransferAt(af: AreaFunction, k: number, f: number, o: Reso
   const ns = o.nasal ? nasalAt(o.nasal, w, o.losses, o.radiation) : null;
   let lipOut = { re: 1, im: 0 };
   const rs = o.resistances;
+  const pir = o.piriform, sup = o.supra;
   for (let i = n - 1; i >= k; i--) {
     if (rs && rs[i]) { p.re += rs[i] * u.re; p.im += rs[i] * u.im; }
-    back(p, u, af.areas[i], af.dx, w, 1, o.losses);
+    back(p, u, af.areas[i], af.dx, w, af.shape?.[i] ?? 1, o.losses, af.soft?.[i] ?? 1);
+    if (pir && i === pir.at + 1 && i > k) shuntBranch(pir.areas, af.dx, w, o.losses, p, u);
+    if (sup && i === sup.at + 1 && i > k) shuntBranch(sup.areas, af.dx, w, o.losses, p, u);
     if (ns && o.nasal && i === o.nasal.coupling + 1 && i > k) {
       const un: C = { re: 0, im: 0 };
       cdiv(p.re, p.im, ns.zin.re, ns.zin.im, un);
@@ -348,7 +383,9 @@ export function sourceTransferAt(af: AreaFunction, k: number, f: number, o: Reso
   const pb: C = { re: 1, im: 0 }, ub: C = { re: 0, im: 0 };
   if (isFinite(o.zg)) { ub.re = 1 / o.zg; }
   for (let i = 0; i < k; i++) {
-    back(pb, ub, af.areas[i], af.dx, w, 1, o.losses);
+    back(pb, ub, af.areas[i], af.dx, w, af.shape?.[i] ?? 1, o.losses, af.soft?.[i] ?? 1);
+    if (pir && i === pir.at) shuntBranch(pir.areas, af.dx, w, o.losses, pb, ub);
+    if (sup && i === sup.at) shuntBranch(sup.areas, af.dx, w, o.losses, pb, ub);
     if (ns && o.nasal && i === o.nasal.coupling) {
       const un: C = { re: 0, im: 0 };
       cdiv(pb.re, pb.im, ns.zin.re, ns.zin.im, un);

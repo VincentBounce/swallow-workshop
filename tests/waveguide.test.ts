@@ -14,11 +14,12 @@ import { defaultParams } from '../src/dsp/engine/params';
 import { note, rmsDb } from './helpers';
 
 /** Peaks of the waveguide's impulse response (lip + nostril flow) in Hz. */
-function waveguidePeaks(af: AreaFunction, velum = 0, fmax = 4000, nose?: NasalSides, lossless = false): number[] {
+function waveguidePeaks(af: AreaFunction, velum = 0, fmax = 4000, nose?: NasalSides, lossless = false, nasalLoss?: number): number[] {
   const fs = (N_SECTIONS * C_SOUND) / af.length;
   const nasal = buildNasal(af.dx, 1, portArea(velum, 0, 1), Math.round(0.43 * N_SECTIONS) - 1, undefined, nose);
   const wg = new Waveguide(N_SECTIONS, nasal.areas.length, nasal.coupling);
   if (lossless) { wg.lossParams.base = 0; wg.lossParams.narrow = 0; wg.lossParams.nasal = 0; wg.walls = false; }
+  if (nasalLoss !== undefined) wg.lossParams.nasal = nasalLoss;
   wg.setGeometry(af, nasal, fs, 1);
   wg.rg = 1;
   const n = 1 << 15;
@@ -85,14 +86,19 @@ describe('real-time Kelly-Lochbaum waveguide', () => {
 
   it('nasal murmur: the lowest resonance of /m n ŋ/ agrees in both models, low as measured', () => {
     // the bony nasal walls hardly yield: about 250-300 Hz in men (Stevens 1998);
-    // soft walls, like the cheeks, would push it to about 390 Hz
+    // soft walls, like the cheeks, would push it to about 390 Hz. With the
+    // wall losses of the reference the two models agree closely; the extra
+    // damping of the mucosa that sets the level of the hum (DEFAULT_LOSSES)
+    // widens the resonance and moves its peak up a little.
     const rows: string[] = [];
     for (const ph of ['m', 'n', 'ŋ']) {
       const af = sectionsFromGeometry(computeGeometry({ ...DEFAULT_ARTICULATORS, ...PHONEMES[ph].art }, DEFAULT_ANATOMY, DEFAULT_TEETH));
+      const same = waveguidePeaks(af, 1, 4000, undefined, false, 1)[0];
       const wg = waveguidePeaks(af, 1)[0];
       const ref = formants(af, { velum: 1 })[0].f;
-      rows.push(`/${ph}/ ${wg.toFixed(0)} vs ${ref.toFixed(0)}`);
-      expect(Math.abs(wg / ref - 1)).toBeLessThan(0.05);
+      rows.push(`/${ph}/ ${same.toFixed(0)} (${wg.toFixed(0)} damped) vs ${ref.toFixed(0)}`);
+      expect(Math.abs(same / ref - 1)).toBeLessThan(0.02);
+      expect(Math.abs(wg / ref - 1)).toBeLessThan(0.06);
       expect(ref).toBeLessThan(340);
     }
     note('nasal murmur, waveguide vs reference', `lowest resonance ${rows.join(', ')} Hz`);
@@ -113,10 +119,10 @@ describe('left and right nasal passages', () => {
   const m = sectionsFromGeometry(computeGeometry({ ...DEFAULT_ARTICULATORS, ...PHONEMES.m.art }, DEFAULT_ANATOMY, DEFAULT_TEETH));
   const open: NasalSides = { cycle: 0, nostrilLeft: 1, nostrilRight: 1 };
   /** peaks and dips of the transfer to lips + nostrils */
-  const extrema = (nose: NasalSides) => {
+  const extrema = (nose: NasalSides, losses = true) => {
     const fr: number[] = [];
     for (let f = 100; f <= 4000; f += 10) fr.push(f);
-    const mag = transferMagnitudes(m, fr, { velum: 1, nose });
+    const mag = transferMagnitudes(m, fr, { velum: 1, nose, losses });
     const poles: number[] = [], zeros: number[] = [];
     for (let i = 1; i < fr.length - 1; i++) {
       if (mag[i] > mag[i - 1] && mag[i] >= mag[i + 1]) poles.push(fr[i]);
@@ -127,7 +133,10 @@ describe('left and right nasal passages', () => {
   const inBand = (x: number[], a: number, b: number) => x.filter((f) => f >= a && f < b).length;
 
   it('unequal passages add a pole-zero pair that equal ones lack (Dang et al. 1994)', () => {
-    const eq = extrema(open), un = extrema({ ...open, cycle: 0.6 });
+    // the new pair lies close to the zero of the merged passages; the piriform
+    // fossae bring the two together, and with the losses the pair is only a
+    // shoulder on the slope: look for it in the lossless structure
+    const eq = extrema(open, false), un = extrema({ ...open, cycle: 0.6 }, false);
     const pair = un.poles.filter((f) => f >= 1500 && f < 3000 && !eq.poles.some((g) => Math.abs(g - f) < 60));
     note('nasal cycle', `/m/ with one passage congested (cycle 0.6): new resonance at ${pair.join(', ')} Hz with its antiresonance; first resonance ${eq.poles[0]} -> ${un.poles[0]} Hz`);
     expect(inBand(un.poles, 1500, 3000)).toBe(inBand(eq.poles, 1500, 3000) + 1);

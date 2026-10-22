@@ -14,6 +14,9 @@ export interface Articulators {
   tipY: number;
   /** central groove of the tongue blade (sibilant channel), 0..1 */
   groove: number;
+  /** margins of the tongue drawn in and lowered from the teeth so that air
+   *  flows past its sides (lateral approximants), 0 = braced .. 1 */
+  tongueSides: number;
   /** extra lip opening beyond what the jaw gives, cm (negative presses the lips) */
   lipOpen: number;
   /** lip rounding, 0 = spread, 1 = fully rounded */
@@ -43,6 +46,8 @@ export interface Anatomy {
   /** opening of each nostril, 0 pinched ... 1 open */
   nostrilLeft: number;
   nostrilRight: number;
+  /** air in the piriform fossae beside the larynx, 1 = empty (as always) ... 0 = filled (with water, as in Dang & Honda's experiment) */
+  piriform: number;
 }
 
 /**
@@ -74,6 +79,7 @@ export const DEFAULT_ARTICULATORS: Articulators = {
   tipX: 0,
   tipY: 0,
   groove: 0,
+  tongueSides: 0,
   lipOpen: 0.35,
   lipRound: 0,
   lipProtrude: 0,
@@ -82,7 +88,7 @@ export const DEFAULT_ARTICULATORS: Articulators = {
   larynx: 0,
 };
 
-export const DEFAULT_ANATOMY: Anatomy = { scale: 1, pharynx: 1, pharynxWidth: 1, nasalLeak: 0, nasalCycle: 0, nostrilLeft: 1, nostrilRight: 1 };
+export const DEFAULT_ANATOMY: Anatomy = { scale: 1, pharynx: 1, pharynxWidth: 1, nasalLeak: 0, nasalCycle: 0, nostrilLeft: 1, nostrilRight: 1, piriform: 1 };
 
 export const DEFAULT_TEETH: Teeth = {
   slitWidth: 2.2,
@@ -95,7 +101,7 @@ export const DEFAULT_TEETH: Teeth = {
 };
 
 export const ARTICULATOR_KEYS: (keyof Articulators)[] = [
-  'jaw', 'tongueX', 'tongueY', 'tongueRoot', 'tipX', 'tipY', 'groove', 'lipOpen', 'lipRound', 'lipProtrude', 'lipTuck', 'velum', 'larynx',
+  'jaw', 'tongueX', 'tongueY', 'tongueRoot', 'tipX', 'tipY', 'groove', 'tongueSides', 'lipOpen', 'lipRound', 'lipProtrude', 'lipTuck', 'velum', 'larynx',
 ];
 
 /** Allowed ranges of the articulators (used by the UI and the sequencer). */
@@ -107,6 +113,7 @@ export const ARTICULATOR_RANGES: Record<keyof Articulators, [number, number]> = 
   tipX: [-1.2, 1.4],
   tipY: [-0.6, 2.2],
   groove: [0, 1],
+  tongueSides: [0, 1],
   lipOpen: [-0.4, 1.2],
   lipRound: [0, 1],
   lipProtrude: [-0.6, 1],

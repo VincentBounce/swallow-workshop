@@ -20,6 +20,12 @@ import { smoothstep } from '../util/math';
  *    stronger and sits at the obstacle. The share of the jet that hits the
  *    teeth depends on how the jet has spread when it reaches them compared
  *    with the opening of the slit between the incisors.
+ *
+ * The jet keeps its speed along a potential core, then slows down. A round
+ * jet slows like 1/x; the flat jet out of a slit like 1/sqrt(x), until it is
+ * a few slit widths long and turns round itself (Sforza, Steiger & Trentacoste
+ * 1966). Its size is the hydraulic diameter of the passage, 4 A / P: about
+ * twice the height of a slit.
  */
 
 export const RE_CRIT = 1800;
@@ -98,10 +104,22 @@ export class Aero {
     this.uNose = x.nasalArea * k * Math.sqrt(Math.max(this.po, 0));
   }
 
-  /** Jet and noise-source description for a constriction of area ac. */
-  jet(ac: number, toTeeth: number, slitHeight: number, out: JetInfo): JetInfo {
+  /**
+   * Jet and noise-source description for a constriction of area ac, wetted
+   * perimeter `perimeter` and lateral width `width` (0 = a round passage).
+   */
+  jet(ac: number, toTeeth: number, slitHeight: number, out: JetInfo, perimeter = 0, width = 0): JetInfo {
     const v = Math.sqrt((2 * Math.max(this.po, 0)) / RHO);
-    const dh = Math.max(2 * Math.sqrt(Math.max(ac, 1e-4) / Math.PI), 0.02);
+    const a = Math.max(ac, 1e-4);
+    const round = 2 * Math.sqrt(a / Math.PI);
+    const dh = Math.max(perimeter > 0 ? Math.min((4 * a) / perimeter, round) : round, 0.02);
+    // aspect of the passage, 1 for a round one; a flat jet's core is about
+    // five slit heights long instead of five diameters
+    const w = Math.max(width > 0 ? width : round, dh);
+    const aspect = Math.max(1, ((w * w) / a) * (Math.PI / 4));
+    const thin = 0.5 + 0.5 / Math.sqrt(aspect);
+    const core = 5 * dh * thin;
+    const turn = Math.max(core, 5 * w);
     const re = (v * dh) / NU;
     const onset = smoothstep(RE_CRIT * 0.6, RE_CRIT * 1.8, re);
     // Lighthill-type dipole scaling with Stevens' area dependence
@@ -110,9 +128,9 @@ export class Aero {
     out.toTeeth = toTeeth;
     out.wallSource = base;
     if (toTeeth > 0) {
-      const core = 5 * dh; // potential core of the jet
-      const vt = toTeeth < core ? v : (v * core) / toTeeth;
-      const width = dh + 0.22 * toTeeth;
+      const x = toTeeth;
+      const vt = x <= core ? v : x <= turn ? v * Math.sqrt(core / x) : (v * Math.sqrt(core / turn) * turn) / x;
+      const width = dh * thin + 0.22 * x;
       const impinge = Math.max(0, Math.min(1, 1 - slitHeight / width));
       out.vAtTeeth = vt;
       out.widthAtTeeth = width;

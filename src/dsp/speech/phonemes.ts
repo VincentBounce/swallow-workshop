@@ -30,7 +30,7 @@ export interface Phoneme {
 }
 
 const V = (ipa: string, art: Partial<Articulators>, examples: string, dur = 0.14): Phoneme => ({
-  ipa, manner: 'vowel', voiced: true, art: { tipX: 0, tipY: 0, groove: 0, lipTuck: 0, velum: 0, ...art }, abduction: 0, dur, examples,
+  ipa, manner: 'vowel', voiced: true, art: { tipX: 0, tipY: 0, groove: 0, tongueSides: 0, lipTuck: 0, velum: 0, ...art }, abduction: 0, dur, examples,
 });
 
 /**
@@ -39,22 +39,22 @@ const V = (ipa: string, art: Partial<Articulators>, examples: string, dur = 0.14
  * (1995) adult-male means; Italian vowels follow the same chart positions.
  */
 export const VOWELS: Record<string, Phoneme> = {
-  'ə': V('ə', { jaw: 0.39, tongueX: 0.07, tongueY: 0.99, tongueRoot: 0.23, lipOpen: 0.23, lipRound: 0.1, lipProtrude: 0.11 }, 'sofa'),
-  i: V('i', { jaw: 0.195, tongueX: 1.195, tongueY: 0.808, tongueRoot: 1.2, lipOpen: -0.05, lipRound: 0.19, lipProtrude: 0.05 }, 'heed, vino'),
-  'ɪ': V('ɪ', { jaw: 0.207, tongueX: 0.747, tongueY: 0.958, tongueRoot: -0.3, lipOpen: -0.05, lipRound: 0.04, lipProtrude: -0.308 }, 'hid'),
-  e: V('e', { jaw: 0.219, tongueX: 0.787, tongueY: 0.764, tongueRoot: -0.524, lipOpen: 0.356, lipRound: 0, lipProtrude: -0.01 }, 'vero, hayed'),
-  'ɛ': V('ɛ', { jaw: 0.506, tongueX: 0.664, tongueY: 0.89, tongueRoot: -0.514, lipOpen: -0.05, lipRound: 0, lipProtrude: 0.055 }, 'bello, head'),
-  'æ': V('æ', { jaw: 0.803, tongueX: 0.381, tongueY: 0.856, tongueRoot: -0.37, lipOpen: -0.029, lipRound: 0, lipProtrude: -0.101 }, 'had'),
-  a: V('a', { jaw: 0.95, tongueX: 0.09, tongueY: -0.99, tongueRoot: 0.15, lipOpen: 0.46, lipRound: 0, lipProtrude: 0.04 }, 'casa'),
-  'ɑ': V('ɑ', { jaw: 0.902, tongueX: -0.369, tongueY: -0.15, tongueRoot: 0.263, lipOpen: 0.116, lipRound: 0, lipProtrude: 0.632 }, 'father, hod'),
-  'ɔ': V('ɔ', { jaw: 0.471, tongueX: -0.965, tongueY: -0.22, tongueRoot: 0.852, lipOpen: -0.05, lipRound: 0.53, lipProtrude: 0.604 }, 'cosa, hawed'),
-  o: V('o', { jaw: 0.22, tongueX: -0.869, tongueY: 0.451, tongueRoot: 0.561, lipOpen: -0.05, lipRound: 0.99, lipProtrude: 0.4 }, 'voce'),
-  'ʊ': V('ʊ', { jaw: 0.344, tongueX: 0.024, tongueY: 1.171, tongueRoot: -0.197, lipOpen: -0.05, lipRound: 0.93, lipProtrude: 0.926 }, 'hood'),
-  u: V('u', { jaw: 0.071, tongueX: 0.528, tongueY: 1.203, tongueRoot: -0.229, lipOpen: 0.009, lipRound: 1, lipProtrude: 0.964 }, "who'd, luna"),
-  'ʌ': V('ʌ', { jaw: 0.713, tongueX: -0.663, tongueY: 0.526, tongueRoot: 0.343, lipOpen: 0.237, lipRound: 0.21, lipProtrude: 0.441 }, 'hud'),
+  'ə': V('ə', { jaw: 0.4, tongueX: 0.14, tongueY: 0.73, tongueRoot: 0.49, lipOpen: 0.26, lipRound: 0.1, lipProtrude: 0.06 }, 'sofa'),
+  i: V('i', { jaw: 0.143, tongueX: 1.095, tongueY: 0.83, tongueRoot: 1.2, lipOpen: -0.05, lipRound: 0.19, lipProtrude: -0.35 }, 'heed, vino'),
+  'ɪ': V('ɪ', { jaw: 0.25, tongueX: 0.894, tongueY: 0.924, tongueRoot: -0.377, lipOpen: 0.046, lipRound: 0.04, lipProtrude: -0.295 }, 'hid'),
+  e: V('e', { jaw: 0.465, tongueX: 0.8, tongueY: 1.06, tongueRoot: -0.183, lipOpen: 0.779, lipRound: 0, lipProtrude: -0.346 }, 'vero, hayed'),
+  'ɛ': V('ɛ', { jaw: 0.62, tongueX: 0.732, tongueY: 0.98, tongueRoot: -0.53, lipOpen: 0.984, lipRound: 0, lipProtrude: -0.346 }, 'bello, head'),
+  'æ': V('æ', { jaw: 0.883, tongueX: 0.608, tongueY: 0.673, tongueRoot: -0.411, lipOpen: 0.255, lipRound: 0, lipProtrude: -0.346 }, 'had'),
+  a: V('a', { jaw: 0.95, tongueX: 0.29, tongueY: -0.61, tongueRoot: -0.01, lipOpen: 0.47, lipRound: 0, lipProtrude: -0.1 }, 'casa'),
+  'ɑ': V('ɑ', { jaw: 0.878, tongueX: -0.017, tongueY: -0.441, tongueRoot: -0.134, lipOpen: 0.578, lipRound: 0, lipProtrude: -0.096 }, 'father, hod'),
+  'ɔ': V('ɔ', { jaw: 0.497, tongueX: -0.812, tongueY: -0.153, tongueRoot: 0.417, lipOpen: -0.05, lipRound: 0.53, lipProtrude: 0.4 }, 'cosa, hawed'),
+  o: V('o', { jaw: 0.4, tongueX: -0.698, tongueY: 0.565, tongueRoot: 0.666, lipOpen: -0.012, lipRound: 0.99, lipProtrude: 0.4 }, 'voce'),
+  'ʊ': V('ʊ', { jaw: 0.427, tongueX: -0.101, tongueY: 1.038, tongueRoot: 0.237, lipOpen: -0.024, lipRound: 0.93, lipProtrude: 0.93 }, 'hood'),
+  u: V('u', { jaw: 0.072, tongueX: 0.347, tongueY: 1.136, tongueRoot: 0.243, lipOpen: 0.01, lipRound: 1, lipProtrude: 0.963 }, "who'd, luna"),
+  'ʌ': V('ʌ', { jaw: 0.649, tongueX: -0.499, tongueY: 0.199, tongueRoot: 0.071, lipOpen: 0.787, lipRound: 0.21, lipProtrude: -0.087 }, 'hud'),
   // r-coloured vowel of "heard": a bunched or retroflex tongue with the tip up
   // and back plus rounded lips pull F3 down to about 1700 Hz (scripts/tune-rhotic.ts)
-  'ɝ': V('ɝ', { jaw: 0.317, tongueX: -0.459, tongueY: -0.939, tongueRoot: 1.2, tipX: -0.687, tipY: 2.2, lipOpen: 0.293, lipRound: 0.278, lipProtrude: 1 }, 'heard, bird', 0.16),
+  'ɝ': V('ɝ', { jaw: 0.332, tongueX: -0.242, tongueY: -0.778, tongueRoot: 0.281, tipX: -0.679, tipY: 2.2, lipOpen: 0.124, lipRound: 0.216, lipProtrude: 1 }, 'heard, bird', 0.16),
 };
 
 /** Sounds used by the speech sequencer that cannot be held as a steady shape. */
@@ -69,9 +69,16 @@ export const GLIDING: Record<string, Phoneme> = {
   'ɔɪ': { ...V('ɔɪ', VOWELS['ɔ'].art, 'boy', 0.24), offglide: 'ɪ' },
 };
 
+// a consonant made with the tongue keeps its margins braced against the
+// teeth, except a lateral, which lowers them to let the air past its sides
+const TONGUE_KEYS: (keyof Articulators)[] = ['tongueX', 'tongueY', 'tipX', 'tipY', 'groove'];
 const C = (
   ipa: string, manner: Manner, voiced: boolean, art: Partial<Articulators>, abduction: number, dur: number, examples: string, extra: Partial<Phoneme> = {},
-): Phoneme => ({ ipa, manner, voiced, art, abduction, dur, examples, ...extra });
+): Phoneme => ({
+  ipa, manner, voiced,
+  art: manner === 'lateral' ? { tongueSides: 1, ...art } : TONGUE_KEYS.some((k) => k in art) ? { tongueSides: 0, ...art } : art,
+  abduction, dur, examples, ...extra,
+});
 
 export const CONSONANTS: Record<string, Phoneme> = {
   // fricatives
@@ -81,8 +88,8 @@ export const CONSONANTS: Record<string, Phoneme> = {
   // stretch it down to a lisp
   s: C('s', 'fricative', false, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tongueRoot: 1.2, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipProtrude: -0.35, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'sasso, hiss, see'),
   z: C('z', 'fricative', true, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tongueRoot: 1.2, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipProtrude: -0.35, lipTuck: 0, velum: 0 }, 0.12, 0.09, 'rosa (N. It.), zoo'),
-  'ʃ': C('ʃ', 'fricative', false, { jaw: 0.19, tongueX: 0.434, tongueY: 1.19, tongueRoot: 1.2, tipX: -0.025, tipY: 1.453, groove: 0.545, lipOpen: -0.159, lipRound: 0.776, lipProtrude: 0.925, lipTuck: 0, velum: 0 }, 0.55, 0.13, 'scena, she'),
-  'ʒ': C('ʒ', 'fricative', true, { jaw: 0.19, tongueX: 0.434, tongueY: 1.19, tongueRoot: 1.2, tipX: -0.025, tipY: 1.453, groove: 0.545, lipOpen: -0.159, lipRound: 0.776, lipProtrude: 0.925, lipTuck: 0, velum: 0 }, 0.12, 0.1, 'beige'),
+  'ʃ': C('ʃ', 'fricative', false, { jaw: 0.014, tongueX: 0.316, tongueY: 0.643, tongueRoot: 1.2, tipX: 0.487, tipY: 0.425, groove: 0.705, lipOpen: 0.856, lipRound: 0.776, lipProtrude: 0.925, lipTuck: 0, velum: 0 }, 0.55, 0.13, 'scena, she'),
+  'ʒ': C('ʒ', 'fricative', true, { jaw: 0.014, tongueX: 0.316, tongueY: 0.643, tongueRoot: 1.2, tipX: 0.487, tipY: 0.425, groove: 0.705, lipOpen: 0.856, lipRound: 0.776, lipProtrude: 0.925, lipTuck: 0, velum: 0 }, 0.12, 0.1, 'beige'),
   f: C('f', 'fricative', false, { jaw: 0.12, lipOpen: 0.522, lipTuck: 1, lipRound: 0, lipProtrude: 0, velum: 0 }, 0.55, 0.12, 'fame, father'),
   v: C('v', 'fricative', true, { jaw: 0.12, lipOpen: 0.522, lipTuck: 1, lipRound: 0, lipProtrude: 0, velum: 0 }, 0.12, 0.08, 'voce'),
   'θ': C('θ', 'fricative', false, { jaw: 0.2, tipX: 1.05, tipY: 0.1, groove: 0, lipOpen: 0.25, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'thin'),
@@ -104,13 +111,19 @@ export const CONSONANTS: Record<string, Phoneme> = {
   // the velopharyngeal port: further back it would cut the nose off too
   'ŋ': C('ŋ', 'nasal', true, { tongueX: 0.15, tongueY: 1.7, tongueRoot: 1.2, tipY: 0, velum: 1 }, 0, 0.08, 'sing', { dorsal: true }),
   // approximants, laterals, trill
-  // the air of a lateral flows around the sides of the tongue, which a one-
-  // dimensional tube cannot show: the tongue body has its own target here, so
-  // that a high vowel next to it (il, lino) cannot close the passage
-  l: C('l', 'lateral', true, { jaw: 0.15, tongueX: 0.4, tongueY: 0.4, tongueRoot: 1.2, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.07, 'luna'),
+  // the tip closes on the alveolar ridge while the margins of the tongue are
+  // drawn in and lowered: the air flows past both sides of the tongue
+  // (Narayanan, Alwan & Haker 1997); the tongue body sets F2. Behind the
+  // contact the lumen between the margins is a side branch, the supralingual
+  // cavity (2.5 cm here, 3.1 cm in Zhang & Espy-Wilson 2004): its zero sits
+  // between F3 and F4. Fitted with scripts/tune-lateral.ts --robust to
+  // F 335/1507/2421 Hz (measured about 350/1500/2600); the lips come from the
+  // context
+  l: C('l', 'lateral', true, { jaw: 0.304, tongueX: 0.714, tongueY: 1.497, tongueRoot: 0.744, tipX: -0.42, tipY: 2.2, groove: 0, velum: 0 }, 0, 0.07, 'luna'),
   'ʎ': C('ʎ', 'lateral', true, { jaw: 0.1, tongueX: 0.9, tongueY: 0.962, tongueRoot: 1.2, tipY: 0.1, velum: 0 }, 0, 0.09, 'figlio'),
-  // dark (velarised) l of English codas, "feel": the tongue body backs up, F2 near 1000 Hz
-  'ɫ': C('ɫ', 'lateral', true, { jaw: 0.2, tongueX: -1.19, tongueY: 0.38, tongueRoot: 1.2, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.08, 'feel, milk'),
+  // dark (velarised) l of English codas, "feel": the tongue body backs up, F2
+  // near 1000 Hz; fitted the same way to F 448/936/2254 Hz, cavity 3.4 cm
+  'ɫ': C('ɫ', 'lateral', true, { jaw: 0.591, tongueX: -0.757, tongueY: 0.203, tongueRoot: 0.791, tipX: 0.514, tipY: 2.2, groove: 0, velum: 0 }, 0, 0.08, 'feel, milk'),
   // the tip rests just below the alveolar ridge; the sequencer adds the fast
   // contacts (about 26 per second, Recasens 1991) on top of this posture
   r: C('r', 'trill', true, { jaw: 0.15, tipX: 0.25, tipY: 1.25, groove: 0, velum: 0 }, 0, 0.08, 'raro (trill)'),

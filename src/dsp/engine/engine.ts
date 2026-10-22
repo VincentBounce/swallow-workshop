@@ -22,8 +22,12 @@ const GEOM_INTERVAL = 0.0027;
 const RAD_PA = RHO / (4 * Math.PI * 100) / 10;
 /** Digital full scale corresponds to this sound pressure at 1 m (Pa). */
 const FULL_SCALE_PA = 0.3;
-/** Source-strength calibration of the turbulence models (dimensionless). */
-export const NOISE_K = { aspiration: 0.15, wall: 0.08, obstacle: 0.9, user: 0.04, bypass: 0.004, burst: 0.08 };
+/**
+ * Source-strength calibration of the turbulence models (dimensionless). The
+ * wall and obstacle gains put held /s/ about 9 dB and /f/ about 17 dB below
+ * /a/, with jets of the true hydraulic diameter of each passage.
+ */
+export const NOISE_K = { aspiration: 0.15, wall: 0.07, obstacle: 1.35, user: 0.04, bypass: 0.004, burst: 0.08 };
 /** Length of the vocal folds (cm) for the glottal Reynolds number. */
 const FOLD_LENGTH = 1.4;
 
@@ -128,6 +132,9 @@ export class VoiceEngine {
   private sinceGeom = 1;
   private fineMinArea = 1;
   private fineMinS = 0;
+  /** wetted perimeter and lateral width of the narrowest passage (0 = round) */
+  private fineMinPerimeter = 0;
+  private fineMinWidth = 0;
   private constrictionIndex = 0;
   private wallJunction = 0;
   private aspJunction = 1;
@@ -294,7 +301,7 @@ export class VoiceEngine {
     const a = this.art, an = this.params.anatomy, t = this.params.teeth;
     let s = '';
     for (const k of ARTICULATOR_KEYS) s += (Math.round(a[k] * 400) / 400) + ',';
-    s += `${an.scale},${an.pharynx},${an.pharynxWidth},${an.nasalLeak},${an.nasalCycle},${an.nostrilLeft},${an.nostrilRight}|${t.slitWidth},${t.diastema},${t.overjet},${t.advance},${t.upperLength},${t.lowerLength},${t.slitOpen}`;
+    s += `${an.scale},${an.pharynx},${an.pharynxWidth},${an.nasalLeak},${an.nasalCycle},${an.nostrilLeft},${an.nostrilRight},${an.piriform}|${t.slitWidth},${t.diastema},${t.overjet},${t.advance},${t.upperLength},${t.lowerLength},${t.slitOpen}`;
     if (this.params.tubeMode) s += '|tube' + this.params.tubeAreas.join(',') + this.params.tubeLength;
     return s;
   }
@@ -316,6 +323,8 @@ export class VoiceEngine {
       // the turbulent constriction is looked for above the epilaryngeal tube,
       // as in the head (2.6 cm in a 17.5 cm tract)
       this.fineMinArea = Infinity;
+      this.fineMinPerimeter = 0;
+      this.fineMinWidth = 0;
       const i0 = Math.max(2, Math.ceil((2.6 * p.tubeLength) / 17.5 / this.af.dx));
       for (let i = i0; i < n; i++) if (areas[i] < this.fineMinArea) { this.fineMinArea = areas[i]; this.fineMinS = (i + 0.5) * this.af.dx; }
     } else {
@@ -323,17 +332,19 @@ export class VoiceEngine {
       sectionsFromGeometry(this.geom, N_SECTIONS, this.af);
       // fine-grid minimum above the larynx (aerodynamic constriction)
       const g = this.geom;
-      let m = Infinity, ms = 0;
+      let m = Infinity, ms = 0, mp = 0, mw = 0;
       const sStart = 2.6 * p.anatomy.scale;
       for (let i = 0; i <= g.lastRay; i++) {
         if (g.s[i] < sStart) continue;
         const a = g.hits[i].area;
-        if (a < m) { m = a; ms = g.s[i]; }
+        if (a < m) { m = a; ms = g.s[i]; mp = g.hits[i].perimeter; mw = g.hits[i].width; }
       }
       // the incisal slit is a constriction too
-      if (g.slit.area < m && g.teethPos > 0) { m = g.slit.area; ms = g.teethPos; }
+      if (g.slit.area < m && g.teethPos > 0) { m = g.slit.area; ms = g.teethPos; mp = g.slit.perimeter; mw = g.slit.width; }
       this.fineMinArea = Math.max(m, 0);
       this.fineMinS = ms;
+      this.fineMinPerimeter = mp;
+      this.fineMinWidth = mw;
     }
     const af = this.af;
     const n = N_SECTIONS;
@@ -434,7 +445,7 @@ export class VoiceEngine {
         if (g.hits[i].area > 2.2 * Math.max(this.fineMinArea, 1e-3)) { exitS = g.s[i]; break; }
       }
     }
-    this.aero.jet(oral, g ? teethPos - exitS : -1, slitH, this.jet);
+    this.aero.jet(oral, g ? teethPos - exitS : -1, slitH, this.jet, this.fineMinPerimeter, this.fineMinWidth);
     // the jets lose their kinetic pressure where they expand: flow resistances
     kineticResistances(this.af.areas, this.aero.uMouth, this.wg.resTarget, this.constrictionIndex, this.fineMinArea);
     const n = this.params.noise;

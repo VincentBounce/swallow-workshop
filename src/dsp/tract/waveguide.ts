@@ -1,6 +1,10 @@
 import { RHO, C_SOUND, AREA_CLOSED, WALL_MASS, WALL_RES, WALL_STIFF } from '../constants';
-import { AreaFunction } from './areaFunction';
+import { AreaFunction, BlindBranch } from './areaFunction';
 import { NasalTract } from './nasal';
+import { PIRIFORM_SECTIONS, SUPRA_SECTIONS } from './section3d';
+
+/** areas of a blind branch with nothing in it */
+const CLOSED_BRANCH = new Float64Array(Math.max(PIRIFORM_SECTIONS, SUPRA_SECTIONS)).fill(AREA_CLOSED);
 
 /**
  * Time-domain vocal tract: a Kelly-Lochbaum (1962) scattering waveguide of
@@ -26,16 +30,21 @@ import { NasalTract } from './nasal';
  * Nose: a common nasopharynx from the velum to the choanae, then a three-way
  * junction into the left and right passages, each ending at its own nostril.
  *
+ * Blind branches: the piriform fossae just above the larynx and, in a
+ * lateral, the supralingual cavity, each joined at a three-way junction and
+ * rigid at its far end.
+ *
  * Losses: each wave is attenuated per section by exp(-sigma_i / fs), with a
- * decay rate that grows in narrow sections (perimeter/area of the walls);
- * calibrated against the frequency-domain model (see tests).
+ * decay rate that grows in narrow sections (perimeter/area of the walls, with
+ * the true perimeter of the section); calibrated against the frequency-domain
+ * model (see tests).
  *
  * Yielding walls: at every other oral junction a lumped mass-spring-damper
  * wall (Ishizaka, French & Flanagan 1975 constants) is driven by the local
  * pressure, m y'' + r y' + k y = p, and the air it displaces,
- * u_w = S dx y' (S = perimeter), is removed from the junction as a flow sink.
- * This reproduces the closed-tract wall resonance that raises F1 and sets the
- * low-frequency bandwidths, as in the reference model.
+ * u_w = S dx y' (S = soft-tissue perimeter), is removed from the junction as a
+ * flow sink. This reproduces the closed-tract wall resonance that raises F1
+ * and sets the low-frequency bandwidths, as in the reference model.
  */
 
 interface RadFilter { b0: number; b1: number; a1: number; x1: number; y1: number; t0: number; t1: number; ta1: number }
@@ -68,9 +77,9 @@ function newRad(): RadFilter { return { b0: -1, b1: 0, a1: 0, x1: 0, y1: 0, t0: 
  * the pressure difference across it (an inertance with no resistance) and
  * release the stored energy as a click when it opens.
  */
-export function sectionDecay(area: number, base: number, narrow: number): number {
+export function sectionDecay(area: number, base: number, narrow: number, shape = 1): number {
   const closure = area >= 0.03 ? 0 : area <= 0.003 ? 1 : 1 - (area - 0.003) / 0.027;
-  return base + narrow * Math.sqrt(3 / Math.max(area, 0.02)) + 40000 * closure * closure;
+  return base + narrow * shape * Math.sqrt(3 / Math.max(area, 0.02)) + 40000 * closure * closure;
 }
 
 export interface WaveguideLossParams {
@@ -132,10 +141,10 @@ class Branch {
     }
   }
   /** losses glide with the areas (a closing section is damped progressively) */
-  setLoss(fs: number, base: number, narrow: number, mult: number): void {
+  setLoss(fs: number, base: number, narrow: number, mult: number, shape?: ArrayLike<number>): void {
     const inv = 1 / this.steps;
     for (let i = 0; i < this.n; i++) {
-      this.lossTarget[i] = Math.exp((-sectionDecay(this.target[i], base, narrow) * mult) / fs);
+      this.lossTarget[i] = Math.exp((-sectionDecay(this.target[i], base, narrow, shape ? shape[i] : 1) * mult) / fs);
       if (this.steps <= 1) this.loss[i] = this.lossTarget[i];
       this.dLoss[i] = (this.lossTarget[i] - this.loss[i]) * inv;
     }
@@ -170,6 +179,13 @@ export class Waveguide {
   sinuses: Sinus[] = [];
   /** oral junction where the nose joins (between sections J and J+1) */
   coupling: number;
+  /** the blind branches (piriform fossae, supralingual cavity) and the oral
+   *  junction each joins (-1 = none) */
+  readonly piriform: Branch = new Branch(PIRIFORM_SECTIONS);
+  readonly supra: Branch = new Branch(SUPRA_SECTIONS);
+  private readonly blind: Branch[] = [this.piriform, this.supra];
+  readonly blindAt = new Int32Array([-1, -1]);
+  get piriformAt(): number { return this.blindAt[0]; }
   private rampLeft = 0;
   private lipRad: RadFilter = newRad();
   private nosRadL: RadFilter = newRad();
@@ -239,6 +255,7 @@ export class Waveguide {
 
   reset(): void {
     this.oral.reset(); this.nasal.reset(); this.nasalL.reset(); this.nasalR.reset();
+    for (const t of this.blind) t.reset();
     for (const s of this.sinuses) s.tube.reset();
     this.lipRad.x1 = this.lipRad.y1 = 0;
     this.nosRadL.x1 = this.nosRadL.y1 = 0;
@@ -276,8 +293,11 @@ export class Waveguide {
     this.nasalL.setAreas(nt.left, steps);
     this.nasalR.setAreas(nt.right, steps);
     for (let i = 0; i < this.sinuses.length; i++) this.sinuses[i].tube.setAreas(nt.sinuses[i].areas, steps);
+    this.placeBranch(0, af.piriform, -1, steps);
+    this.placeBranch(1, af.supralingual, this.blindAt[0], steps);
     const lp = this.lossParams;
-    this.oral.setLoss(fs, lp.base, lp.narrow, 1);
+    this.oral.setLoss(fs, lp.base, lp.narrow, 1, af.shape);
+    for (const t of this.blind) t.setLoss(fs, lp.base, lp.narrow, 1);
     this.nasal.setLoss(fs, lp.base, lp.narrow, lp.nasal);
     this.nasalL.setLoss(fs, lp.base, lp.narrow, lp.nasal);
     this.nasalR.setLoss(fs, lp.base, lp.narrow, lp.nasal);
@@ -289,13 +309,35 @@ export class Waveguide {
       // walls of nearly closed sections carry no flow (and an explicit sink
       // there would be unstable): fade the wall surface out below 0.2 cm^2
       const fade = Math.min(1, Math.max(0, (a - 0.02) / 0.18));
-      this.wallS[i] = 2 * Math.sqrt(Math.PI * a) * 2 * af.dx * fade * fade;
+      const soft = af.soft ? 0.5 * (af.soft[j] + af.soft[j + 1]) : 1;
+      this.wallS[i] = 2 * Math.sqrt(Math.PI * a) * soft * 2 * af.dx * fade * fade;
     }
     const first = steps <= 1;
     designRadiation(this.oral.target[this.n - 1], fs, this.lipRad, first);
     designRadiation(this.nasalL.target[this.nasalL.n - 1], fs, this.nosRadL, first);
     designRadiation(this.nasalR.target[this.nasalR.n - 1], fs, this.nosRadR, first);
     this.rampLeft = Math.max(1, steps);
+  }
+
+  /**
+   * Joins blind branch q at its junction. A branch closed at its mouth is
+   * left out; one that opens at another junction starts from silence there.
+   */
+  private placeBranch(q: number, br: BlindBranch | undefined, taken: number, steps: number): void {
+    const t = this.blind[q];
+    const ok = br && br.at > 0 && br.at < this.n - 2 && br.at !== this.coupling && br.at !== taken;
+    const shut = !br || br.areas[0] <= 2 * AREA_CLOSED;
+    if (!ok || (shut && t.area[0] <= 2 * AREA_CLOSED)) {
+      if (this.blindAt[q] >= 0) { t.setAreas(CLOSED_BRANCH, 1); t.settle(); t.reset(); }
+      this.blindAt[q] = -1;
+      return;
+    }
+    if (br.at !== this.blindAt[q]) {
+      t.reset();
+      if (this.blindAt[q] < 0) { t.setAreas(CLOSED_BRANCH, 1); t.settle(); }
+      this.blindAt[q] = br.at;
+    }
+    t.setAreas(br.areas, steps);
   }
 
   /** Characteristic impedance of the first (glottal) section. */
@@ -313,10 +355,10 @@ export class Waveguide {
     if (ramp) {
       this.rampLeft--;
       if (this.rampLeft === 0) {
-        o.settle(); ns.settle(); this.nasalL.settle(); this.nasalR.settle();
+        o.settle(); ns.settle(); this.nasalL.settle(); this.nasalR.settle(); this.piriform.settle(); this.supra.settle();
         for (const s of this.sinuses) s.tube.settle();
       } else {
-        o.glide(); ns.glide(); this.nasalL.glide(); this.nasalR.glide();
+        o.glide(); ns.glide(); this.nasalL.glide(); this.nasalR.glide(); this.piriform.glide(); this.supra.glide();
         for (const s of this.sinuses) s.tube.glide();
       }
       // radiation filters glide with the end areas
@@ -347,8 +389,9 @@ export class Waveguide {
 
     // oral junctions
     const resOn = this.resOn;
+    const P = this.blindAt[0], Q = this.blindAt[1];
     for (let i = 0; i < n - 1; i++) {
-      if (i === J) continue;
+      if (i === J || i === P || i === Q) continue;
       const fin = f[i], bin = b[i + 1];
       // the lip exit acts at the last junction
       const rr = resOn ? (i === n - 2 ? rv[i] + rv[n - 1] : rv[i]) : 0;
@@ -373,12 +416,23 @@ export class Waveguide {
       bn[J] = loss[J] * (pj - f[J]);
       ns.fn[0] = ns.loss[0] * (pj - ns.b[0]);
     }
+    // blind branches: three-way junctions (oral j, oral j+1, branch 0)
+    for (let q = 0; q < 2; q++) {
+      const j = this.blindAt[q];
+      if (j < 0) continue;
+      const t = this.blind[q];
+      const a1 = o.area[j], a2 = o.area[j + 1], a3 = t.area[0];
+      const pj = (2 * (a1 * f[j] + a2 * b[j + 1] + a3 * t.b[0])) / (a1 + a2 + a3);
+      fn[j + 1] = loss[j + 1] * (pj - b[j + 1]);
+      bn[j] = loss[j] * (pj - f[j]);
+      t.fn[0] = t.loss[0] * (pj - t.b[0]);
+    }
     // sources at oral junctions
     for (let s = 0; s < this.srcCount; s++) {
       const j = this.srcJunction[s];
       if (j < 0 || j >= n - 1) continue;
       const p = this.srcValue[s];
-      const r = j === J ? 0 : k[j];
+      const r = j === J || j === P || j === Q ? 0 : k[j];
       fn[j + 1] += loss[j + 1] * p * 0.5 * (1 + r);
       bn[j] -= loss[j] * p * 0.5 * (1 - r);
     }
@@ -389,7 +443,7 @@ export class Waveguide {
       const rc = RHO * C_SOUND;
       for (let q = 0; q < wj.length; q++) {
         const j = wj[q];
-        if (j === J) continue;
+        if (j === J || j === P || j === Q) continue;
         const pj = fn[j + 1] + b[j + 1];
         let v = wv[q];
         v += (dt / WALL_MASS) * (pj - WALL_RES * v - WALL_STIFF * wy[q]);
@@ -429,6 +483,19 @@ export class Waveguide {
       R.fn[0] = R.loss[0] * (pj - R.b[0]);
     }
     this.nosFlow = this.stepNasalPart(this.nasalL, 1, this.nosRadL) + this.stepNasalPart(this.nasalR, 2, this.nosRadR);
+    // the blind branches, rigid at the far end
+    for (let q = 0; q < 2; q++) {
+      if (this.blindAt[q] < 0) continue;
+      const t = this.blind[q], tn = t.n;
+      for (let i = 0; i < tn - 1; i++) {
+        const fin = t.f[i], bin = t.b[i + 1];
+        const w = t.k[i] * (fin - bin);
+        t.fn[i + 1] = t.loss[i + 1] * (fin + w);
+        t.bn[i] = t.loss[i] * (bin + w);
+      }
+      t.bn[tn - 1] = t.loss[tn - 1] * t.f[tn - 1];
+      t.swap();
+    }
     // sinus tubes (closed far end)
     for (let q = 0; q < this.sinuses.length; q++) {
       const t = this.sinuses[q].tube;
