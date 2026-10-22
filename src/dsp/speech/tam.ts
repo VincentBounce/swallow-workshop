@@ -26,6 +26,7 @@ export const TAM_TAU: Record<string, number> = {
   jaw: 0.018,
   tongueX: 0.016,
   tongueY: 0.016,
+  tongueRoot: 0.016,
   tipX: 0.009,
   tipY: 0.009,
   groove: 0.01,

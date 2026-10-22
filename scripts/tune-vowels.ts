@@ -1,7 +1,10 @@
 /**
  * Fits the articulatory vowel targets so that the frequency-domain reference
  * model lands on the adult-male reference formants (Peterson & Barney 1952).
- *   npx tsx scripts/tune-vowels.ts [vowel,vowel,...]
+ *   npx tsx scripts/tune-vowels.ts [vowel,vowel,...] [--keys=jaw,tongueX,...] [--minarea=0.3] [--write]
+ * --minarea keeps the narrowest passage (more than 2.6 cm above the glottis)
+ * at least that wide, in cm^2, so that the vowel neither hisses nor throttles
+ * the airflow.
  * Prints the fitted articulators; paste them into src/dsp/speech/phonemes.ts.
  */
 import { computeGeometry } from '../src/dsp/tract/geometry';
@@ -12,9 +15,23 @@ import { VOWELS } from '../src/dsp/speech/phonemes';
 import { MALE_TARGETS } from '../src/dsp/data/vowels';
 import { nelderMead } from '../src/dsp/util/optimize';
 
-const keys: (keyof Articulators)[] = ['jaw', 'tongueX', 'tongueY', 'lipOpen', 'lipRound', 'lipProtrude'];
-const steps = [0.12, 0.25, 0.25, 0.1, 0.2, 0.2];
-const regScale = [0.6, 1.2, 1.2, 0.5, 1.0, 1.0];
+const ALL: Partial<Record<keyof Articulators, [number, number]>> = {
+  jaw: [0.12, 0.6], tongueX: [0.25, 1.2], tongueY: [0.25, 1.2], tongueRoot: [0.3, 1.0], lipOpen: [0.1, 0.5], lipRound: [0.2, 1.0], lipProtrude: [0.2, 1.0],
+};
+const keysArg = process.argv.find((a) => a.startsWith('--keys='));
+const keys = (keysArg ? keysArg.slice(7).split(',') : ['jaw', 'tongueX', 'tongueY', 'lipOpen', 'lipRound', 'lipProtrude']) as (keyof Articulators)[];
+const steps = keys.map((k) => ALL[k]![0]);
+const regScale = keys.map((k) => ALL[k]![1]);
+
+const minArg = process.argv.find((a) => a.startsWith('--minarea='));
+const MIN_AREA = minArg ? Number(minArg.slice(10)) : 0;
+
+function narrowest(a: Articulators): number {
+  const g = computeGeometry(a, DEFAULT_ANATOMY, DEFAULT_TEETH);
+  let m = Infinity;
+  for (let i = 0; i <= g.lastRay; i++) if (g.s[i] >= 2.6) m = Math.min(m, g.hits[i].area);
+  return m;
+}
 
 function evalFormants(a: Articulators): number[] {
   const g = computeGeometry(a, DEFAULT_ANATOMY, DEFAULT_TEETH);
@@ -60,8 +77,11 @@ for (const v of which) {
       if (x[i] > hi) pen += (x[i] - hi) ** 2 * 10;
     });
     const jt = JAW_TYPICAL[v];
-    const jawPen = jt !== undefined ? ((x[0] - jt) / 0.15) ** 2 : 0;
-    return c + 0.004 * reg + 0.01 * jawPen + pen;
+    const ij = keys.indexOf('jaw');
+    const jawPen = jt !== undefined && ij >= 0 ? ((x[ij] - jt) / 0.15) ** 2 : 0;
+    const nar = MIN_AREA > 0 ? narrowest(toArt(x)) : Infinity;
+    const tight = nar < MIN_AREA ? (Math.log(nar / MIN_AREA) / 0.1) ** 2 : 0;
+    return c + 0.004 * reg + 0.01 * jawPen + pen + 0.01 * tight;
   };
   const before = evalFormants(base);
   const res = nelderMead(cost, x0, steps, 260, 1e-7);
@@ -82,7 +102,9 @@ if (process.argv.includes('--write')) {
   let src = readFileSync(path, 'utf-8');
   for (const [v, art] of Object.entries(results)) {
     const re = new RegExp(`(V\\('${v}', )\\{[^}]*\\}`, 'u');
-    const obj = '{ ' + Object.entries(art).map(([k, x]) => `${k}: ${x}`).join(', ') + ' }';
+    const merged: Partial<Articulators> = { ...VOWELS[v].art, ...art };
+    const order = ['jaw', 'tongueX', 'tongueY', 'tongueRoot', 'lipOpen', 'lipRound', 'lipProtrude'] as (keyof Articulators)[];
+    const obj = '{ ' + order.filter((k) => merged[k] !== undefined && (k !== 'tongueRoot' || merged[k] !== 0)).map((k) => `${k}: ${merged[k]}`).join(', ') + ' }';
     src = src.replace(re, `$1${obj}`);
   }
   writeFileSync(path, src);

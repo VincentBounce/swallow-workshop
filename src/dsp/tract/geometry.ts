@@ -193,6 +193,10 @@ const TONGUE_C0: [number, number] = [2.85, 6.95];
 const TONGUE_R = 2.45;
 const TIP0: [number, number] = [6.15, 7.9];
 const FLOOR_ATTACH: [number, number] = [5.75, 6.6];
+/** tongue root position of the drawing's rest shape, cm: the lower pharynx of
+ *  most vowels measured by MRI (Story 2008) is about 1 cm^2, narrower than the
+ *  circle body alone gives */
+const ROOT_REST = -1.2;
 
 function rot(p: [number, number], c: [number, number], a: number): [number, number] {
   const ca = Math.cos(a), sa = Math.sin(a);
@@ -273,6 +277,19 @@ function buildTongue(a: Articulators, jawAngle: number): { pts: number[]; c: [nu
   }
   const deep = rotPts([5.6, 5.4], J, jawAngle * 0.5);
   pts.push(deep[0], deep[1], 4.6, 3.1, 2.2, 2.3, 1.45, 2.6);
+  // tongue root: the back of the tongue below the body centre moves forward or
+  // back on its own (as in Maeda's tongue-shape parameter), fully at the hyoid
+  // and fading out toward the dorsum, so the lower pharynx widens or narrows
+  // while the dorsum stays where it is
+  const root = a.tongueRoot + ROOT_REST;
+  if (root) {
+    const top = c[1] + 0.3, bottom = c[1] - r;
+    for (let i = 0; i < pts.length; i += 2) {
+      if (pts[i] >= c[0] || pts[i + 1] >= top) continue;
+      const u = Math.min(1, (top - pts[i + 1]) / (top - bottom));
+      pts[i] += root * u * u * (3 - 2 * u);
+    }
+  }
   return { pts, c, tip };
 }
 
@@ -363,7 +380,7 @@ function buildLarynx(a: Articulators): number[] {
   const out = LARYNX.slice();
   for (let i = 0; i < out.length; i += 2) {
     const y = out[i + 1];
-    if (y > 1.8 && out[i] < 2) out[i] += 0.5 * a.tongueX * Math.min(1, (y - 1.8) / 1.6);
+    if (y > 1.8 && out[i] < 2) out[i] += (0.5 * a.tongueX + 0.8 * (a.tongueRoot + ROOT_REST)) * Math.min(1, (y - 1.8) / 1.6);
   }
   return out;
 }
@@ -501,7 +518,8 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
 
 /** Region coefficients of the power law A = alpha d^beta (cm). */
 export const AREA_LAW = {
-  larynx: { alpha: 1.1, beta: 1.3 },
+  // the epilaryngeal tube above the glottis is about 0.3-0.6 cm^2 (Story 2008)
+  larynx: { alpha: 0.55, beta: 1.3 },
   pharynx: { alpha: 1.9, beta: 1.45 },
   oral: { alpha: 1.6, beta: 1.5 },
   /** lateral width of a grooved blade channel (cm) */

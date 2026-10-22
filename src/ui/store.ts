@@ -4,7 +4,7 @@ import type { Telemetry } from '../dsp/engine/engine';
 import { defaultParams, EngineParams, Score } from '../dsp/engine/params';
 import { Articulators } from '../dsp/tract/types';
 import { computeGeometry, TractGeometry } from '../dsp/tract/geometry';
-import { AreaFunction, sectionsFromGeometry } from '../dsp/tract/areaFunction';
+import { AreaFunction, sectionsFromGeometry, resampleTube } from '../dsp/tract/areaFunction';
 import { formants, Formant } from '../dsp/tract/acoustics';
 import { portArea } from '../dsp/tract/nasal';
 import { loadEnglishLexicon, englishLexiconSize } from '../dsp/speech/english';
@@ -243,13 +243,7 @@ class Store {
 }
 
 export function tubeAreaFunction(p: EngineParams, n = 44): AreaFunction {
-  const src = p.tubeAreas;
-  const areas = new Float64Array(n);
-  for (let i = 0; i < n; i++) {
-    const x = ((i + 0.5) / n) * (src.length - 1);
-    const j = Math.min(src.length - 2, Math.floor(x)), t = x - j;
-    areas[i] = Math.max(1e-4, src[j] * (1 - t) + src[j + 1] * t);
-  }
+  const areas = resampleTube(p.tubeAreas, n, new Float64Array(n), 1e-4);
   return { areas, length: p.tubeLength, dx: p.tubeLength / n, teethIndex: n - 3, lipsIndex: n - 2 };
 }
 

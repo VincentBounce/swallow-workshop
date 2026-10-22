@@ -4,6 +4,7 @@ import { Slider, Section, Readout } from './controls';
 import { setPhoneme, TIMBRE_PRESETS } from '../presets';
 import { VOWELS, CONSONANTS } from '../../dsp/speech/phonemes';
 import { ARTICULATOR_RANGES, Articulators } from '../../dsp/tract/types';
+import { MRI_VOWELS } from '../../dsp/data/mri';
 import { C } from '../canvas';
 
 const SUSTAINABLE = ['s', 'z', 'ʃ', 'ʒ', 'f', 'v', 'θ', 'ð', 'h', 'm', 'n', 'ɲ', 'ŋ', 'l', 'ʎ', 'r', 'ɹ', 'j', 'w'];
@@ -19,6 +20,7 @@ export function TractPanel() {
     jaw: { it: 'Mascella (apertura)', en: 'Jaw (opening)' },
     tongueX: { it: 'Lingua avanti/indietro', en: 'Tongue front/back' },
     tongueY: { it: 'Lingua su/giù', en: 'Tongue up/down' },
+    tongueRoot: { it: 'Radice della lingua avanti/indietro', en: 'Tongue root forward/back' },
     tipX: { it: 'Punta avanti/indietro', en: 'Tip front/back' },
     tipY: { it: 'Punta su/giù', en: 'Tip up/down' },
     groove: { it: 'Solco della lingua', en: 'Tongue groove' },
@@ -41,6 +43,21 @@ export function TractPanel() {
         <div className="chips ipa">
           {Object.keys(VOWELS).map((v) => (
             <button key={v} className="chip ipa" title={VOWELS[v].examples} onClick={() => { setPhoneme(v); if (!store.audio.running) void store.startAudio(); }}>{v}</button>
+          ))}
+        </div>
+      </Section>
+      <Section title={L({ it: 'Vocali misurate (risonanza magnetica)', en: 'Measured vowels (MRI)' })} accent={C.teal} open={false}
+        info={L({
+          it: 'Queste forme non vengono dal disegno della testa: sono state misurate con la risonanza magnetica su un uomo adulto che teneva ciascuna vocale (Story 2008), una sezione ogni 4 mm dalla glottide alle labbra. Caricane una: il tubo diventa quello vero, e lo senti. Le vocali del disegno sono costruite per somigliare a queste forme senza perdere le formanti di riferimento. Torna alla testa dalla vista «Il tubo».',
+          en: 'These shapes do not come from the drawing of the head: they were measured with magnetic resonance imaging on an adult man holding each vowel (Story 2008), one slice every 4 mm from the glottis to the lips. Load one: the tube becomes the real one, and you hear it. The vowels of the drawing are built to resemble these shapes while keeping the reference formants. Go back to the head from the “The tube” view.',
+        })}>
+        <div className="chips ipa">
+          {MRI_VOWELS.map((v) => (
+            <button key={v.ipa} className="chip ipa" title={`${v.areas.length} × ${(10 * v.dx).toFixed(1)} mm`} onClick={() => {
+              store.setParams((q) => { q.tubeAreas = v.areas.slice(); q.tubeLength = v.areas.length * v.dx; q.tubeMode = true; q.phonate = true; q.voicing = true; q.abduction = 0; });
+              store.setUi({ viewTab: 'tube' });
+              if (!store.audio.running) void store.startAudio();
+            }}>{v.ipa}</button>
           ))}
         </div>
       </Section>

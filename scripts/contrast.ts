@@ -48,7 +48,7 @@ for (let i = 0; i < ph.length; i++) {
   const a0 = q.t0 + 0.01, a1 = Math.max(a0, q.t1 + 0.012);
   const cmin = range(a0, a1, Math.min, lev);
   const amin = range(a0, a1, Math.min, area);
-  rows.push(`${q.ipa.padEnd(3)} ${PHONEMES[q.ipa].manner.padEnd(12)} dip ${(vmax - cmin).toFixed(1).padStart(5)} dB  narrowest ${amin.toFixed(3)} cm2 (target ${targetArea(q.ipa)})`);
+  rows.push(`${q.ipa.padEnd(3)} ${PHONEMES[q.ipa].manner.padEnd(12)} dip ${(vmax - cmin).toFixed(1).padStart(5)} dB (vowels ${vmax.toFixed(1)}, consonant ${cmin.toFixed(1)} dB)  narrowest ${amin.toFixed(3)} cm2 (target ${targetArea(q.ipa)})`);
 }
 console.log(rows.join('\n'));
 

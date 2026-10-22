@@ -6,6 +6,7 @@ import { formants } from '../src/dsp/tract/acoustics';
 import { computeGeometry } from '../src/dsp/tract/geometry';
 import { DEFAULT_ANATOMY, DEFAULT_ARTICULATORS, DEFAULT_TEETH } from '../src/dsp/tract/types';
 import { VOWELS } from '../src/dsp/speech/phonemes';
+import { MRI_VOWELS, mriAreaFunction } from '../src/dsp/data/mri';
 import { getFFT } from '../src/dsp/util/fft';
 import { C_SOUND } from '../src/dsp/constants';
 import { note } from './helpers';
@@ -62,6 +63,21 @@ describe('real-time Kelly-Lochbaum waveguide', () => {
         expect(Math.abs(near - ref[k]) / ref[k]).toBeLessThan(0.05);
       }
     }
+  });
+
+  it('measured MRI shapes: waveguide formants match the reference too', () => {
+    let worst = 0;
+    for (const v of MRI_VOWELS) {
+      const af = mriAreaFunction(v);
+      const wgp = waveguidePeaks(af);
+      const ref = formants(af, {}).map((f) => f.f);
+      for (let k = 0; k < 3; k++) {
+        const near = wgp.reduce((best, x) => (Math.abs(x - ref[k]) < Math.abs(best - ref[k]) ? x : best), Infinity);
+        worst = Math.max(worst, Math.abs(near - ref[k]) / ref[k]);
+      }
+    }
+    note('KL vs reference on MRI shapes', `worst F1-F3 difference ${(100 * worst).toFixed(1)} % over 11 vowels`);
+    expect(worst).toBeLessThan(0.05);
   });
 
   it('opening the velum adds nasal resonances and changes the spectrum', () => {

@@ -67,6 +67,21 @@ export function sectionsFromGeometry(g: TractGeometry, n = N_SECTIONS, out?: Are
   return res;
 }
 
+/**
+ * Resamples a drawn or measured tube profile onto n sections. Each source
+ * value is the area at the centre of its own cell, so a profile that already
+ * has n values comes through unchanged.
+ */
+export function resampleTube(src: ArrayLike<number>, n: number, out: Float64Array, floor: number): Float64Array {
+  const m = src.length;
+  for (let i = 0; i < n; i++) {
+    const x = Math.min(m - 1, Math.max(0, ((i + 0.5) / n) * m - 0.5));
+    const j = Math.min(m - 2, Math.floor(x)), t = x - j;
+    out[i] = Math.max(floor, src[j] * (1 - t) + src[j + 1] * t);
+  }
+  return out;
+}
+
 /** Index and value of the minimum area between two sections (inclusive). */
 export function minArea(af: AreaFunction, from: number, to: number): { index: number; area: number } {
   let idx = from, v = Infinity;

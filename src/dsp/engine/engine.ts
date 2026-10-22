@@ -3,7 +3,7 @@ import { LFSource, rdToTiming, timingFromQuotients, LFTiming } from '../glottis/
 import { TwoMassGlottis } from '../glottis/twoMass';
 import { Waveguide } from '../tract/waveguide';
 import { computeGeometry, TractGeometry } from '../tract/geometry';
-import { AreaFunction, N_SECTIONS, sectionsFromGeometry } from '../tract/areaFunction';
+import { AreaFunction, N_SECTIONS, sectionsFromGeometry, resampleTube } from '../tract/areaFunction';
 import { buildNasal, NasalTract, portArea } from '../tract/nasal';
 import { Aero, newJetInfo, JetInfo, RE_CRIT } from '../aero/aero';
 import { TurbulenceSource, ShapedNoise } from '../noise/noise';
@@ -307,20 +307,17 @@ export class VoiceEngine {
     const p = this.params;
     if (p.tubeMode) {
       this.geom = null;
-      const src = p.tubeAreas;
       const n = N_SECTIONS;
-      const areas = this.af.areas;
-      for (let i = 0; i < n; i++) {
-        const x = ((i + 0.5) / n) * (src.length - 1);
-        const j = Math.min(src.length - 2, Math.floor(x)), t = x - j;
-        areas[i] = Math.max(AREA_CLOSED, src[j] * (1 - t) + src[j + 1] * t);
-      }
+      const areas = resampleTube(p.tubeAreas, n, this.af.areas, AREA_CLOSED);
       this.af.length = p.tubeLength;
       this.af.dx = p.tubeLength / n;
       this.af.teethIndex = n - 3;
       this.af.lipsIndex = n - 2;
+      // the turbulent constriction is looked for above the epilaryngeal tube,
+      // as in the head (2.6 cm in a 17.5 cm tract)
       this.fineMinArea = Infinity;
-      for (let i = 2; i < n; i++) if (areas[i] < this.fineMinArea) { this.fineMinArea = areas[i]; this.fineMinS = (i + 0.5) * this.af.dx; }
+      const i0 = Math.max(2, Math.ceil((2.6 * p.tubeLength) / 17.5 / this.af.dx));
+      for (let i = i0; i < n; i++) if (areas[i] < this.fineMinArea) { this.fineMinArea = areas[i]; this.fineMinS = (i + 0.5) * this.af.dx; }
     } else {
       this.geom = computeGeometry(this.art, p.anatomy, p.teeth, { reuse: this.geom ?? undefined });
       sectionsFromGeometry(this.geom, N_SECTIONS, this.af);
@@ -412,11 +409,17 @@ export class VoiceEngine {
         compliance: 1.0e-3 * scale * scale * scale,
       });
     }
-    // voicing needs transglottal pressure and adducted folds
+    // voicing needs transglottal pressure and adducted folds. Below the
+    // speaking pressure (8 cmH2O) the vibration amplitude falls almost in
+    // proportion, so that with the jet speed (sqrt of the pressure) the voice
+    // loses 8-9 dB per halving of the pressure, as measured (Titze & Sundberg
+    // 1992): a voiced fricative, with pressure behind its constriction, is
+    // much weaker than its vowels. Above it the amplitude grows more slowly.
     const dp = Math.max(0, this.psCur - this.aero.po) / CMH2O;
     const adduction = 1 - smoothstep(0.25, 0.6, this.abduction);
     const pressureGate = smoothstep(1.2, 3.5, dp);
-    this.voicingAmp = p.voicing ? adduction * pressureGate * Math.sqrt(Math.min(dp, 30) / 8) : 0;
+    const drive = dp < 8 ? Math.pow(dp / 8, 0.9) : Math.sqrt(Math.min(dp, 30) / 8);
+    this.voicingAmp = p.voicing ? adduction * pressureGate * drive : 0;
 
     // jet and turbulence sources
     const g = this.geom;

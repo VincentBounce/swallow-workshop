@@ -80,13 +80,14 @@ export function TubeView() {
       label(ctx, `F${sw} ${fmtHz(f)}: ${L({ it: 'pressione', en: 'pressure' })}`, x0 + 70, base + 10, C.amber);
       label(ctx, L({ it: 'velocità dell’aria', en: 'air velocity' }), x0 + 210, base + 10, C.sky);
     }
-    // tube mode control points
+    // tube mode control points (16 drawn by hand, or the 44 of a measured shape)
     if (prm.tubeMode) {
-      for (let i = 0; i < CTRL; i++) {
-        const x = x0 + ((i + 0.5) / CTRL) * (x1 - x0);
+      const m = prm.tubeAreas.length;
+      for (let i = 0; i < m; i++) {
+        const x = x0 + ((i + 0.5) / m) * (x1 - x0);
         const r = rOf(prm.tubeAreas[i] ?? 3);
         ctx.fillStyle = C.text;
-        ctx.beginPath(); ctx.arc(x, yc - r, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, yc - r, m > CTRL ? 2.5 : 4, 0, Math.PI * 2); ctx.fill();
       }
     }
     // axis
@@ -101,8 +102,8 @@ export function TubeView() {
     const r = (e.target as HTMLCanvasElement).getBoundingClientRect();
     const g = geo.current;
     const px = e.clientX - r.left, py = e.clientY - r.top;
-    const i = Math.floor(((px - g.x0) / (g.x1 - g.x0)) * CTRL);
-    if (i < 0 || i >= CTRL) return;
+    const frac = (px - g.x0) / (g.x1 - g.x0);
+    if (frac < 0 || frac >= 1) return;
     const rad = Math.abs(py - g.yc) / g.k;
     const area = Math.max(0.0, Math.min(12, rad * rad * 8));
     store.setParams((p) => {
@@ -112,7 +113,7 @@ export function TubeView() {
         p.tubeLength = af.length;
         p.tubeMode = true;
       }
-      p.tubeAreas[i] = area < 0.02 ? 0.0 : area;
+      p.tubeAreas[Math.floor(frac * p.tubeAreas.length)] = area < 0.02 ? 0.0 : area;
       p.phonate = true;
     });
   };

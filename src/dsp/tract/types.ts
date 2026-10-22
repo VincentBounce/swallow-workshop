@@ -6,6 +6,8 @@ export interface Articulators {
   tongueX: number;
   /** tongue body up (+) / down (-) displacement, cm */
   tongueY: number;
+  /** tongue root advanced (+) / retracted (-), cm: widens or narrows the lower pharynx */
+  tongueRoot: number;
   /** tongue tip forward (+) displacement relative to its rest position, cm */
   tipX: number;
   /** tongue tip up (+) displacement, cm */
@@ -63,6 +65,7 @@ export const DEFAULT_ARTICULATORS: Articulators = {
   jaw: 0.25,
   tongueX: 0,
   tongueY: 0,
+  tongueRoot: 0,
   tipX: 0,
   tipY: 0,
   groove: 0,
@@ -87,7 +90,7 @@ export const DEFAULT_TEETH: Teeth = {
 };
 
 export const ARTICULATOR_KEYS: (keyof Articulators)[] = [
-  'jaw', 'tongueX', 'tongueY', 'tipX', 'tipY', 'groove', 'lipOpen', 'lipRound', 'lipProtrude', 'lipTuck', 'velum', 'larynx',
+  'jaw', 'tongueX', 'tongueY', 'tongueRoot', 'tipX', 'tipY', 'groove', 'lipOpen', 'lipRound', 'lipProtrude', 'lipTuck', 'velum', 'larynx',
 ];
 
 /** Allowed ranges of the articulators (used by the UI and the sequencer). */
@@ -95,6 +98,7 @@ export const ARTICULATOR_RANGES: Record<keyof Articulators, [number, number]> = 
   jaw: [0, 1],
   tongueX: [-1.6, 1.4],
   tongueY: [-1.6, 1.6],
+  tongueRoot: [-1.2, 1.2],
   tipX: [-1.2, 1.4],
   tipY: [-0.6, 2.2],
   groove: [0, 1],
