@@ -6,7 +6,7 @@ import { Learn } from './modes/Learn';
 import { Play } from './modes/Play';
 import { Lab } from './modes/Lab';
 import { voice } from './voice/voice';
-import { useManual, useSoundOn } from './voice/hooks';
+import { useManual, useSoundOn, useVoice } from './voice/hooks';
 
 const MODES: [Mode, 'mLearn' | 'mPlay' | 'mLab', 'mLearnHint' | 'mPlayHint' | 'mLabHint'][] = [
   ['learn', 'mLearn', 'mLearnHint'], ['play', 'mPlay', 'mPlayHint'], ['lab', 'mLab', 'mLabHint'],
@@ -19,6 +19,7 @@ function Header() {
   const ui = useUi();
   const p = useManual();
   const sound = useSoundOn();
+  const sustain = useVoice((v) => v.sustain);
   return (
     <header className="app-header">
       <div className="brand">
@@ -41,6 +42,9 @@ function Header() {
         <button className={sound ? 'btn sound on' : 'btn primary pulse sound'} title={t(sound ? 'soundOffHint' : 'soundHint')} onClick={() => void voice.setSound(!sound)}>
           {sound ? '■ ' + t('soundOn') : '▶ ' + t('sound')}
         </button>
+        {ui.mode === 'lab' && (
+          <button className={sustain ? 'chip on' : 'chip'} title={t('holdHint')} aria-pressed={sustain} onClick={() => voice.setSustain(!sustain)}>∞ {t('hold')}</button>
+        )}
         <label className="mini vol" title={t('volume')}>
           <span aria-hidden>🔈</span>
           <input type="range" min={-30} max={12} step={0.5} value={p.volume} aria-label={t('volume')} onChange={(e) => voice.edit((q) => { q.volume = Number(e.target.value); })} />

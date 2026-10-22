@@ -178,7 +178,7 @@ export function VowelChart() {
     dragging.current = true;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     target.current = { f1: q.f1, f2: q.f2 };
-    voice.grab();
+    voice.grab({ blow: true });
     blendTo(q.f1, q.f2);
     void voice.ensureAudio();
   };
@@ -188,7 +188,7 @@ export function VowelChart() {
     target.current = { f1: q.f1, f2: q.f2 };
     blendTo(q.f1, q.f2);
   };
-  const onUp = () => { dragging.current = false; };
+  const onUp = () => { dragging.current = false; voice.letGo(); };
 
   const sets: [RefSet, string][] = [
     ['pb-men', L({ it: 'P&B uomini', en: 'P&B men' })], ['pb-women', L({ it: 'P&B donne', en: 'P&B women' })], ['pb-children', L({ it: 'P&B bambini', en: 'P&B children' })],

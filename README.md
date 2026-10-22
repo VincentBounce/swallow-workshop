@@ -33,20 +33,28 @@ npm run preview    # serves dist/
 ```
 
 Press **▶ Sound / Suono** in the header (browsers only allow audio after a user
-gesture): it starts the audio and the lungs, and you hear the shape of the
-head. Press it again to stop everything. Any phoneme, voice, sentence or
-experiment also starts the audio by itself.
+gesture): it gives the head a breath of voice, and you hear its shape. Press
+it again to stop everything. Any phoneme, voice, sentence or experiment also
+starts the audio by itself. The voice of your hands lasts a breath: it rests
+2.5 s after the last change (a phoneme picked, a handle or a slider moved),
+and keeps sounding while you drag the head, so nothing drones on; the Lab's
+**∞ Hold** keeps it sounding. The volume starts at -8 dB (a held vowel near
+-30 dBFS), and a limiter on the output catches the bursts of a sentence or a
+volume pushed up.
 
 ## What you can do
 
 Three modes, switchable in the header and remembered in the browser:
 
 - **Learn**, for someone who starts from nothing (a welcome and 11 chapters,
-  the first ones following the video). Each chapter is a card of numbered
-  steps beside a stage with the head and one view, chosen by the step, plus
-  the two or three quick controls the chapter needs (vowels, pitch, voices,
-  a hiss, the nose, measured tubes, a sentence); the chapters run along the
-  bottom. The chapters: a buzz and a filter; waves, harmonics and spectrum; the source
+  the first ones following the video), one step at a time. The head and the
+  one view the step needs fill the screen; under them sits the step: one
+  idea in a sentence or two, the sounds to try (one to three buttons, the
+  next one lit), what to look and listen for, and on demand the explanation
+  ("Why?") and the live numbers behind it. Opening a step is silent: the
+  head takes the step's starting shape and nothing sounds until you ask.
+  Back and Next (or the arrow keys) turn the steps, the dots jump to one,
+  and the chapter's name opens the list of chapters. The chapters: a buzz and a filter; waves, harmonics and spectrum; the source
   (pulses, pitch, melody with the buzz alone); the filter (formants, vowels,
   the F1-F2 map, what belongs to the person); two independent knobs (source
   and filter); the hiss (s, f, breathy voice, pulsed aspiration); consonants
@@ -55,13 +63,13 @@ Three modes, switchable in the header and remembered in the browser:
   tract in 3D (the side channels of an "l", the piriform fossae); the
   spectrogram (slices, window trade-off, log-mel); from sounds to sentences
   (coarticulation, timing, melody, each one switched off); a machine voice.
-  Every step sets up what it describes, and most chapters have guided
-  experiments: a question, the steps to try, what to look and listen for,
-  and the answer on demand, with the live numbers behind it when Numbers is
-  on. Steps that need a tool (A/B, melody, machine voice, your own noise)
-  open it inside the card. Where a chapter is about a hand, a hint on the
-  head points at the handle to drag (the tongue, the jaw, the tip, the lips,
-  the velum) until you drag it.
+  Steps that need a tool (A/B, melody, machine voice) open it under the
+  step. Where a step is about a hand, a hint on the head points at the
+  handle to drag (the tongue, the jaw, the lips, the velum) until you drag
+  it. A test keeps the steps short (at most 220 characters of text, three
+  sounds, seven steps a chapter) and checks that every step opens in
+  silence, that every sound of it is heard as it is shown, and that it rests
+  a breath later.
 - **Play**, for someone who wants to try things without the theory: a big
   head with its handles and a caption of what you are holding, four cards
   (say something, pick a sound, who is speaking, find your vowel on the map)
@@ -115,8 +123,8 @@ Inspector (Lab) and tools (Learn):
 
 | Output | Volume, sample rate and level; harmonics, filter envelope, log-mel, analysis window; numbers everywhere; freeze the views; the microphone (opt-in, analysed locally, never played back). |
 
-The header holds the three modes, the Sound button, the volume and EN / IT;
-reset sits at the end of the Lab's chain.
+The header holds the three modes, the Sound button (and in the Lab, Hold),
+the volume and EN / IT; reset sits at the end of the Lab's chain.
 
 ## Architecture
 

@@ -14,6 +14,10 @@
  *    sounding again by itself
  *  - a tube or no filter leaves the posture (and more) without effect; those
  *    controls are locked until the head is the filter again
+ *  - the hands' voice sounds for a breath: it rests BREATH_MS after the last
+ *    change (a phoneme picked, a handle or a slider moved), so that nothing
+ *    drones on; while a hand drags the head it keeps sounding. `sustain`
+ *    (the Lab's Hold) keeps it sounding
  */
 import type { Telemetry } from '../../dsp/engine/engine';
 import { defaultParams, EngineParams, Score, DEFAULT_SOURCE, DEFAULT_NOISE } from '../../dsp/engine/params';
@@ -46,6 +50,10 @@ export const DRAWN_TUBE: Bi = { it: 'tubo disegnato a mano', en: 'hand-drawn tub
 export const mriTube = (ipa: string): Bi => ({ it: `tubo misurato della /${ipa}/`, en: `measured tube of /${ipa}/` });
 /** telemetry older than this no longer describes what sounds, ms */
 const LIVE_MS = 300;
+/** how long the hands' voice sounds after the last change, ms: a breath */
+export const BREATH_MS = 2500;
+/** the output volume the voice starts with, dB: a held vowel near -30 dBFS */
+export const START_VOLUME = -8;
 
 export class VoiceController {
   private _manual: EngineParams;
@@ -70,10 +78,16 @@ export class VoiceController {
   /** messages for the person (an audio start that failed) */
   onInfo: (msg: string) => void = () => {};
   micOn = false;
+  /** the hands' voice keeps sounding instead of resting after a breath */
+  sustain = false;
+  private stopRest: (() => void) | null = null;
+  /** a hand is dragging the head: its moves give the voice air */
+  private dragging = false;
 
   constructor(private readonly clock: Clock = realClock) {
     const p = defaultParams();
     p.articulators = { ...p.articulators, jaw: 0.94, tongueX: 0.06, tongueY: -0.83, lipOpen: 0.5, lipProtrude: 0.04 };
+    p.volume = START_VOLUME;
     this._manual = p;
   }
 
@@ -162,21 +176,24 @@ export class VoiceController {
     }
     if (changed.has('posture') || changed.has('velum')) this.held = { ...this.held, phoneme: null };
     if (changed.has('body') || changed.has('quality')) this.held = { ...this.held, speaker: null };
+    if (this.dragging && this.running && this._lanes.performer.kind === 'hands') draft.phonate = true;
     this.commit(draft);
     return true;
   }
 
-  /** Holds a phoneme with the hands (an explicit choice: it takes over by default). */
-  holdPhoneme(ipa: string, opts: { f0?: number; takeOver?: boolean } = {}): boolean {
-    const ok = this.edit((p) => { applyPhoneme(ipa, p); if (opts.f0) p.source.f0 = opts.f0; p.phonate = true; }, { takeOver: opts.takeOver ?? true });
-    if (ok) { this.held = { ...this.held, phoneme: ipa }; this.emit(); void this.ensureAudio(); }
+  /** Holds a phoneme with the hands (an explicit choice: it takes over by default); `blow: false` only shapes the head. */
+  holdPhoneme(ipa: string, opts: { f0?: number; takeOver?: boolean; blow?: boolean } = {}): boolean {
+    const blow = opts.blow ?? true;
+    const ok = this.edit((p) => { applyPhoneme(ipa, p); if (opts.f0) p.source.f0 = opts.f0; p.phonate = blow; }, { takeOver: opts.takeOver ?? true });
+    if (ok) { this.held = { ...this.held, phoneme: ipa }; this.emit(); if (blow) void this.ensureAudio(); }
     return ok;
   }
 
-  /** Becomes a speaker (a preset of source and anatomy, by id) and blows. */
-  applyPreset(id: string, apply: (p: EngineParams) => void): boolean {
-    const ok = this.edit((p) => { apply(p); p.phonate = true; }, { takeOver: true });
-    if (ok) { this.held = { ...this.held, speaker: id }; this.emit(); void this.ensureAudio(); }
+  /** Becomes a speaker (a preset of source and anatomy, by id) and blows (unless `blow: false`). */
+  applyPreset(id: string, apply: (p: EngineParams) => void, opts: { blow?: boolean } = {}): boolean {
+    const blow = opts.blow ?? true;
+    const ok = this.edit((p) => { apply(p); p.phonate = blow; }, { takeOver: true });
+    if (ok) { this.held = { ...this.held, speaker: id }; this.emit(); if (blow) void this.ensureAudio(); }
     return ok;
   }
 
@@ -208,15 +225,23 @@ export class VoiceController {
     return ok;
   }
 
-  /** Starts a drag of the head from the posture you see; with `blow`, gives it air if the audio runs. */
+  /** Starts a drag of the head from the posture you see; with `blow`, gives it air while the drag lasts if the audio runs. */
   grab(opts: { blow?: boolean } = {}): void {
     if (this._lanes.performer.kind !== 'hands') return;
+    if (opts.blow) { this.dragging = true; if (!this.running) void this.ensureAudio(); }
     const t = this.live();
     const m = cloneParams(this._manual);
     let changed = false;
     if (t && this._lanes.filter.kind === 'head') { m.articulators = { ...t.articulators }; changed = true; }
     if (opts.blow && this.running && !m.phonate) { m.phonate = true; changed = true; }
     if (changed) this.commit(m);
+  }
+
+  /** The drag is over: the voice rests a breath later. */
+  letGo(): void {
+    if (!this.dragging) return;
+    this.dragging = false;
+    this.breathe();
   }
 
   // ------------------------------------------------------------ performers
@@ -340,6 +365,13 @@ export class VoiceController {
     });
   }
 
+  /** Hold (true): the hands' voice keeps sounding; off, it rests after a breath. */
+  setSustain(on: boolean): void {
+    this.sustain = on;
+    this.breathe();
+    this.emit();
+  }
+
   /** Microphone analysis on or off. */
   async mic(on: boolean): Promise<void> {
     const s = this.sink;
@@ -369,6 +401,25 @@ export class VoiceController {
     this._manual = draft;
     this.push();
     this.emit();
+    this.breathe();
+  }
+
+  /** (Re)starts the breath: the hands' voice rests BREATH_MS from now, unless held, dragged or gliding. */
+  private breathe(): void {
+    this.stopRest?.();
+    this.stopRest = null;
+    if (!this._manual.phonate || this.sustain) return;
+    this.stopRest = this.clock.after(BREATH_MS, () => {
+      this.stopRest = null;
+      const k = this._lanes.performer.kind;
+      if (k === 'glide' || this.dragging) { this.breathe(); return; }
+      if (k !== 'hands' || !this._manual.phonate || this.sustain) return;
+      const m = cloneParams(this._manual);
+      m.phonate = false;
+      this._manual = m;
+      this.push();
+      this.emit();
+    });
   }
 
   /** Frees a control from its owner. */
@@ -418,6 +469,8 @@ export class VoiceController {
     if (p.kind === 'glide') { this.stopGlide?.(); this.stopGlide = null; }
     this.clipParams = null;
     this.setLanes({ ...this._lanes, performer: { kind: 'hands' } });
+    // after a glide the voice still has a whole breath
+    if (p.kind === 'glide') this.breathe();
     const w = this.waiters.get(id);
     this.waiters.delete(id);
     if (captured) w?.captured?.(captured);

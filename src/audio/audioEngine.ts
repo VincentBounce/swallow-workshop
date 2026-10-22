@@ -39,7 +39,16 @@ export class AudioBridge implements VoiceSink {
       const ctx = new AudioContext({ latencyHint: 'interactive' });
       const master = ctx.createGain();
       master.gain.value = 1;
-      master.connect(ctx.destination);
+      // a limiter on the way out: the bursts of a sentence, or a volume pushed
+      // up, never reach the speakers as a jolt
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -12;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.25;
+      master.connect(limiter);
+      limiter.connect(ctx.destination);
       ctx.onstatechange = () => this.onState(this.running);
       this.ctx = ctx; this.master = master;
     }

@@ -86,9 +86,10 @@ const EXPERIMENTS: Experiment[] = [
 interface Clip { spec: Float64Array; fs: number }
 const CLIP_SECONDS = 1.5;
 
-export function ABPanel() {
+/** `start`: the experiment shown first (by id). */
+export function ABPanel({ start }: { start?: string } = {}) {
   const L = useL();
-  const [exp, setExp] = useState(EXPERIMENTS[0]);
+  const [exp, setExp] = useState(EXPERIMENTS.find((x) => x.id === start) ?? EXPERIMENTS[0]);
   const [clips, setClips] = useState<{ a: Clip | null; b: Clip | null }>({ a: null, b: null });
   const perf = useLanes().performer;
   const [showAnswer, setShowAnswer] = useState(false);

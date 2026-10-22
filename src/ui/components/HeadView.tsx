@@ -305,7 +305,7 @@ export function HeadView({ guide }: { guide?: Guide } = {}) {
         break;
     }
   };
-  const onUp = () => { drag.current = null; };
+  const onUp = () => { drag.current = null; voice.letGo(); };
 
   const fields: [FieldMode, string][] = [['pressure', t('fieldPressure')], ['velocity', t('fieldVelocity')], ['air', t('fieldAir')]];
   return (
@@ -321,7 +321,7 @@ export function HeadView({ guide }: { guide?: Guide } = {}) {
       </div>
       <div className="overlay-bottom hint">
         {postureLock ? <span className="locked-note">{L(lockText(postureLock, 'head'))}</span>
-          : !sound ? <span className="sound-note">{L({ it: 'In silenzio: la testa si muove senza voce. Premi «▶ Suono» per sentirla.', en: 'Silent: the head moves without a voice. Press “▶ Sound” to hear it.' })}</span>
+          : !sound ? <span className="sound-note">{L({ it: 'In silenzio: premi «▶ Suono» o trascina una maniglia per sentirla.', en: 'Silent: press “▶ Sound” or drag a handle to hear it.' })}</span>
           : t('headHint')}
       </div>
     </div>

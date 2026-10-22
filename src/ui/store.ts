@@ -23,6 +23,8 @@ export interface UiState {
   lang: Lang;
   mode: Mode;
   chapter: number;
+  /** the step of the chapter, in the Learn mode */
+  step: number;
   controlTab: ControlTab;
   /** the tool a Learn step opened beside the chapter (A/B, melody, noise, machine voice) */
   learnTool: ControlTab | null;
@@ -58,6 +60,7 @@ const RING = 1 << 17;
 const LANG_KEY = 'voice-workshop.lang';
 const MODE_KEY = 'voice-workshop.mode';
 const CHAPTER_KEY = 'voice-workshop.chapter';
+const STEP_KEY = 'voice-workshop.step';
 const VIEWS_KEY = 'voice-workshop.lab-views';
 const VIEW_IDS: ViewTab[] = ['spectrum', 'spectrogram', 'scope', 'glottis', 'chart', 'tube', 'tract3d'];
 
@@ -79,6 +82,10 @@ function initialMode(): Mode {
 }
 function initialChapter(): number {
   const n = Number(remembered(CHAPTER_KEY));
+  return Number.isInteger(n) && n >= 0 ? n : 0;
+}
+function initialStep(): number {
+  const n = Number(remembered(STEP_KEY));
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
 function initialLabViews(): LabViews {
@@ -104,7 +111,7 @@ function initialLang(): Lang {
  */
 class Store {
   ui: UiState = {
-    lang: initialLang(), mode: initialMode(), chapter: initialChapter(), controlTab: 'source', learnTool: null, viewTab: 'spectrum', labViews: initialLabViews(), specWindow: 30, mel: false,
+    lang: initialLang(), mode: initialMode(), chapter: initialChapter(), step: initialStep(), controlTab: 'source', learnTool: null, viewTab: 'spectrum', labViews: initialLabViews(), specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
     info: null, numbers: false,
     speech: { text: '', lang: 'en', rate: 1, accent: 5, natural: { ...NATURAL_ALL } },
@@ -156,6 +163,7 @@ class Store {
   setUi(u: Partial<UiState>): void {
     if (u.mode) remember(MODE_KEY, u.mode);
     if (u.chapter !== undefined) remember(CHAPTER_KEY, String(u.chapter));
+    if (u.step !== undefined) remember(STEP_KEY, String(u.step));
     if (u.labViews) remember(VIEWS_KEY, JSON.stringify(u.labViews));
     if (u.lang && u.lang !== this.ui.lang) {
       remember(LANG_KEY, u.lang);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { VoiceController } from '../src/ui/voice/voice';
+import { VoiceController, BREATH_MS, START_VOLUME } from '../src/ui/voice/voice';
 import { controlOf, leafPaths } from '../src/ui/voice/controls';
 import { VoiceEngine } from '../src/dsp/engine/engine';
 import { defaultParams, Score } from '../src/dsp/engine/params';
@@ -180,5 +180,56 @@ describe('the voice controller', () => {
     clock.advance(400);
     expect(sink.suspends).toBe(1);
     expect(v.soundOn).toBe(false);
+  });
+
+  it('the voice of the hands lasts a breath after the last change, then rests', () => {
+    expect(v.manual.volume).toBe(START_VOLUME);
+    v.holdPhoneme('a');
+    clock.advance(BREATH_MS - 100);
+    expect(v.manual.phonate).toBe(true);
+    v.edit((p) => { p.articulators.jaw = 0.5; });
+    clock.advance(BREATH_MS - 100);
+    expect(v.manual.phonate).toBe(true);
+    clock.advance(200);
+    expect(v.manual.phonate).toBe(false);
+    expect(sink.lastParams()!.params.phonate).toBe(false);
+    expect(v.soundOn).toBe(false);
+  });
+
+  it('keeps breathing while a hand drags the head, and while a glide plays', async () => {
+    v.grab({ blow: true });
+    v.edit((p) => { p.articulators.jaw = 0.4; });
+    expect(v.manual.phonate).toBe(true);
+    clock.advance(3 * BREATH_MS);
+    expect(v.manual.phonate).toBe(true);
+    v.letGo();
+    clock.advance(BREATH_MS + 100);
+    expect(v.manual.phonate).toBe(false);
+    // a glide longer than a breath, then a whole breath after it
+    v.holdPhoneme('a');
+    const g = v.glide(100, 200, 2 * BREATH_MS / 1000, L);
+    clock.advance(2 * BREATH_MS + 50);
+    await g;
+    expect(v.manual.phonate).toBe(true);
+    clock.advance(BREATH_MS - 200);
+    expect(v.manual.phonate).toBe(true);
+    clock.advance(400);
+    expect(v.manual.phonate).toBe(false);
+  });
+
+  it('Hold keeps the voice sounding', () => {
+    v.setSustain(true);
+    v.holdPhoneme('i');
+    clock.advance(10 * BREATH_MS);
+    expect(v.manual.phonate).toBe(true);
+    v.setSustain(false);
+    clock.advance(BREATH_MS + 100);
+    expect(v.manual.phonate).toBe(false);
+  });
+
+  it('shapes the head without a sound when asked', () => {
+    v.holdPhoneme('u', { blow: false });
+    expect(v.manual.phonate).toBe(false);
+    expect(v.held.phoneme).toBe('u');
   });
 });
