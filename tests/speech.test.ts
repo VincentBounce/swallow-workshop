@@ -134,10 +134,10 @@ describe('timing, melody and gestures of sequenced speech', () => {
     expect(fato / fatto).toBeGreaterThan(1.35);
   });
 
-  it('English voiceless stops are aspirated, Italian ones are not', () => {
-    const vot = (text: string, lang: 'it' | 'en') => {
+  it('English voiceless stops are aspirated, Italian ones have a short lag, longest for /k/', () => {
+    const vot = (text: string, lang: 'it' | 'en', ph = 't') => {
       const score = buildScore(textToPhones(text, lang), { lang });
-      const t = score.phones.find((q) => q.ipa === 't')!;
+      const t = score.phones.find((q) => q.ipa === ph)!;
       const e = new VoiceEngine(fs, defaultParams());
       e.snapArticulators(); e.snapPressure(); e.playScore(score);
       const buf = new Float32Array(48);
@@ -152,9 +152,13 @@ describe('timing, melody and gestures of sequenced speech', () => {
       return onset - release;
     };
     const en = vot('a top', 'en'), it = vot('a topo', 'it');
-    note('voice onset time', `/t/ English ${(en * 1000).toFixed(0)} ms, Italian ${(it * 1000).toFixed(0)} ms (typical 60-70 and 10-25)`);
+    const ip = vot('a papa', 'it', 'p'), ik = vot('a cane', 'it', 'k'), st = vot('a stop', 'en');
+    const ms = (x: number) => (x * 1000).toFixed(0);
+    note('voice onset time', `/t/ English ${ms(en)} ms, after /s/ ${ms(st)} ms; Italian /p t k/ ${ms(ip)} / ${ms(it)} / ${ms(ik)} ms (English about 70; Italian short lag, under about 30, /k/ longest)`);
     expect(en).toBeGreaterThan(0.045);
-    expect(it).toBeLessThan(0.03);
+    for (const x of [ip, it, ik, st]) { expect(x).toBeGreaterThan(0.008); expect(x).toBeLessThan(0.032); }
+    expect(ip).toBeLessThan(it);
+    expect(it).toBeLessThan(ik);
   });
 
   it('the Italian trill makes several tongue-tip closures, the tap one', () => {

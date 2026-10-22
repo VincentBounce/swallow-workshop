@@ -574,6 +574,13 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
   };
   const stressedVowels = segs.filter((s) => s.ph.manner === 'vowel' && units[s.unit].p.stress && !units[s.unit].p.func);
   const phraseEnds = segs.filter((s) => s.ph.manner === 'silence').map((s) => s.t0).concat([t]);
+  // unaspirated voiceless stops (Italian, English after s) keep the folds
+  // apart through the closure and bring them together just after the burst:
+  // the voice starts with a short lag, longest behind the slow release of the
+  // tongue body (Italian: short lag, under about 30 ms, /k/ the longest)
+  const shortLag = segs.filter((s) => s.part === 'release' && !s.ph.voiced && units[s.unit].ph.manner === 'stop' && !units[s.unit].p.glottalized
+    && !segs.some((a) => a.unit === s.unit && a.part === 'aspiration'))
+    .map((s) => ({ t0: s.t0, t1: s.t0 + (({ p: 0.008, t: 0.012, k: 0.02 } as Record<string, number>)[s.ipa] ?? 0.012) }));
   const frames: ScoreFrame[] = [];
   const n = Math.ceil((duration + 0.25) / FRAME);
   for (let i = 0; i <= n; i++) {
@@ -601,15 +608,12 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
       } else if (m === 'stop' && !sg.ph.voiced) {
         // the stop part of an affricate keeps the glottis open into its hiss
         const aspirated = unit.ph.manner === 'affricate' || segs.some((s) => s.unit === sg.unit && s.part === 'aspiration');
-        if (sg.part === 'closure') {
-          // unaspirated stops (Italian, English after s) bring the folds together before the release
-          const u = (time + 0.01 - sg.t0) / Math.max(1e-3, sg.t1 - sg.t0);
-          abd = aspirated || u < 0.55 ? 0.5 : 0.04;
-        } else if (sg.part === 'release') abd = aspirated ? 0.55 : 0.04;
+        if (sg.part === 'release') abd = aspirated ? 0.55 : 0.04;
         else abd = 0.5;
       } else if (m === 'stop') abd = en && unit.p.wordStart ? 0.12 : 0.02;
       else abd = sg.ph.abduction;
     }
+    for (const w of shortLag) if (time + 0.01 >= w.t0 && time + 0.01 < w.t1) abd = Math.max(abd, 0.5);
     // lungs: on during the utterance, lower during pauses, off at the end
     let ps = time < duration ? o.ps : 0;
     let rd = 0;

@@ -438,8 +438,12 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   sounds (Fletcher 1953; Fry 1979).
   Stops are split into closure and release. English voiceless stops at the
   start of a stressed syllable (not after /s/) keep the glottis open past the
-  release: aspiration, a voice onset time of about 60-70 ms; Italian ones
-  adduct before the release (about 10 ms). Taps and trills are ballistic
+  release: aspiration, a voice onset time of about 60-70 ms. Italian ones
+  (and English ones after /s/) are unaspirated: the folds stay apart through
+  the closure and come together just after the burst, so the voice returns
+  after a short lag, shortest for /p/ and longest behind the slower release
+  of the tongue body for /k/ (13, 19 and 26 ms; Italian voiceless stops are
+  short-lag, under about 30 ms, with /k/ the longest). Taps and trills are ballistic
   raised-cosine flicks of the tongue tip added on top of the smoothed posture
   (one for /ɾ/, two to four contacts at 26 Hz for the Italian /r/, Recasens
   1991); their height is computed from the tip's smoothed position, so they
@@ -521,12 +525,12 @@ in brackets are the adult male targets described under Speech.
 | Pinched nose | held /m/: nasal airflow 236 -> 0 cm³/s, mouth pressure 8.0 cmH2O (the lung pressure), the hum silent |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
-| American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.7 cmH2O (glottal stop, no puff) vs 6.5 cmH2O in "it." |
+| American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.7 cmH2O (glottal stop, no puff) vs 6.6 cmH2O in "it." |
 | American r | /ɹ/ 427 / 1185 / 1639 Hz, /ɝ/ 484 / 1360 / 1777 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690), narrowest passage 0.3 cm² (no hiss) |
 | Dark l | F2 clear /l/ 1519 Hz, dark /ɫ/ 982 Hz |
 | Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
-| Voice onset time | /t/ English 79 ms, Italian 7 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian 10-25 ms) |
+| Voice onset time | /t/ English 79 ms, after /s/ 21 ms; Italian /p t k/ 13 / 19 / 26 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian voiceless stops short-lag, under about 30 ms, /k/ longest) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
 | Consonant dips | nasals 5.9-12.0 dB, /v/ 13.3-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
 | Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
