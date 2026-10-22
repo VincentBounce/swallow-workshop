@@ -45,7 +45,8 @@ Two modes, switchable in the header:
   the F1-F2 map, what belongs to the person); two independent knobs (source
   and filter); the hiss (s, f, breathy voice, pulsed aspiration); consonants
   (closures, the pressure behind them, voice onset time); the nose (velum,
-  antiresonances, the two passages); vocal tracts measured by MRI; the
+  antiresonances, the two passages); vocal tracts measured by MRI and the
+  tract in 3D (the side channels of an "l", the piriform fossae); the
   spectrogram (slices, window trade-off, log-mel); from sounds to sentences
   (coarticulation, timing, melody, each one switched off); a machine voice.
   Every chapter has buttons that set up what it describes, and most have
@@ -64,6 +65,7 @@ Views:
 | Waveform | Output pressure, glottal flow and noise. |
 | Vocal folds | Top view of the glottis in slow motion, the LF cycle with tp / te / ta, the two-mass schematic. |
 | Tube | The tract as a tube of sections with the field and the standing waves of F1-F3; in tube mode you draw the area function directly (16 points) and set its length, or listen to one of the 11 vowel shapes measured by MRI (Tract & person tab). |
+| 3D tract | The airway in three dimensions, built from the same cross-sections the sound is computed with and coloured by the live field, inside the tongue, palate, teeth, velum, pharynx and lips; the lateral channels and the supralingual cavity of an /l/, the piriform fossae with their water. Drag to turn, scroll to zoom; side, front, top and ¾ views, a mid-sagittal cutaway, tissues and labels on or off; Numbers gives the narrowest passage, the channels and the cavity. Loaded on demand (three.js, WebGL). |
 | Spectrogram | Scrolling, 0-8 kHz linear or 80-band log-mel; analysis window from 3 to 80 ms with a plain explanation of the time-frequency trade-off. |
 
 Control tabs:
@@ -71,7 +73,7 @@ Control tabs:
 | Tab | Controls |
 |---|---|
 | Source | Blow, voicing, buzz only (no filter), F0, lung pressure, glottal opening, vibrato; voice presets (man, woman, child, deep, whisper, vocal fry, breathy, pressed, raspy); LF (Rd or Oq / alpha_m / Ra) or two-mass (tension, asymmetry, rest area); peak area, source-tract interaction, posterior chink; jitter, shimmer, diplophonia. |
-| Tract & person | Articulators as sliders, phoneme buttons (IPA), the vowels measured by MRI (Story 2008) loaded as the tube, anatomy (size, pharynx length and width, nasal leak, nasal cycle, each nostril, pinch the nose), timbre presets, losses. |
+| Tract & person | Articulators as sliders, phoneme buttons (IPA), the vowels measured by MRI (Story 2008) loaded as the tube, anatomy (size, pharynx length and width, nasal leak, nasal cycle, each nostril, pinch the nose, air in the piriform fossae), timbre presets, losses. |
 | Teeth & slit | Front view and side view of the incisors with the jet; slit width, extra opening, diastema, overjet, advance, upper / lower incisor length, tongue groove; presets (open bite, gap teeth, overjet, short teeth); s / ʃ / f / θ / z shortcuts; live jet readouts (velocity, Reynolds number, share of the jet hitting the teeth). |
 | Noise | The physical sources (aspiration, constriction jet, teeth obstacle, release bursts) with trims and pulsing; your own noise: colour (white, pink, brown, blue, violet), a drawable 32-point spectrum, band limits, level, pulsing by the glottal flow, injection point (glottis, constriction, teeth, lips or anywhere along the tract) or straight to the ears (bypassing the tract). |
 | Speak | English or Italian text (numbers are read out), or IPA between slashes; rate, accent strength; examples in both languages; a phone timeline that follows the playback; "what makes it sound natural": timing, intonation, micro-variation, voice quality and coarticulation, each switchable, with a plain explanation and a one-click robot voice. |
@@ -91,6 +93,7 @@ src/
     glottis/lf.ts         LF model with the Rd parameterisation
     glottis/twoMass.ts    Steinecke-Herzel asymmetric two-mass model
     tract/geometry.ts     mid-sagittal articulatory model, teeth and slit
+    tract/section3d.ts    3D cross-sections: lens shapes, perimeter, soft wall, groove, lateral channels, piriform fossae
     tract/areaFunction.ts grid -> area function (44 sections)
     tract/nasal.ts        nasal tract: nasopharynx, left and right passages and nostrils, sinuses
     tract/waveguide.ts    real-time Kelly-Lochbaum waveguide
@@ -105,6 +108,7 @@ src/
   audio/worklet.ts        AudioWorkletProcessor wrapping the engine
   audio/audioEngine.ts    AudioContext, worklet node, clips, microphone
   ui/                     React 19 views, panels, store, i18n, guided tour
+  ui/three/meshes.ts      pure mesh builder for the 3D view (tested in Node); three.js loads only with that view
 tests/                    Vitest suites with the validation numbers
 scripts/                  validate.ts, say.ts (renders sentences to WAV), tuning and debug tools
 ```
@@ -185,14 +189,26 @@ control period: held as steps, it would modulate the glottal pulses at
 **Articulatory geometry** (in the spirit of Maeda 1990 and Birkholz's
 VocalTractLab): rigid and deformable structures in the mid-sagittal plane
 (posterior pharyngeal wall, velum, hard palate, incisors, lips, jaw, tongue
-body and tip) are cut by a semi-polar grid of lines; the mid-sagittal widths
-d(s) become areas with region-specific power laws A = alpha d^beta (Heinz &
-Stevens 1965; Sundberg et al. 1987), except at the lips (elliptic opening) and
-at the teeth (the explicit slit between the incisor edges). The centreline
-length is measured, so lip protrusion and a lowered larynx really lengthen
-the tube (and spread lips, protrusion below zero, shorten it). 13
-articulators: jaw, tongue body x/y, tongue root, tip x/y, blade groove, lip
-opening, rounding, protrusion, labiodental tuck, velum, larynx height. The
+body and tip) are cut by a semi-polar grid of lines. Each line gives the
+distance d between the lower and the upper wall on the midline; across it
+the section is a lens between two walls that meet toward the sides,
+h(z) = d - K |z|^p, closed laterally by the teeth or the lateral pharyngeal
+walls (src/dsp/tract/section3d.ts). Its area is the power law A = alpha d^beta
+that X-ray and cast studies fitted region by region (Heinz & Stevens 1965;
+Sundberg et al. 1987), with beta = 1 + 1/p; because the shape itself is
+modelled, every section also has its true perimeter (a flat passage has far
+more wall than a round duct of the same area: 1.9 times for a 1 mm high oral
+section), the share of that wall which is soft tissue and yields (tongue,
+velum, pharynx, cheeks, lips) or bone and does not (hard palate, teeth), the
+central groove of the tongue blade and, in a lateral, the two channels beside
+the tongue. The lips (elliptic opening) and the teeth (the explicit slit
+between the incisor edges) keep their own shapes. The centreline length is
+measured, so lip protrusion and a lowered larynx really lengthen the tube
+(and spread lips, protrusion below zero, shorten it). The geometry and the
+area function cost about 0.1 ms per update. 14 articulators: jaw, tongue body
+x/y, tongue root, tip x/y, blade groove, tongue sides (the margins drawn in
+and lowered, for laterals), lip opening, rounding, protrusion, labiodental
+tuck, velum, larynx height. The
 tongue root moves the back of the tongue below the body centre forward or
 back on its own (as Maeda's tongue-shape parameter), fully at the hyoid and
 fading toward the dorsum: tense /i/ advances it and widens the lower
@@ -218,12 +234,17 @@ any tract length is exact. Junctions:
     series resistance R: q = 2 (f_in - b_in) / (1/A1 + 1/A2 + R/(rho c)),
                          f_out = b_in + q/A2,  b_out = f_in - q/A1
 
-Losses: per-section decay exp(-sigma/fs) with sigma = 70 + 45 sqrt(3/A) s⁻¹
-(narrow sections lose more), calibrated against the frequency-domain model.
+Losses: per-section decay exp(-sigma/fs) with sigma = 70 + 45 X sqrt(3/A) s⁻¹,
+where X = P / (2 sqrt(pi A)) is the perimeter of the section relative to a
+round one of the same area (1 for a circle, at most 8): narrow and flat
+sections lose more. Calibrated against the frequency-domain model, which
+takes the same perimeters for its viscous and thermal losses.
 Yielding walls: a mass-spring-damper per section pair (Ishizaka, French &
 Flanagan 1975: m = 1.5 g/cm², r = 1600 dyn s/cm³, k = 3e5 dyn/cm³) removes
-air as a flow sink, which raises F1 in closed tracts and sets the
-low-frequency bandwidths. Lips and nostrils: Flanagan's piston radiation
+air as a flow sink over the soft part of the wall only (in /i/ half of the
+wall under the hard palate, the tongue; all of it in the pharynx; none at the
+incisal slit), which raises F1 in closed tracts and sets the low-frequency
+bandwidths. Lips and nostrils: Flanagan's piston radiation
 impedance (parallel R-L) as a first-order reflection filter (bilinear
 transform); the sound is the time derivative of lip plus nostril flow. Areas,
 losses and radiation coefficients glide sample by sample between control
@@ -264,6 +285,23 @@ stays near 310-330 Hz, close to the 250-300 Hz measured in men (Stevens
 1998), in both models. The waveguide damps the nose ten times more than the
 plain wall losses, which puts a held /m/ 7-9 dB below /a/ (Fletcher 1953).
 
+**Blind branches**: two kinds of cavity open off the main tube and end in a
+rigid wall; each joins it at a three-way junction with sections of its own,
+and a branch that closes or moves to another junction restarts from silence.
+The piriform fossae, two pouches beside the larynx (about 1.8 cm deep in
+adult men, 2.35 cm effective here, 1.4 cm² together at the opening and
+0.5 cm² at the bottom), open where the epilaryngeal tube ends: they put an
+antiresonance at 4-5 kHz into every vowel and lower the formants below it
+(Dang & Honda 1997), here 4470-4490 Hz and 23-27 dB deep. Filled halfway with
+water, as in Dang and Honda's experiment (Tract & person: piriform fossae, air
+inside), the valley rises to about 8 kHz. In a lateral the tip closes on the
+midline and the air flows past both sides of the tongue, through channels of
+0.1-0.5 cm² a side (Narayanan, Alwan & Haker 1997; here 0.52 cm² both
+together); the lumen between the margins of the tongue, from where the
+channels split off to the contact, is the supralingual cavity (3.1 cm in
+Zhang & Espy-Wilson 2004; here 2.5 cm in /l/, 3.4 cm in /ɫ/), with its
+antiresonance between F3 and F4: 3490 Hz in /l/, 3960 Hz in /ɫ/.
+
 **Frequency-domain reference** (Sondhi & Schroeter 1987; Story, Titze &
 Hoffman 1996): the same area function as a chain of lossy ABCD sections with
 viscous, thermal and wall losses and the radiation load. It draws the filter
@@ -287,15 +325,20 @@ to 0.59 (0.1 means areas within about 10 %); the formants stay on target.
 ### Turbulence noise
 
 At the narrowest oral passage a jet forms with v = sqrt(2 Po / rho) and
-hydraulic diameter D = 2 sqrt(A / pi). Noise starts when the Reynolds number
+hydraulic diameter D = 4 A / P, with the true perimeter P of the passage
+(2 sqrt(A / pi) for a round one, about twice the height of a slit). Noise
+starts when the Reynolds number
 Re = v D / nu passes about 1800 (smooth onset). Sources (Stevens 1971, 1998;
 Flanagan & Cherry 1969; Shadle 1985):
 
 - **Constriction (wall) source**: a dipole at about 0.5 cm downstream of the
   constriction exit, strength proportional to rho v³ / c times sqrt(A)
   (Stevens' U³ A^-2.5 law).
-- **Obstacle (teeth) source**: the jet spreads (width D + 0.22 x) and slows
-  after its potential core (5 D); the share that hits the incisors is
+- **Obstacle (teeth) source**: the jet keeps its speed along a potential
+  core (5 D for a round passage, shorter for a flat one), then slows: like
+  1/sqrt(x) while it is flat, like 1/x once it is about five widths long and
+  has turned round (Sforza, Steiger & Trentacoste 1966). It spreads
+  (width about D + 0.22 x); the share that hits the incisors is
   1 - slit height / jet width. That share, with the velocity at the teeth,
   sets a stronger dipole at the teeth. This is what makes /s/ and /ʃ/ louder
   and sharper than /f/ and /θ/, and why opening the incisal slit weakens /s/.
@@ -494,45 +537,52 @@ in brackets are the adult male targets described under Speech.
 | Uniform 17.5 cm tube, lossless, ideal open end | 500.0 / 1500.0 / 2500.0 Hz (theory 500 / 1500 / 2500) |
 | Same tube, lossy + piston radiation | 523 (B 37) / 1451 (B 34) / 2406 (B 63) / 3370 (B 100) Hz |
 | Real-time waveguide on the same tube | 529 / 1452 / 2406 / 3370 Hz |
-| Waveguide vs reference, /i/ | 290 / 2261 / 2994 vs 288 / 2260 / 2995 Hz |
-| Waveguide vs reference, /a/ | 773 / 1308 / 2685 vs 772 / 1308 / 2686 Hz |
-| Waveguide vs reference, /u/ | 307 / 872 / 2431 vs 304 / 873 / 2431 Hz |
-| Waveguide vs reference, /ɛ/ /o/ | 535 / 1851 / 2417 and 479 / 900 / 2516 Hz (ref 534 / 1850 / 2417 and 475 / 902 / 2515) |
+| Waveguide vs reference, /i/ | 274 / 2191 / 2994 vs 277 / 2192 / 2994 Hz |
+| Waveguide vs reference, /a/ | 726 / 1294 / 2593 vs 728 / 1297 / 2594 Hz |
+| Waveguide vs reference, /u/ | 305 / 872 / 2245 vs 300 / 873 / 2245 Hz |
+| Waveguide vs reference, /ɛ/ /o/ | 526 / 1825 / 2412 and 478 / 896 / 2456 Hz (ref 529 / 1826 / 2415 and 474 / 897 / 2456) |
+| Waveguide vs reference, laterals | /l/ and /ɫ/: every peak and valley below 4.5 kHz that stands out by 3 dB or more, the supralingual cavity's and the fossae's included: worst difference 1.0 % |
 | Waveguide vs reference, MRI shapes | worst F1-F3 difference 1.3 % over the 11 measured vowels |
 | MRI areas, frequency model | mean difference from the formants Story (2008) computed from the same areas: F1 4.8 %, F2 2.2 %, F3 0.8 % |
-| Vowel shapes vs MRI | log-area distance mean 0.59, worst /ɔ/ 0.80 (the drawing's own vowels: 0.98); no vowel narrower than the measured one |
-| Vowels F1 / F2 (target) | i 288 / 2260 (270 / 2290), ɪ 393 / 2005 (390 / 1990), e 442 / 2058 (440 / 2050), ɛ 534 / 1850 (530 / 1840), æ 666 / 1724 (660 / 1720), a 772 / 1308 (740 / 1300), ɑ 726 / 1083 (730 / 1090), ɔ 575 / 856 (570 / 840), o 475 / 902 (470 / 900), ʊ 447 / 1035 (440 / 1020), u 304 / 873 (300 / 870), ʌ 643 / 1189 (640 / 1190), ə 500 / 1506 (500 / 1500) |
+| Vowel shapes vs MRI | log-area distance mean 0.60, worst /ɔ/ 0.79 (the drawing's own vowels: 0.98); no vowel narrower than the measured one |
+| Vowels F1 / F2 (target) | i 277 / 2192 (270 / 2290), ɪ 389 / 1972 (390 / 1990), e 441 / 2028 (440 / 2050), ɛ 529 / 1826 (530 / 1840), æ 645 / 1661 (660 / 1720), a 728 / 1297 (740 / 1300), ɑ 703 / 1106 (730 / 1090), ɔ 549 / 868 (570 / 840), o 474 / 897 (470 / 900), ʊ 440 / 1007 (440 / 1020), u 300 / 873 (300 / 870), ʌ 635 / 1191 (640 / 1190), ə 498 / 1495 (500 / 1500) |
+| Flat passages | a 1 mm high oral section has 1.9 times the wall of a round duct of the same area; three times the wall widens B1 of a 17.5 cm tube from 37 to 50 Hz |
+| Yielding walls | /i/: 50 % of the wall under the hard palate yields (the tongue), 100 % in the pharynx, none at the incisal slit (8.1 cm of bone) |
+| Piriform fossae | antiresonance /a/ 4490 Hz (-27 dB), /i/ 4470 Hz (-23 dB), /u/ 4470 Hz (-26 dB), /ə/ 4480 Hz (-26 dB) (4-5 kHz, Dang & Honda 1997); half filled with water, /a/ 7970 Hz |
+| Laterals | /l/: channels 0.52 cm² beside the contact, supralingual cavity 2.5 cm, antiresonance 3490 Hz (-22 dB); /ɫ/: 0.52 cm², 3.4 cm, 3960 Hz (-42 dB) (Zhang & Espy-Wilson 2004: cavity 3.1 cm, antiresonance between F3 and F4) |
+| Geometry cost | geometry, 3D sections and area function 0.08-0.12 ms per update, at most one every 2.7 ms |
+| 3D view | the cross-sections it draws (a i u l) have the areas of the acoustic model within 0.1 % |
 | F1 vs tract length (uniform) | 12 cm 729 Hz, 14.5 cm 603 Hz, 17.5 cm 500 Hz, 20 cm 438 Hz (1/L) |
 | /a/ scaled to 0.75 | F2 ratio 1.329 (ideal 1.333) |
 | LF spectral slope, Rd 1, 1-5 kHz | -11.8 dB/oct (flow derivative), -17.9 dB/oct (flow) |
 | LF H1-H2 | Rd 0.5: -2.0 dB, Rd 1: 3.8 dB, Rd 2.5: 17.5 dB (pressed to breathy) |
-| Two-mass F0 vs tension | Q 0.7: 95 Hz, Q 1.2: 163 Hz, Q 1.8: 241 Hz; automatic tension within 4 % of the target |
-| /s/ | peak 4500 Hz, centroid 6233 Hz, -9.1 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000); in sentences (scripts/sibilants.ts) mean about 5.2 kHz for the man, 6.5 kHz for the woman |
-| /ʃ/ | peak 3141 Hz, centroid 3952 Hz, 0.7-1.8 kHz band 7.8 dB below the 2-3.5 kHz band, -7.6 dB re /a/ (1.6 dB louder than /s/; Jongman et al. 2000: peak about 3-4 kHz, mean 4.2 kHz, lower for men); before the fit peak 3844, centroid 3055 Hz, low band 1.5 dB above |
-| Fricative spectrum, waveguide vs reference | /ʃ/ obstacle source: worst difference 1.1 dB over 8 bands, 0.5-8 kHz |
-| Jet losses | the sharpest resonance below 4 kHz widens 3.6 times in /ʃ/ (600 cm³/s), 1.15 times in /i/ (150 cm³/s) |
-| /f/ | centroid 7267 Hz, flat (2-10 kHz spread 7.6 dB vs 12.8 dB for /s/), -18.4 dB re /a/, -9.3 dB re /s/ |
-| Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 15.3 dB |
-| Breathiness | HF/LF ratio +11.5 dB with a 0.12 cm² chink and Rd 2.2 (+18.8 dB before the vowels took the MRI shapes: the narrower pharynx and epilarynx carry less breathy airflow) |
-| Aspiration | F0 envelope modulation depth: steady 0.054, pulsed 0.540 |
+| Two-mass F0 vs tension | Q 0.7: 97 Hz, Q 1.2: 165 Hz, Q 1.8: 242 Hz; automatic tension within 4 % of the target |
+| /s/ | peak 4875 Hz, centroid 6264 Hz, -9.5 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000) |
+| /ʃ/ | peak 3797 Hz, centroid 3848 Hz, 0.7-1.8 kHz band 7.0 dB below the 2-3.5 kHz band, -5.8 dB re /a/ (3.7 dB louder than /s/; Jongman et al. 2000: peak about 3-4 kHz, mean 4.2 kHz, lower for men) |
+| Fricative spectrum, waveguide vs reference | /ʃ/ obstacle source: worst difference 1.2 dB over 8 bands, 0.5-8 kHz |
+| Jet losses | the sharpest resonance below 4 kHz widens 4.6 times in /ʃ/ (600 cm³/s), 1.08 times in /i/ (150 cm³/s) |
+| /f/ | centroid 7514 Hz, flat (2-10 kHz spread 9.9 dB vs 11.6 dB for /s/), -17.0 dB re /a/, -7.5 dB re /s/ |
+| Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 15.7 dB |
+| Breathiness | HF/LF ratio +17.7 dB with a 0.12 cm² chink and Rd 2.2 |
+| Aspiration | F0 envelope modulation depth: steady 0.050, pulsed 0.595 |
 | Period boundaries | jitter 1 % and shimmer 6 % change the 8-16 kHz energy by +0.1 dB (+32 dB when the pulse mean jumped at each period) |
-| Control rate | voice onset from rest: 3-8 kHz at -41.2 dB re 0-1 kHz (-6.5 dB with stepped control values) |
+| Control rate | voice onset from rest: 3-8 kHz at -43.1 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +6.1 dB in /sː/ vs -37.3 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.0 dB vs -9.8 dB in the vowel |
-| Nasal murmur, waveguide vs reference | lowest resonance /m/ 317 vs 316, /n/ 332 vs 327, /ŋ/ 323 vs 311 Hz (392-416 Hz in the reference while it gave the nose soft walls) |
-| Nasal cycle | /m/ with one passage congested (cycle 0.6): a new resonance at 2210 Hz with its antiresonance; first resonance 320 -> 310 Hz |
-| Pinched nostril | /m/ with the left nostril pinched: first resonance 320 -> 240 Hz, new antiresonance at 560 Hz |
-| Asymmetric nose, waveguide vs reference | congested left side, right nostril 40 % open, lossless: worst difference 0.41 % over 7 resonances below 3 kHz |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +6.0 dB in /sː/ vs -39.5 dB in /a/ |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -32.3 dB vs -11.0 dB in the vowel |
+| Nasal murmur, waveguide vs reference | lowest resonance with the same damping /m/ 307 vs 308, /n/ 322 vs 322, /ŋ/ 310 vs 309 Hz (308, 329, 324 Hz with the waveguide's tenfold nasal damping; 392-416 Hz in the reference while it gave the nose soft walls) |
+| Nasal cycle | /m/ with one passage congested (cycle 0.6): a new resonance at 2170 Hz with its antiresonance; first resonance 280 -> 270 Hz |
+| Pinched nostril | /m/ with the left nostril pinched: first resonance 310 -> 230 Hz, new antiresonance at 550 Hz |
+| Asymmetric nose, waveguide vs reference | congested left side, right nostril 40 % open, lossless: worst difference 0.34 % over 6 resonances below 3 kHz |
 | Pinched nose | held /m/: nasal airflow 236 -> 0 cm³/s, mouth pressure 8.0 cmH2O (the lung pressure), the hum silent |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
 | American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.7 cmH2O (glottal stop, no puff) vs 6.6 cmH2O in "it." |
-| American r | /ɹ/ 427 / 1185 / 1639 Hz, /ɝ/ 484 / 1360 / 1777 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690), narrowest passage 0.3 cm² (no hiss) |
-| Dark l | F2 clear /l/ 1519 Hz, dark /ɫ/ 982 Hz |
+| American r | /ɹ/ 407 / 1103 / 1596 Hz, /ɝ/ 479 / 1315 / 1741 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690), narrowest passage 0.3 cm² (no hiss) |
+| Dark l | F2 clear /l/ 1506 Hz, dark /ɫ/ 936 Hz |
 | Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
-| Voice onset time | /t/ English 79 ms, after /s/ 21 ms; Italian /p t k/ 13 / 19 / 26 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian voiceless stops short-lag, under about 30 ms, /k/ longest) |
+| Voice onset time | /t/ English 77 ms, after /s/ 21 ms; Italian /p t k/ 13 / 21 / 26 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian voiceless stops short-lag, under about 30 ms, /k/ longest) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
 | Consonant dips | nasals 5.9-12.0 dB, /v/ 13.4-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
 | Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
@@ -543,9 +593,15 @@ in brackets are the adult male targets described under Speech.
 
 - The head is a canonical adult male mid-sagittal drawing. Its vowels are
   fitted to the MRI shapes of one speaker (Story 2008) as far as its
-  articulators allow (shape distance 0.59, not 0); the consonants are not.
-  Areas come from widths through power laws; the lateral shape of the tract is
-  not modelled except at the lips and the teeth. Each grid line takes one air
+  articulators allow (shape distance 0.60, not 0); the consonants are not.
+  With the 3D sections /i/ reaches F2 2192 Hz against 2290 (2260 before):
+  the fit stops at the limits of the tongue root and the lips, and a
+  narrower palatal passage than the measured one is not allowed; /æ/ and
+  /ɑ/ are 2-4 % off in F2 or F1.
+  The cross-sections are lenses with analytic lateral profiles (a palatal
+  vault, the teeth at the sides, the tongue with its groove and margins), not
+  shapes measured slice by slice; the tract is still one tube of plane waves
+  along its centreline (see below). Each grid line takes one air
   passage; where the tip of the lower lip enters the gap above the lower
   incisors and splits it, the area and the midpoint pass smoothly from the
   whole gap to the one between the lips while the lip on the line is thinner
@@ -572,7 +628,13 @@ in brackets are the adult male targets described under Speech.
   mean flow of the single oral constriction the aerodynamic model knows; the
   slit and lip losses do not feed back into that flow.
 - The consonant postures are fitted to formants and fricative spectra, not to
-  measured area functions.
+  measured area functions. The laterals keep their contact, channels and
+  supralingual cavity, but their F3 stays low: /l/ 2421 Hz and /ɫ/ 2254 Hz
+  against about 2600 measured. The palatal /ʎ/ has its lateral channels but
+  no midline contact, so no supralingual cavity.
+- The piriform fossae have the dimensions of an average adult man, scaled
+  with the speaker; real ones differ from person to person, and from the
+  left to the right side.
 - The nasal branch has a fixed number of sections that scales with the
   speaker. Its damping in the waveguide is set by the level of /m/, not by
   measured bandwidths: the murmur's peaks are wider than in the frequency
@@ -593,7 +655,10 @@ in brackets are the adult male targets described under Speech.
   presents it; it does not model any trained network.
 - The colourful field and particle visualisations are illustrative (the
   colours follow the real per-section pressure / velocity / flow, the
-  particles are decorative).
+  particles are decorative). In the 3D view the air has the cross-sections
+  the sound is computed with, one colour across each section as plane waves
+  have; the tissues around it are sheets of a fixed thickness and the teeth
+  are boxes along a typical dental arch, drawn for orientation.
 
 ## References
 
@@ -603,6 +668,7 @@ in brackets are the adult male targets described under Speech.
 - Birkholz, P., Jackèl, D. & Kröger, B. J. (2007). Simulation of losses due to turbulence in the time-varying vocal system. IEEE Trans. Audio, Speech, and Language Processing 15.
 - Dang, J., Honda, K. & Suzuki, H. (1994). Morphological and acoustical analysis of the nasal and the paranasal cavities. JASA 96.
 - Dang, J. & Honda, K. (1996). Acoustic characteristics of the human paranasal sinuses derived from transmission characteristic measurement and morphological observation. JASA 100.
+- Dang, J. & Honda, K. (1997). Acoustic characteristics of the piriform fossa in models and humans. JASA 101.
 - de Cheveigné, A. & Kawahara, H. (2002). YIN, a fundamental frequency estimator for speech and music. JASA 111.
 - Fant, G. (1960). Acoustic Theory of Speech Production. Mouton.
 - Fant, G., Liljencrants, J. & Lin, Q. (1985). A four-parameter model of glottal flow. STL-QPSR 4.
@@ -615,6 +681,8 @@ in brackets are the adult male targets described under Speech.
 - Ishizaka, K., French, J. C. & Flanagan, J. L. (1975). Direct determination of vocal tract wall impedance. IEEE Trans. ASSP 23.
 - Kelly, J. L. & Lochbaum, C. C. (1962). Speech synthesis. Proc. 4th Int. Congr. Acoustics.
 - Maeda, S. (1990). Compensatory articulation during speech. In Speech Production and Speech Modelling. Kluwer.
+- Narayanan, S. S., Alwan, A. A. & Haker, K. (1995). An articulatory study of fricative consonants using magnetic resonance imaging. JASA 98.
+- Narayanan, S. S., Alwan, A. A. & Haker, K. (1997). Toward articulatory-acoustic models for liquid approximants based on MRI and EPG data. Part I. The laterals. JASA 101.
 - Öhman, S. E. G. (1966). Coarticulation in VCV utterances. JASA 39.
 - Peterson, G. E. & Barney, H. L. (1952). Control methods used in a study of the vowels. JASA 24.
 - Prom-on, S., Xu, Y. & Thipakorn, B. (2009). Modeling tone and intonation in Mandarin and English as a process of target approximation. JASA 125.
@@ -629,20 +697,24 @@ in brackets are the adult male targets described under Speech.
 - Fry, D. B. (1979). The Physics of Speech. Cambridge University Press.
 - Fujimura, O. (1962). Analysis of nasal consonants. JASA 34.
 - Fujimura, O. & Lindqvist, J. (1971). Sweep-tone measurements of vocal-tract characteristics. JASA 49.
+- Gick, B., Allen, B., Roewer-Després, F. & Stavness, I. (2017). Speaking tongues are actively braced. JSLHR 60.
 - Jongman, A., Wayland, R. & Wong, S. (2000). Acoustic characteristics of English fricatives. JASA 108.
 - Jongman, A. (2024). Phonetics of fricatives. Oxford Research Encyclopedia of Linguistics.
 - Zue, V. W. & Laferriere, M. (1979). Acoustic study of medial /t, d/ in American English. JASA 66.
+- Sforza, P. M., Steiger, M. H. & Trentacoste, N. (1966). Studies on three-dimensional viscous jets. AIAA Journal 4.
 - Shadle, C. H. (1985). The acoustics of fricative consonants. PhD thesis, MIT.
 - Sondhi, M. M. & Schroeter, J. (1987). A hybrid time-frequency domain articulatory speech synthesizer. IEEE Trans. ASSP 35.
 - Steinecke, I. & Herzel, H. (1995). Bifurcations in an asymmetric vocal-fold model. JASA 97.
 - Stevens, K. N. (1971). Airflow and turbulence noise for fricative and stop consonants. JASA 50.
 - Stevens, K. N. (1998). Acoustic Phonetics. MIT Press.
+- Stone, M. (1990). A three-dimensional model of tongue movement based on ultrasound and x-ray microbeam data. JASA 87.
 - Story, B. H., Titze, I. R. & Hoffman, E. A. (1996). Vocal tract area functions from magnetic resonance imaging. JASA 100.
 - Story, B. H. (2008). Comparison of magnetic resonance imaging-based vocal tract area functions obtained from the same speaker in 1994 and 2002. JASA 123.
 - Sundberg, J., Johansson, C., Wilbrand, H. & Ytterbergh, C. (1987). From sagittal distance to area. Phonetica 44.
 - Titze, I. R. (1984). Parameterization of the glottal area, glottal flow, and vocal fold contact area. JASA 75.
 - Titze, I. R. & Sundberg, J. (1992). Vocal intensity in speakers and singers. JASA 91.
 - Young, S. et al. The HTK Book (mel filterbank).
+- Zhang, Z. & Espy-Wilson, C. Y. (2004). A vocal-tract model of American English /l/. JASA 115.
 
 ## Developer scripts
 
@@ -668,6 +740,8 @@ npx tsx scripts/fit-mri.ts             # fit the vowels to formants and to the M
 npx tsx scripts/mri.ts --profiles      # acoustic model on the MRI areas; our vowels against the measured shapes
 npx tsx scripts/tune-consonants.ts     # consonant tuning helper
 npx tsx scripts/tune-sibilant.ts ʃ 3000 4000   # fit a sibilant to a spectral peak and mean (frequency model, then rendered)
+npx tsx scripts/tune-lateral.ts l 350 1500 2600 --robust   # fit a lateral to F1/F2/F3, keeping the contact, the channels and a 2 cm cavity
+npx tsx scripts/areas3d.ts i a u l     # narrowest passage, perimeter, hydraulic diameter, channels, formants with and without the piriform fossae
 npx tsx scripts/noise-transfer.ts s    # transfer from a noise source at each front junction
 npx tsx scripts/scan-variants.ts ʃ '[{"jaw":0.2}]'
 npx tsx scripts/debug-geometry.ts geometry.html

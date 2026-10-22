@@ -4,7 +4,7 @@ import { textToPhones } from '../dsp/speech/g2p';
 import { buildScore } from '../dsp/speech/sequencer';
 import { DEFAULT_SOURCE, DEFAULT_NOISE } from '../dsp/engine/params';
 import { DEFAULT_ANATOMY } from '../dsp/tract/types';
-import { transferMagnitudes } from '../dsp/tract/acoustics';
+import { transferMagnitudes, AcousticOptions } from '../dsp/tract/acoustics';
 import { portArea, noseOf } from '../dsp/tract/nasal';
 import { MRI_VOWELS } from '../dsp/data/mri';
 import { isVowel } from '../dsp/speech/phonemes';
@@ -100,6 +100,42 @@ const peakNumbers = (): Bi => {
     : `peaks ${poles.join(' · ')} Hz; valleys ${zeros.join(' · ') || 'none'} Hz`);
   extremaCache = { key: d, value };
   return value;
+};
+/** Where a side branch swallows the sound: the deepest dip of the filter with the branch relative to without it. */
+let valleyCache: { key: unknown; value: { f: number; db: number } } | null = null;
+const branchValley = (without: AcousticOptions, lo: number, hi: number): { f: number; db: number } => {
+  const d = store.derived(), p = store.params;
+  const key = [d, JSON.stringify(without)].join();
+  if (valleyCache?.key === key) return valleyCache.value;
+  const fr: number[] = [];
+  for (let f = lo; f <= hi; f += 10) fr.push(f);
+  const port = portArea(store.currentArticulators().velum, p.anatomy.nasalLeak, p.anatomy.scale);
+  const o: AcousticOptions = { port, scale: p.anatomy.scale, nose: noseOf(p.anatomy) };
+  const a = transferMagnitudes(d.af, fr, o), b = transferMagnitudes(d.af, fr, { ...o, ...without });
+  let value = { f: 0, db: 0 };
+  for (let i = 0; i < fr.length; i++) {
+    const db = 20 * Math.log10(a[i] / b[i]);
+    if (db < value.db) value = { f: fr[i], db };
+  }
+  valleyCache = { key, value };
+  return value;
+};
+/** Formants of a lateral and the valley of the cavity behind its tip. */
+const lateralNumbers = (): Bi => {
+  const f = formantNumbers(), sl = store.derived().af.supralingual;
+  if (!sl || sl.at < 0) return both((l) => `${f[l]} · ${l === 'it' ? 'nessuna cavità chiusa dietro la punta' : 'no closed cavity behind the tip'}`);
+  const z = branchValley({ supralingual: false }, 2000, 5000);
+  return both((l) => `${f[l]} · ${l === 'it' ? 'valle della cavità dietro la punta' : 'valley of the cavity behind the tip'} ${z.f} Hz (${dec(z.db, 0, l)} dB)`);
+};
+/** Air left in the piriform fossae and the valley they make. */
+const piriformNumbers = (): Bi => {
+  const pf = store.derived().geom.piriform;
+  const z = branchValley({ piriform: false }, 3000, 9000);
+  return both((l) => {
+    const air = l === 'it' ? `aria in ogni seno ${dec(pf.length, 1, l)} cm su ${dec(pf.full, 1, l)}` : `air in each fossa ${dec(pf.length, 1, l)} of ${dec(pf.full, 1, l)} cm`;
+    if (z.db > -1) return `${air} · ${l === 'it' ? 'nessuna valle' : 'no valley'}`;
+    return `${air} · ${l === 'it' ? 'la loro valle' : 'their valley'} ${z.f} Hz (${dec(z.db, 0, l)} dB)`;
+  });
 };
 /** H1-H2 of the source pulse at the current Rd: the buzz before the filter. */
 const sourceNumbers = (): Bi => {
@@ -369,11 +405,14 @@ export const CHAPTERS: Chapter[] = [
       { it: 'Come si conosce la forma di un tratto vocale vero? Con la risonanza magnetica: chi parla tiene una vocale dentro lo scanner e, fetta dopo fetta, si misura l’area del passaggio d’aria dalla laringe alle labbra. Il risultato è una funzione d’area.', en: 'How do we know the shape of a real vocal tract? With magnetic resonance imaging: a speaker holds a vowel inside the scanner and, slice by slice, the area of the air passage is measured from the larynx to the lips. The result is an area function.' },
       { it: 'Qui ci sono 11 vocali misurate così su un uomo adulto (Story 2008, 44 fette ciascuna). Caricate come tubo suonano come le sue vocali: la sola fisica del tubo, senza articolatori, restituisce le sue formanti a pochi punti percentuali.', en: 'This simulator carries 11 vowels measured this way on one adult man (Story 2008, 44 slices each). Loaded as the tube they sound like his vowels: the physics of the tube alone, with no articulators, gives back his formants within a few percent.' },
       { it: 'Gli articolatori della testa sono stati adattati a queste forme: tra le tante posizioni della lingua che danno a una vocale le sue formanti, si sceglie quella più vicina al tratto misurato.', en: 'The articulators of the head were fitted to these shapes: among the many tongue positions that give a vowel its formants, the fit picks the one closest to the measured tract.' },
+      { it: 'Una scansione dà anche la forma di ogni fetta, non solo la sua area. La testa costruisce ogni fetta in tre dimensioni: il palato è una volta d’osso, i denti chiudono i lati, la lingua ha un solco e due margini. Da ogni fetta prende l’area, il contorno su cui l’aria sfrega (una fessura piatta ne ha più di un cerchio della stessa area, e perde più energia) e quanta parte di quel contorno è molle.', en: 'A scan also gives the shape of each slice, not just its area. The head builds every slice in three dimensions: the palate is a vault of bone, the teeth close the sides, the tongue has a groove and two margins. From each slice it takes the area, the outline the air rubs against (a flat slit has more of it than a circle of the same area, and loses more energy) and how much of that outline is soft.' },
+      { it: 'Così compaiono due cose che un disegno piatto non può avere: i due canali ai lati della lingua in una «l», e i seni piriformi, due piccole tasche cieche ai lati della laringe. Apri la vista «Tratto in 3D» e girala con il mouse.', en: 'That brings in two things a flat drawing cannot have: the two channels beside the tongue in an “l”, and the piriform fossae, two small blind pouches beside the larynx. Open the “3D tract” view and turn it with the mouse.' },
     ],
     actions: [
       { label: { it: 'La «i» misurata', en: 'The measured “ee”' }, run: () => { clean(); mri('i'); } },
       { label: { it: 'La «a» misurata (ɑ)', en: 'The measured “ah” (ɑ)' }, run: () => { clean(); mri('ɑ'); } },
       { label: { it: 'La «u» misurata', en: 'The measured “oo”' }, run: () => { clean(); mri('u'); } },
+      { label: { it: 'Il tratto in 3D', en: 'The tract in 3D' }, run: () => { clean(); vowel('a', 120); void go('tract3d', 'tract'); } },
     ],
     experiments: [
       {
@@ -390,6 +429,29 @@ export const CHAPTERS: Chapter[] = [
           const rec = v.recorded.map((x) => Math.round(x)).join(' · '), comp = v.computed.map((x) => Math.round(x)).join(' · ');
           return { it: `ora: ${f.it}; calcolate da Story sulla scansione: ${comp} Hz; la sua «ɑ» registrata: ${rec} Hz`, en: `now: ${f.en}; computed by Story from the scan: ${comp} Hz; his recorded “ɑ”: ${rec} Hz` };
         },
+      },
+      {
+        question: { it: 'Se la punta della lingua chiude la bocca, da dove esce l’aria di una «l»?', en: 'If the tongue tip closes the mouth, where does the air of an “l” go?' },
+        steps: [
+          { label: { it: 'Tieni una «l»', en: 'Hold an “l”' }, run: () => { clean(); setPhoneme('l'); void go('tract3d', 'tract'); } },
+          { label: { it: 'Ora una «n»', en: 'Now an “n”' }, run: () => setPhoneme('n') },
+          { label: { it: 'Una «l» scura (inglese «feel»)', en: 'A dark “l” (as in “feel”)' }, run: () => setPhoneme('ɫ') },
+        ],
+        look: { it: 'Con lo spaccato acceso scegli la vista di fronte o dall’alto: accanto alla linea di mezzo chiusa corrono due canali d’aria, e dietro il contatto c’è una sacca, la «cavità sopralinguale». Accendi i Numeri per la valle che crea.', en: 'With the cutaway on, pick the front or top view: beside the closed midline run two air channels, and behind the contact sits a pocket, the “supralingual cavity”. Switch Numbers on for the valley it makes.' },
+        answer: { it: 'La punta tocca la cresta dietro i denti di sopra solo nel mezzo: i margini della lingua si stringono e si abbassano, e l’aria passa ai due lati, come l’acqua attorno a un sasso. L’aria tra i margini, dietro il contatto, è un vicolo cieco: come la bocca chiusa nella «m», inghiotte il suono alla frequenza della sua risonanza, una valle tra 3 e 4 kHz che si vede negli spettri delle «l» vere (Zhang ed Espy-Wilson 2004). Nella «n» i lati restano sigillati e l’aria sale nel naso. Nella «l» scura il corpo della lingua arretra: F2 scende da circa 1500 a circa 950 Hz, ed è questo a farla suonare cupa.', en: 'The tip touches the ridge behind the upper teeth only in the middle: the margins of the tongue draw in and drop, and the air flows past both sides, like water round a stone. The air between the margins, behind the contact, is a dead end: like the closed mouth in an “m”, it swallows the sound at its own resonance, a valley between 3 and 4 kHz that shows in the spectra of real “l”s (Zhang & Espy-Wilson 2004). In the “n” the sides stay sealed and the air goes up through the nose. In the dark “l” the body of the tongue draws back: F2 falls from about 1500 to about 950 Hz, and that is what makes it sound dark.' },
+        numbers: lateralNumbers,
+      },
+      {
+        question: { it: 'Ai lati della laringe ci sono due piccole tasche cieche. Cosa fanno al suono?', en: 'Beside the larynx sit two small blind pouches. What do they do to the sound?' },
+        steps: [
+          { label: { it: 'Una «a» e i seni piriformi', en: 'An “ah” and the fossae' }, run: () => { clean(); vowel('a', 120); void go('tract3d', 'tract'); } },
+          { label: { it: 'Guarda la loro valle', en: 'See their valley' }, run: () => { store.setUi({ envelope: true }); void go('spectrum', 'tract'); } },
+          { label: { it: 'Riempili a metà d’acqua', en: 'Fill them halfway with water' }, run: () => store.setParams((p) => { p.anatomy.piriform = 0.5; }) },
+          { label: { it: 'Svuotali', en: 'Empty them' }, run: () => store.setParams((p) => { p.anatomy.piriform = 1; }) },
+        ],
+        look: { it: 'Nella vista 3D le due tasche pendono ai lati della laringe, l’acqua in azzurro. Nello spettro passa a 0–10 kHz e guarda l’inviluppo verso 4,5 kHz: con l’acqua la valle salta verso 8 kHz.', en: 'In the 3D view the two pouches hang beside the larynx, the water in blue. In the spectrum switch to 0–10 kHz and watch the envelope near 4.5 kHz: with water the valley jumps to near 8 kHz.' },
+        answer: { it: 'Ogni seno è un tubetto chiuso in fondo, profondo circa 2 cm, che si apre nella gola appena sopra la laringe. Come ogni diramazione cieca inghiotte il suono alla sua risonanza, dove un quarto della lunghezza d’onda ci sta dentro: con la sua forma a imbuto, verso 4,5 kHz. Con l’acqua la colonna d’aria si dimezza e la valle sale verso 8 kHz. Dang e Honda (1997) lo hanno fatto davvero: hanno riempito d’acqua i seni piriformi di persone vere e hanno visto la valle spostarsi. Queste tasche cambiano da persona a persona, e sono uno dei motivi per cui le voci si distinguono più sopra i 4 kHz che sotto.', en: 'Each fossa is a little tube closed at the bottom, about 2 cm deep, opening into the throat just above the larynx. Like every blind side branch it swallows the sound at its own resonance, where a quarter of the wavelength fits inside: with its funnel shape, near 4.5 kHz. With water the air column is halved and the valley climbs to near 8 kHz. Dang and Honda (1997) did this for real: they filled the piriform fossae of real speakers with water and watched the valley move. The pouches differ from person to person, and are one reason why voices differ more above 4 kHz than below.' },
+        numbers: piriformNumbers,
       },
     ],
   },
