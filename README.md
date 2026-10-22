@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 71 automated tests (physics, speech, analysis)
+npm test           # 74 automated tests (physics, speech, analysis)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -193,8 +193,10 @@ fading toward the dorsum: tense /i/ advances it and widens the lower
 pharynx, lax /ɪ ɛ/ pull it back. Its rest position and the epilaryngeal tube
 above the glottis (about 0.45 cm², A = 0.55 d^1.3) follow the area functions
 measured by MRI (Story 2008), where the lower pharynx of most vowels is about
-1 cm². A tucked lower lip rises to the upper teeth whatever the jaw, as a
-closing lip does for a bilabial (motor equivalence). The anatomy (size,
+1 cm². A tucked lower lip keeps its slit under the upper teeth whatever the
+jaw, as a closing lip does for a bilabial (motor equivalence), and it slides
+out in front of the incisors when it rises above their edge, so that a /v/
+on its way to a rounded /w/ ("vuole") never closes. The anatomy (size,
 pharynx length and width, nasal leak) is the persistent "person" part of the
 filter.
 
@@ -207,6 +209,8 @@ any tract length is exact. Junctions:
     dipole source p_s:   f_out += p_s (1 + r)/2,  b_out -= p_s (1 - r)/2
     monopole source u_s: f_out += rho c u_s / (A1 + A2),  b_out += rho c u_s / (A1 + A2)
     glottal end:         f_0 = r_g b_0 + Z_0 (1 + r_g)/2 U_g
+    series resistance R: q = 2 (f_in - b_in) / (1/A1 + 1/A2 + R/(rho c)),
+                         f_out = b_in + q/A2,  b_out = f_in - q/A1
 
 Losses: per-section decay exp(-sigma/fs) with sigma = 70 + 45 sqrt(3/A) s⁻¹
 (narrow sections lose more), calibrated against the frequency-domain model.
@@ -217,7 +221,16 @@ low-frequency bandwidths. Lips and nostrils: Flanagan's piston radiation
 impedance (parallel R-L) as a first-order reflection filter (bilinear
 transform); the sound is the time derivative of lip plus nostril flow. Areas,
 losses and radiation coefficients glide sample by sample between control
-updates, so articulations never click. The output is low-passed (8th-order
+updates, so articulations never click. Jet losses: where the flow leaves a
+narrow passage (the constriction of a fricative, the slit between the
+incisors, the lips) it separates into a jet that loses its kinetic pressure in
+the wider part downstream (Borda-Carnot), dp = rho/2 v² (1 - A/A_down)². For
+the sound this is a series resistance R = rho U (1 - A/A_down)² / A² at that
+junction, with the mean flow U of the aerodynamic model (Birkholz, Jackèl &
+Kröger 2007; Stevens 1998). It widens the resonances around a fricative
+several times (the sharpest one below 4 kHz in /ʃ/ 3.6 times at
+600 cm³/s) and those of a vowel hardly at all (1.15 times in /i/ at
+150 cm³/s). The output is low-passed (8th-order
 Butterworth) and resampled to the audio rate with Catmull-Rom interpolation.
 
 **Nasal tract**: a fixed 28-section branch (about 11 cm, scaled with the
@@ -229,7 +242,9 @@ higher wall losses for the convoluted turbinates.
 **Frequency-domain reference** (Sondhi & Schroeter 1987; Story, Titze &
 Hoffman 1996): the same area function as a chain of lossy ABCD sections with
 viscous, thermal and wall losses and the radiation load. It draws the filter
-envelope and formants in the UI and validates the waveguide. On the 11 vowel
+envelope and formants in the UI and validates the waveguide, with the same
+jet resistances: for the obstacle noise of /ʃ/ the two give the same spectrum
+within 1.1 dB in every band from 0.5 to 8 kHz. On the 11 vowel
 area functions Story (2008) measured by MRI (one adult man, 44 sections) it
 gives the formants he computed from them within 4.8 % (F1), 2.2 % (F2) and
 0.8 % (F3) on average.
@@ -267,7 +282,17 @@ Flanagan & Cherry 1969; Shadle 1985):
 Each noise is Gaussian white noise through a first-order high-pass (dipoles
 radiate little at low frequency) and a first-order low-pass at the Strouhal
 corner f_c = 0.15 v / D, then filtered by the part of the tract in front of
-it.
+it (the same source model as VocalTractLab, Birkholz 2014).
+
+**Sibilant shapes.** The spectrum of /s/ and /ʃ/ is mostly the cavity in front
+of the incisors and the constriction. A /ʃ/ with its constriction 2.5 cm
+behind the teeth and long, nearly closed lips had a front cavity of 5.4 cm:
+its lowest resonance, near 1.2 kHz, carried as much energy as the 3-4 kHz
+band and pulled the spectral mean down to 3.1 kHz. scripts/tune-sibilant.ts
+fits the articulation on the frequency model (fast, many starting points,
+the place kept behind the alveolar ridge) to the peak and mean measured on
+real speakers (Jongman et al. 2000), then checks the rendered sound: tongue
+a little forward, a deeper groove, lips more protruded.
 
 **Your noise**: a white, pink, brown, blue or violet base, or a spectrum you
 draw on 32 log-spaced points (50 Hz - 16 kHz), band-limited, at a chosen level,
@@ -453,17 +478,19 @@ in brackets are the adult male targets described under Speech.
 | LF spectral slope, Rd 1, 1-5 kHz | -11.8 dB/oct (flow derivative), -17.9 dB/oct (flow) |
 | LF H1-H2 | Rd 0.5: -2.0 dB, Rd 1: 3.8 dB, Rd 2.5: 17.5 dB (pressed to breathy) |
 | Two-mass F0 vs tension | Q 0.7: 95 Hz, Q 1.2: 163 Hz, Q 1.8: 241 Hz; automatic tension within 4 % of the target |
-| /s/ | peak 4406 Hz, centroid 6046 Hz, -8.9 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000); in sentences (scripts/sibilants.ts) mean about 5.2 kHz for the man, 6.5 kHz for the woman |
-| /ʃ/ | peak 3844 Hz, centroid 3055 Hz, -1.2 dB re /a/ |
-| /f/ | centroid 6859 Hz, flat (2-10 kHz spread 9.6 dB vs 14.3 dB for /s/), -18.6 dB re /a/, -9.7 dB re /s/ |
-| Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 15.5 dB |
-| Breathiness | HF/LF ratio +11.2 dB with a 0.12 cm² chink and Rd 2.2 (+18.8 dB before the vowels took the MRI shapes: the narrower pharynx and epilarynx carry less breathy airflow) |
+| /s/ | peak 4500 Hz, centroid 6233 Hz, -9.2 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000); in sentences (scripts/sibilants.ts) mean about 5.2 kHz for the man, 6.5 kHz for the woman |
+| /ʃ/ | peak 3141 Hz, centroid 3952 Hz, 0.7-1.8 kHz band 7.8 dB below the 2-3.5 kHz band, -7.6 dB re /a/ (1.6 dB louder than /s/; Jongman et al. 2000: peak about 3-4 kHz, mean 4.2 kHz, lower for men); before the fit peak 3844, centroid 3055 Hz, low band 1.5 dB above |
+| Fricative spectrum, waveguide vs reference | /ʃ/ obstacle source: worst difference 1.1 dB over 8 bands, 0.5-8 kHz |
+| Jet losses | the sharpest resonance below 4 kHz widens 3.6 times in /ʃ/ (600 cm³/s), 1.15 times in /i/ (150 cm³/s) |
+| /f/ | centroid 7267 Hz, flat (2-10 kHz spread 7.6 dB vs 12.8 dB for /s/), -18.4 dB re /a/, -9.3 dB re /s/ |
+| Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 15.3 dB |
+| Breathiness | HF/LF ratio +11.5 dB with a 0.12 cm² chink and Rd 2.2 (+18.8 dB before the vowels took the MRI shapes: the narrower pharynx and epilarynx carry less breathy airflow) |
 | Aspiration | F0 envelope modulation depth: steady 0.054, pulsed 0.540 |
 | Period boundaries | jitter 1 % and shimmer 6 % change the 8-16 kHz energy by +0.1 dB (+32 dB when the pulse mean jumped at each period) |
 | Control rate | voice onset from rest: 3-8 kHz at -41.2 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +2.5 dB in /sː/ vs -37.3 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.2 dB vs -9.7 dB in the vowel |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +6.1 dB in /sː/ vs -37.3 dB in /a/ |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -31.2 dB vs -9.9 dB in the vowel |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
 | American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.7 cmH2O (glottal stop, no puff) vs 6.5 cmH2O in "it." |
@@ -473,7 +500,7 @@ in brackets are the adult male targets described under Speech.
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
 | Voice onset time | /t/ English 79 ms, Italian 7 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian 10-25 ms) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
-| Consonant dips | nasals 6.1-12.6 dB, /v/ 8.3-17.7 dB below their vowels ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/; /ŋ/ in front of the nasal port in every vowel context |
+| Consonant dips | nasals 6.0-12.4 dB, /v/ 13.3-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
 | Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
 | Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.58 st (90 %), 1.9 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
@@ -493,7 +520,11 @@ in brackets are the adult male targets described under Speech.
 - One-dimensional plane-wave acoustics: no cross modes (fine below about
   5 kHz for an adult tract), no 3D flow. The noise sources are lumped dipoles
   with laws and constants calibrated to match measured fricative levels and
-  spectra; the jet is not simulated as a flow field.
+  spectra; the jet is not simulated as a flow field. The jet losses use the
+  mean flow of the single oral constriction the aerodynamic model knows; the
+  slit and lip losses do not feed back into that flow.
+- The consonant postures are fitted to formants and fricative spectra, not to
+  measured area functions.
 - The nasal branch has a fixed number of sections that scales with the
   speaker; left and right passages are merged; only two sinus pairs.
 - The slow aerodynamics run at control rate (every 32 samples), ramped
@@ -516,6 +547,8 @@ in brackets are the adult male targets described under Speech.
 
 - Abbs, J. H. & Gracco, V. L. (1984). Control of complex motor gestures. J. Neurophysiol. 51.
 - Birkholz, P. (2007). Control of an articulatory speech synthesizer based on dynamic approximation of spatial articulatory targets. Interspeech.
+- Birkholz, P. (2014). Enhanced area functions for noise source modeling in the vocal tract. 10th International Seminar on Speech Production, Cologne.
+- Birkholz, P., Jackèl, D. & Kröger, B. J. (2007). Simulation of losses due to turbulence in the time-varying vocal system. IEEE Trans. Audio, Speech, and Language Processing 15.
 - Dang, J., Honda, K. & Suzuki, H. (1994). Morphological and acoustical analysis of the nasal and the paranasal cavities. JASA 96.
 - Dang, J. & Honda, K. (1996). Acoustic characteristics of the human paranasal sinuses derived from transmission characteristic measurement and morphological observation. JASA 100.
 - de Cheveigné, A. & Kawahara, H. (2002). YIN, a fundamental frequency estimator for speech and music. JASA 111.
@@ -581,6 +614,7 @@ npx tsx scripts/tune-vowels.ts a --keys=jaw,tongueX,tongueY,tongueRoot --minarea
 npx tsx scripts/fit-mri.ts             # fit the vowels to formants and to the MRI shapes (--write updates phonemes.ts)
 npx tsx scripts/mri.ts --profiles      # acoustic model on the MRI areas; our vowels against the measured shapes
 npx tsx scripts/tune-consonants.ts     # consonant tuning helper
+npx tsx scripts/tune-sibilant.ts ʃ 3000 4000   # fit a sibilant to a spectral peak and mean (frequency model, then rendered)
 npx tsx scripts/noise-transfer.ts s    # transfer from a noise source at each front junction
 npx tsx scripts/scan-variants.ts ʃ '[{"jaw":0.2}]'
 npx tsx scripts/debug-geometry.ts geometry.html

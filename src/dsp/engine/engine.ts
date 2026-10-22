@@ -5,7 +5,7 @@ import { Waveguide } from '../tract/waveguide';
 import { computeGeometry, TractGeometry } from '../tract/geometry';
 import { AreaFunction, N_SECTIONS, sectionsFromGeometry, resampleTube } from '../tract/areaFunction';
 import { buildNasal, NasalTract, portArea } from '../tract/nasal';
-import { Aero, newJetInfo, JetInfo, RE_CRIT } from '../aero/aero';
+import { Aero, newJetInfo, JetInfo, RE_CRIT, kineticResistances } from '../aero/aero';
 import { TurbulenceSource, ShapedNoise } from '../noise/noise';
 import { ButterworthLowpass } from '../util/biquad';
 import { Rng } from '../util/rng';
@@ -434,6 +434,8 @@ export class VoiceEngine {
       }
     }
     this.aero.jet(oral, g ? teethPos - exitS : -1, slitH, this.jet);
+    // the jets lose their kinetic pressure where they expand: flow resistances
+    kineticResistances(this.af.areas, this.aero.uMouth, this.wg.resTarget, this.constrictionIndex, this.fineMinArea);
     const n = this.params.noise;
     const db = (x: number) => Math.pow(10, x / 20);
     this.wallAmp = n.fricationOn ? NOISE_K.wall * this.jet.wallSource * db(n.frication) : 0;

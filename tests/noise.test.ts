@@ -5,6 +5,12 @@ import { PHONEMES } from '../src/dsp/speech/phonemes';
 import { ShapedNoise, colourCurve } from '../src/dsp/noise/noise';
 import { welch } from '../src/dsp/util/fft';
 import { linearFit } from '../src/dsp/util/math';
+import { JetInfo, kineticResistances } from '../src/dsp/aero/aero';
+import { formants, sourceTransferMagnitudes } from '../src/dsp/tract/acoustics';
+import { sectionsFromGeometry } from '../src/dsp/tract/areaFunction';
+import { computeGeometry } from '../src/dsp/tract/geometry';
+import { DEFAULT_ANATOMY, DEFAULT_TEETH } from '../src/dsp/tract/types';
+import { RHO, C_SOUND } from '../src/dsp/constants';
 import { note, spectralPeak, spectralCentroid, rmsDb, bandPower } from './helpers';
 
 function phonemeParams(ph: string): EngineParams {
@@ -38,11 +44,48 @@ describe('fricative noise from flow, constriction and teeth', () => {
     expect(cS).toBeLessThan(7000);
   });
 
-  it('/ʃ/ peaks lower, around 2.5-4 kHz', () => {
-    note('/ʃ/ spectrum', `peak ${pSh.toFixed(0)} Hz, centroid ${cSh.toFixed(0)} Hz, level ${(rmsDb(sh) - rmsDb(a)).toFixed(1)} dB re /a/`);
+  it('/ʃ/ peaks lower, around 2.5-4 kHz, with little energy below 2 kHz', () => {
+    // /ʃ/: peak about 3-4 kHz, spectral mean 4.2 kHz over both sexes, lower
+    // for men (Jongman et al. 2000); as loud as /s/ or louder
+    const low = 10 * Math.log10(bandPower(sh, fs, 700, 1800) / bandPower(sh, fs, 2000, 3500));
+    note('/ʃ/ spectrum', `peak ${pSh.toFixed(0)} Hz, centroid ${cSh.toFixed(0)} Hz, 0.7-1.8 kHz ${low.toFixed(1)} dB re 2-3.5 kHz, level ${(rmsDb(sh) - rmsDb(a)).toFixed(1)} dB re /a/`);
     expect(pSh).toBeGreaterThan(2400);
     expect(pSh).toBeLessThan(4200);
-    expect(cSh).toBeLessThan(cS);
+    expect(cSh).toBeGreaterThan(3500);
+    expect(cSh).toBeLessThan(cS - 1500);
+    expect(low).toBeLessThan(-5);
+    expect(rmsDb(sh)).toBeGreaterThan(rmsDb(s) - 1);
+  });
+
+  it('the waveguide gives the fricative spectrum of the frequency-domain model', () => {
+    // the obstacle source alone: rendered spectrum vs transfer x source spectrum
+    const p = phonemeParams('ʃ');
+    p.noise.fricationOn = false; p.noise.aspirationOn = false;
+    const e = new VoiceEngine(fs, p);
+    e.snapArticulators(); e.snapPressure();
+    const x = new Float32Array(fs);
+    for (let i = 0; i < x.length; i += 128) e.process(x.subarray(i, i + 128), 128);
+    const y = x.subarray(12000);
+    const inner = e as unknown as { jet: JetInfo; wg: { resTarget: Float64Array } };
+    const fc = inner.jet.fcObstacle;
+    const af = sectionsFromGeometry(computeGeometry(p.articulators, DEFAULT_ANATOMY, DEFAULT_TEETH));
+    const resistances = Array.from(inner.wg.resTarget, (r) => r * RHO * C_SOUND);
+    const edges = [500, 1000, 1500, 2000, 3000, 4000, 5000, 6500, 8000];
+    const got: number[] = [], want: number[] = [];
+    for (let b = 0; b < edges.length - 1; b++) {
+      got.push(10 * Math.log10(bandPower(y, fs, edges[b], edges[b + 1], 4096)));
+      const fr: number[] = [];
+      for (let f = edges[b]; f < edges[b + 1]; f += 20) fr.push(f);
+      // the source sits at the exit of the incisor section; radiation ~ f U
+      const m = sourceTransferMagnitudes(af, af.teethIndex + 1, fr, { glottalImpedance: 5, resistances });
+      let s = 0;
+      fr.forEach((f, j) => { s += (m[j] * f) ** 2 / (1 + (f / fc) ** 2); });
+      want.push(10 * Math.log10(s / fr.length));
+    }
+    const off = Math.max(...got) - Math.max(...want);
+    const worst = Math.max(...got.map((g, b) => Math.abs(g - want[b] - off)));
+    note('fricative spectrum, waveguide vs reference', `/ʃ/ obstacle source, 8 bands 0.5-8 kHz: worst difference ${worst.toFixed(1)} dB`);
+    expect(worst).toBeLessThan(3);
   });
 
   it('/f/ is weak and spectrally flat (no front cavity)', () => {
@@ -72,6 +115,38 @@ describe('fricative noise from flow, constriction and teeth', () => {
     const z = render('z');
     const lowS = bandPower(s, fs, 80, 400), lowZ = bandPower(z, fs, 80, 400);
     expect(lowZ).toBeGreaterThan(lowS * 10);
+  });
+});
+
+describe('kinetic losses of the jets', () => {
+  it('a jet loses its kinetic pressure where the tract widens (Borda-Carnot)', () => {
+    const areas = [3, 3, 0.2, 0.8, 3.2, 3.2, 1];
+    const r = kineticResistances(areas, 600, new Float64Array(areas.length));
+    // narrow passage at 2, widest part downstream 3.2 cm^2; open air past the lips
+    expect(r[2]).toBeCloseTo(((1 - 0.2 / 3.2) ** 2 * (600 / 0.2)) / (C_SOUND * 0.2), 6);
+    expect(r[6]).toBeCloseTo(600 / (C_SOUND * 1), 6);
+    expect(r[0] + r[1] + r[3] + r[4] + r[5]).toBe(0);
+  });
+
+  it('they damp the resonances around a fricative, hardly those of a vowel', () => {
+    const narrowest = (ph: string) => {
+      const g = computeGeometry({ ...defaultParams().articulators, ...PHONEMES[ph].art }, DEFAULT_ANATOMY, DEFAULT_TEETH);
+      const af = sectionsFromGeometry(g);
+      let a = Infinity, at = 0;
+      for (let i = 0; i <= g.lastRay; i++) if (g.s[i] >= 2.6 && g.hits[i].area < a) { a = g.hits[i].area; at = g.s[i]; }
+      return { af, index: Math.floor(at / af.dx), a };
+    };
+    const widening = (ph: string, flow: number, zg: number) => {
+      const { af, index, a } = narrowest(ph);
+      const r = Array.from(kineticResistances(af.areas, flow, new Float64Array(af.areas.length), index, a), (x) => x * RHO * C_SOUND);
+      const b0 = formants(af, { glottalImpedance: zg }, 4000), b1 = formants(af, { glottalImpedance: zg, resistances: r }, 4000);
+      // the sharpest resonance below 4 kHz, before and after
+      return Math.min(...b1.map((f) => f.bw)) / Math.min(...b0.map((f) => f.bw));
+    };
+    const sh = widening('ʃ', 600, 5), i = widening('i', 150, Infinity);
+    note('jet losses', `sharpest resonance below 4 kHz widens ${sh.toFixed(1)}x in /ʃ/ (600 cm^3/s), ${i.toFixed(2)}x in /i/ (150 cm^3/s)`);
+    expect(sh).toBeGreaterThan(2);
+    expect(i).toBeLessThan(1.25);
   });
 });
 

@@ -81,8 +81,8 @@ export const CONSONANTS: Record<string, Phoneme> = {
   // stretch it down to a lisp
   s: C('s', 'fricative', false, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tongueRoot: 1.2, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipProtrude: -0.35, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'sasso, hiss, see'),
   z: C('z', 'fricative', true, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tongueRoot: 1.2, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipProtrude: -0.35, lipTuck: 0, velum: 0 }, 0.12, 0.09, 'rosa (N. It.), zoo'),
-  'ʃ': C('ʃ', 'fricative', false, { jaw: 0.2, tongueX: 0.15, tongueY: 1.19, tongueRoot: 1.2, tipX: -0.1, tipY: 1.426, groove: 0.4, lipOpen: 0.12, lipRound: 0.75, lipProtrude: 0.8, lipTuck: 0, velum: 0 }, 0.55, 0.13, 'scena, she'),
-  'ʒ': C('ʒ', 'fricative', true, { jaw: 0.2, tongueX: 0.15, tongueY: 1.19, tongueRoot: 1.2, tipX: -0.1, tipY: 1.426, groove: 0.4, lipOpen: 0.12, lipRound: 0.75, lipProtrude: 0.8, lipTuck: 0, velum: 0 }, 0.12, 0.1, 'beige'),
+  'ʃ': C('ʃ', 'fricative', false, { jaw: 0.19, tongueX: 0.434, tongueY: 1.19, tongueRoot: 1.2, tipX: -0.025, tipY: 1.453, groove: 0.545, lipOpen: -0.159, lipRound: 0.776, lipProtrude: 0.925, lipTuck: 0, velum: 0 }, 0.55, 0.13, 'scena, she'),
+  'ʒ': C('ʒ', 'fricative', true, { jaw: 0.19, tongueX: 0.434, tongueY: 1.19, tongueRoot: 1.2, tipX: -0.025, tipY: 1.453, groove: 0.545, lipOpen: -0.159, lipRound: 0.776, lipProtrude: 0.925, lipTuck: 0, velum: 0 }, 0.12, 0.1, 'beige'),
   f: C('f', 'fricative', false, { jaw: 0.12, lipOpen: 0.522, lipTuck: 1, lipRound: 0, lipProtrude: 0, velum: 0 }, 0.55, 0.12, 'fame, father'),
   v: C('v', 'fricative', true, { jaw: 0.12, lipOpen: 0.522, lipTuck: 1, lipRound: 0, lipProtrude: 0, velum: 0 }, 0.12, 0.08, 'voce'),
   'θ': C('θ', 'fricative', false, { jaw: 0.2, tipX: 1.05, tipY: 0.1, groove: 0, lipOpen: 0.25, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'thin'),

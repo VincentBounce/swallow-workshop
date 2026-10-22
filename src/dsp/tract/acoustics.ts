@@ -44,6 +44,10 @@ export interface AcousticOptions {
   glottalImpedance?: number;
   /** precomputed nasal tract */
   nasal?: NasalTract;
+  /** flow resistances (acoustic ohms) at the exit of each oral section, the
+   *  last one at the lips: the kinetic pressure a jet loses where it leaves a
+   *  narrow passage (see kineticResistances) */
+  resistances?: ArrayLike<number>;
 }
 
 // complex helpers on [re, im] scratch values, written inline for speed
@@ -176,6 +180,7 @@ export interface ResolvedOptions {
   radiation: 'piston' | 'ideal';
   zg: number;
   nasal: NasalTract | null;
+  resistances: ArrayLike<number> | null;
 }
 
 export function resolveOptions(af: AreaFunction, o: AcousticOptions = {}): ResolvedOptions {
@@ -183,7 +188,7 @@ export function resolveOptions(af: AreaFunction, o: AcousticOptions = {}): Resol
   const port = o.port ?? portArea(o.velum ?? 0, o.nasalLeak ?? 0, scale);
   const coupling = o.coupling ?? Math.round(0.43 * af.areas.length) - 1;
   const nasal = o.nasal ?? (port > 2 * AREA_CLOSED ? buildNasal(af.dx, scale, port, coupling) : null);
-  return { losses: o.losses ?? true, radiation: o.radiation ?? 'piston', zg: o.glottalImpedance ?? Infinity, nasal };
+  return { losses: o.losses ?? true, radiation: o.radiation ?? 'piston', zg: o.glottalImpedance ?? Infinity, nasal, resistances: o.resistances ?? null };
 }
 
 /**
@@ -200,8 +205,11 @@ export function transferAt(af: AreaFunction, f: number, o: ResolvedOptions, prof
   p.re = zr.re; p.im = zr.im;
   let outRe = 1, outIm = 0; // U_lip = 1
   const ns = o.nasal ? nasalAt(o.nasal, w, o.losses, o.radiation) : null;
+  const rs = o.resistances;
   for (let i = n - 1; i >= 0; i--) {
     if (profile) { profile.p[i + 1] = Math.hypot(p.re, p.im); profile.u[i + 1] = Math.hypot(u.re, u.im); }
+    // series resistance at the exit of section i: the pressure is higher upstream
+    if (rs && rs[i]) { p.re += rs[i] * u.re; p.im += rs[i] * u.im; }
     back(p, u, af.areas[i], af.dx, w, 1, o.losses);
     if (ns && o.nasal && i === o.nasal.coupling + 1) {
       // junction between oral sections (coupling) and (coupling+1): add nasal flow
@@ -296,7 +304,9 @@ export function sourceTransferAt(af: AreaFunction, k: number, f: number, o: Reso
   p.re = zr.re; p.im = zr.im;
   const ns = o.nasal ? nasalAt(o.nasal, w, o.losses, o.radiation) : null;
   let lipOut = { re: 1, im: 0 };
+  const rs = o.resistances;
   for (let i = n - 1; i >= k; i--) {
+    if (rs && rs[i]) { p.re += rs[i] * u.re; p.im += rs[i] * u.im; }
     back(p, u, af.areas[i], af.dx, w, 1, o.losses);
     if (ns && o.nasal && i === o.nasal.coupling + 1 && i > k) {
       const un: C = { re: 0, im: 0 };
@@ -321,6 +331,8 @@ export function sourceTransferAt(af: AreaFunction, k: number, f: number, o: Reso
       cdiv(pb.re, pb.im, ns.zin.re, ns.zin.im, un);
       ub.re += un.re; ub.im += un.im;
     }
+    // looking back toward the glottis, the resistance adds to the impedance
+    if (rs && rs[i]) { pb.re += rs[i] * ub.re; pb.im += rs[i] * ub.im; }
   }
   const zb: C = { re: 0, im: 0 };
   cdiv(pb.re, pb.im, ub.re, ub.im, zb);

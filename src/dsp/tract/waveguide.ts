@@ -181,6 +181,16 @@ export class Waveguide {
   monoJunction = -1;
   monoValue = 0;
 
+  /**
+   * Flow resistances of the jets, R / (rho c) in 1/cm^2, at the exit of each
+   * oral section (see kineticResistances; the last entry, at the lips, acts
+   * at the last junction); set before step, followed within about 1 ms.
+   */
+  readonly resTarget: Float64Array;
+  private resValue: Float64Array;
+  private resCoef = 0.02;
+  private resOn = false;
+
   /** outputs of the last step */
   lipFlow = 0;
   nosFlow = 0;
@@ -215,6 +225,8 @@ export class Waveguide {
     this.wallS = new Float64Array(nw);
     this.wallY = new Float64Array(nw);
     this.wallV = new Float64Array(nw);
+    this.resTarget = new Float64Array(n);
+    this.resValue = new Float64Array(n);
   }
 
   reset(): void {
@@ -224,6 +236,7 @@ export class Waveguide {
     this.nosRad.x1 = this.nosRad.y1 = 0;
     this.pAcc.fill(0); this.uAcc.fill(0); this.accCount = 0;
     this.wallY.fill(0); this.wallV.fill(0);
+    this.resValue.fill(0); this.resOn = false;
   }
 
   /** Rebuilds the nasal branch if its size changed. */
@@ -245,6 +258,7 @@ export class Waveguide {
   setGeometry(af: AreaFunction, nt: NasalTract, fs: number, steps: number): void {
     this.fs = fs;
     this.dcCoef = 1 - Math.exp((-2 * Math.PI * 25) / fs);
+    this.resCoef = 1 - Math.exp(-1 / (0.001 * fs));
     this.configureNasal(nt);
     this.oral.setAreas(af.areas, steps);
     this.nasal.setAreas(nt.areas, steps);
@@ -303,10 +317,33 @@ export class Waveguide {
     fn[0] = loss[0] * (this.rg * (b[0] - this.dcB) + this.glottalInjection);
     this.glottalEndFlow = ((o.area[0] / (RHO * C_SOUND)) * (fn[0] - b[0]));
 
+    // jet resistances follow their targets
+    const rv = this.resValue;
+    if (this.resOn) {
+      const rt = this.resTarget, rc = this.resCoef;
+      let any = false;
+      for (let i = 0; i < n; i++) { rv[i] += (rt[i] - rv[i]) * rc; if (rv[i] > 1e-6) any = true; else rv[i] = 0; }
+      this.resOn = any;
+    } else {
+      for (let i = 0; i < n; i++) if (this.resTarget[i] > 0) { this.resOn = true; break; }
+    }
+
     // oral junctions
+    const resOn = this.resOn;
     for (let i = 0; i < n - 1; i++) {
       if (i === J) continue;
       const fin = f[i], bin = b[i + 1];
+      // the lip exit acts at the last junction
+      const rr = resOn ? (i === n - 2 ? rv[i] + rv[n - 1] : rv[i]) : 0;
+      if (rr > 0) {
+        // series resistance: same volume velocity on both sides, pressure
+        // drop R u across the junction (q = rho c u)
+        const a1 = o.area[i], a2 = o.area[i + 1];
+        const q = (2 * (fin - bin)) / (1 / a1 + 1 / a2 + rr);
+        fn[i + 1] = loss[i + 1] * (bin + q / a2);
+        bn[i] = loss[i] * (fin - q / a1);
+        continue;
+      }
       const w = k[i] * (fin - bin);
       fn[i + 1] = loss[i + 1] * (fin + w);
       bn[i] = loss[i] * (bin + w);

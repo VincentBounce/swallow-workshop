@@ -128,6 +128,40 @@ export class Aero {
   }
 }
 
+/**
+ * Flow resistances of the jets in the tract, R / (rho c) in 1/cm^2, at the exit
+ * of each section (the last entry at the lips). Where the flow leaves a narrow
+ * passage it separates into a jet, which loses its kinetic pressure in the
+ * wider part downstream (Borda-Carnot): dp = rho/2 v^2 (1 - A / A_down)^2, a
+ * differential resistance R = rho U (1 - A / A_down)^2 / A^2. The losses damp
+ * the resonances of the cavities around a fricative and a stop release
+ * (Birkholz, Jackel & Kroger 2007; Stevens 1998). `narrowIndex` and
+ * `narrowArea` give the main constriction measured on the fine grid, narrower
+ * than the mean area of its section.
+ */
+export function kineticResistances(areas: ArrayLike<number>, flow: number, out: Float64Array, narrowIndex = -1, narrowArea = Infinity): Float64Array {
+  out.fill(0);
+  const n = areas.length;
+  if (!(flow > 0)) return out;
+  const at = (i: number) => (i === narrowIndex ? Math.min(areas[i], narrowArea) : areas[i]);
+  for (let i = 1; i < n; i++) {
+    const a = Math.max(at(i), 1e-4);
+    if (a > at(i - 1) || (i < n - 1 && a >= at(i + 1))) continue;
+    // widest part downstream before the tract narrows again (open air at the lips)
+    let down = Infinity;
+    if (i < n - 1) {
+      let j = i + 1;
+      while (j < n - 1 && at(j + 1) >= at(j)) j++;
+      down = at(j);
+    }
+    const loss = (1 - a / down) ** 2;
+    // the jet speed is bounded by the lung pressure (about 0.15 c)
+    const v = Math.min(flow / a, 0.15 * C_SOUND);
+    out[i] = (loss * v) / (C_SOUND * a);
+  }
+  return out;
+}
+
 export function newJetInfo(): JetInfo {
   return {
     v: 0, re: 0, dh: 0, toTeeth: 0, widthAtTeeth: 0, vAtTeeth: 0, impinge: 0, onset: 0,

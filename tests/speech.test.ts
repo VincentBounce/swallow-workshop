@@ -254,7 +254,8 @@ describe('timing, melody and gestures of sequenced speech', () => {
     const v = [...it, ...en].filter((d) => d.ipa === 'v');
     note('consonant dips', `nasals ${Math.min(...nasal.map((d) => d.dip)).toFixed(1)}-${Math.max(...nasal.map((d) => d.dip)).toFixed(1)} dB, /v/ ${Math.min(...v.map((d) => d.dip)).toFixed(1)}-${Math.max(...v.map((d) => d.dip)).toFixed(1)} dB below the vowels ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in.")`);
     for (const d of nasal) { expect(d.dip).toBeGreaterThan(5); expect(d.dip).toBeLessThan(20); }
-    for (const d of v) { expect(d.dip).toBeGreaterThan(8); expect(d.area).toBeGreaterThan(0.02); }
+    // a /v/ keeps its slit, also on its way to a rounded /w/ ("vuole")
+    for (const d of v) { expect(d.dip).toBeGreaterThan(10); expect(d.dip).toBeLessThan(24); expect(d.area).toBeGreaterThan(0.06); }
     // the laterals and /w/ stay open whatever vowel is next to them
     for (const d of it.filter((x) => x.ipa === 'l' || x.ipa === 'w')) expect(d.area).toBeGreaterThan(0.1);
   });
