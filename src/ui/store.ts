@@ -11,9 +11,12 @@ import { voice } from './voice/voice';
 import type { StreamBlock } from './voice/sink';
 
 export type Lang = 'it' | 'en';
-export type Mode = 'tour' | 'lab';
-export type ControlTab = 'source' | 'tract' | 'teeth' | 'noise' | 'speak' | 'melody' | 'ab' | 'machine';
-export type ViewTab = 'spectrum' | 'scope' | 'glottis' | 'chart' | 'tube' | 'tract3d';
+/** learn: guided chapters; play: a few big controls; lab: everything, organised by the signal chain */
+export type Mode = 'learn' | 'play' | 'lab';
+export type ControlTab = 'source' | 'tract' | 'teeth' | 'noise' | 'output' | 'speak' | 'melody' | 'ab' | 'machine';
+export type ViewTab = 'spectrum' | 'spectrogram' | 'scope' | 'glottis' | 'chart' | 'tube' | 'tract3d';
+/** the lab's view grid: how many cells and what each shows */
+export interface LabViews { layout: 1 | 2 | 4; cells: ViewTab[] }
 export type FieldMode = 'pressure' | 'velocity' | 'air';
 
 export interface UiState {
@@ -21,7 +24,10 @@ export interface UiState {
   mode: Mode;
   chapter: number;
   controlTab: ControlTab;
+  /** the tool a Learn step opened beside the chapter (A/B, melody, noise, machine voice) */
+  learnTool: ControlTab | null;
   viewTab: ViewTab;
+  labViews: LabViews;
   /** spectrogram analysis window, ms */
   specWindow: number;
   /** spectrogram as 80-band log-mel */
@@ -50,20 +56,45 @@ export const DEFAULT_SPEECH_TEXT: Record<Lang, string> = { en: 'a buzz, a hiss a
 
 const RING = 1 << 17;
 const LANG_KEY = 'voice-workshop.lang';
+const MODE_KEY = 'voice-workshop.mode';
+const CHAPTER_KEY = 'voice-workshop.chapter';
+const VIEWS_KEY = 'voice-workshop.lab-views';
+const VIEW_IDS: ViewTab[] = ['spectrum', 'spectrogram', 'scope', 'glottis', 'chart', 'tube', 'tract3d'];
+
+/** A value this browser remembers (a convenience: everything works without it). */
+function remembered(key: string): string | null {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function remember(key: string, value: string): void {
+  try { window.localStorage.setItem(key, value); } catch { /* storage blocked */ }
+}
+function query(key: string): string | null {
+  try { return new URLSearchParams(window.location.search).get(key); } catch { return null; }
+}
+
+/** First visit: the guided chapters; then the mode last used (`?mode=` wins). */
+function initialMode(): Mode {
+  for (const v of [query('mode'), remembered(MODE_KEY)]) if (v === 'learn' || v === 'play' || v === 'lab') return v;
+  return 'learn';
+}
+function initialChapter(): number {
+  const n = Number(remembered(CHAPTER_KEY));
+  return Number.isInteger(n) && n >= 0 ? n : 0;
+}
+function initialLabViews(): LabViews {
+  try {
+    const v = JSON.parse(remembered(VIEWS_KEY) ?? 'null') as LabViews | null;
+    if (v && [1, 2, 4].includes(v.layout) && Array.isArray(v.cells) && v.cells.length === 4 && v.cells.every((c) => VIEW_IDS.includes(c))) return v;
+  } catch { /* not remembered */ }
+  return { layout: 4, cells: ['spectrum', 'spectrogram', 'chart', 'tube'] };
+}
 
 /**
  * Interface language: English by default; `?lang=it` in the address or the
  * viewer's last choice (kept in this browser) picks Italian.
  */
 function initialLang(): Lang {
-  try {
-    const q = new URLSearchParams(window.location.search).get('lang');
-    if (q === 'it' || q === 'en') return q;
-  } catch { /* no window (tests) */ }
-  try {
-    const v = window.localStorage.getItem(LANG_KEY);
-    if (v === 'it' || v === 'en') return v;
-  } catch { /* storage blocked */ }
+  for (const v of [query('lang'), remembered(LANG_KEY)]) if (v === 'it' || v === 'en') return v;
   return 'en';
 }
 
@@ -73,7 +104,7 @@ function initialLang(): Lang {
  */
 class Store {
   ui: UiState = {
-    lang: initialLang(), mode: 'lab', chapter: 0, controlTab: 'source', viewTab: 'chart', specWindow: 30, mel: false,
+    lang: initialLang(), mode: initialMode(), chapter: initialChapter(), controlTab: 'source', learnTool: null, viewTab: 'spectrum', labViews: initialLabViews(), specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
     info: null, numbers: false,
     speech: { text: '', lang: 'en', rate: 1, accent: 5, natural: { ...NATURAL_ALL } },
@@ -123,8 +154,11 @@ class Store {
   private emit(): void { this.version++; for (const l of this.listeners) l(); }
 
   setUi(u: Partial<UiState>): void {
+    if (u.mode) remember(MODE_KEY, u.mode);
+    if (u.chapter !== undefined) remember(CHAPTER_KEY, String(u.chapter));
+    if (u.labViews) remember(VIEWS_KEY, JSON.stringify(u.labViews));
     if (u.lang && u.lang !== this.ui.lang) {
-      try { window.localStorage.setItem(LANG_KEY, u.lang); } catch { /* storage blocked */ }
+      remember(LANG_KEY, u.lang);
       // the untouched example sentence follows the interface language
       const sp = this.ui.speech;
       if (!u.speech && sp.text === DEFAULT_SPEECH_TEXT[this.ui.lang]) u = { ...u, speech: { ...sp, text: DEFAULT_SPEECH_TEXT[u.lang], lang: u.lang } };

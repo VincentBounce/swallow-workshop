@@ -15,7 +15,9 @@ import type { NaturalnessOptions } from '../dsp/speech/sequencer';
 
 type Bi = { it: string; en: string };
 export interface TourAction { label: Bi; run: () => void }
-export interface Chapter { title: Bi; kicker: Bi; paragraphs: Bi[]; actions: TourAction[]; experiments?: GuidedExperiment[] }
+/** The quick controls a chapter shows next to the head in the Learn mode. */
+export type QuickId = 'vowels' | 'consonants' | 'fricatives' | 'nasals' | 'pitch' | 'voices' | 'say' | 'mri' | 'nose';
+export interface Chapter { title: Bi; kicker: Bi; paragraphs: Bi[]; actions: TourAction[]; experiments?: GuidedExperiment[]; quick?: QuickId[] }
 
 /*
  * Every action of the tour is an explicit choice of the reader, so it takes
@@ -28,11 +30,13 @@ const later = (ms: number, fn: () => void) => {
   const id = setTimeout(() => { pending = null; fn(); }, ms);
   pending = () => clearTimeout(id);
 };
+/** Tools that the quick controls cannot replace: the Learn mode opens them beside the chapter. */
+const TOOLS: ControlTab[] = ['ab', 'melody', 'machine', 'noise'];
 const go = async (view?: ViewTab, tab?: ControlTab) => {
   await voice.ensureAudio();
   const u: Partial<typeof store.ui> = {};
   if (view) u.viewTab = view;
-  if (tab) u.controlTab = tab;
+  if (tab) { u.controlTab = tab; u.learnTool = TOOLS.includes(tab) ? tab : null; }
   store.setUi(u);
 };
 const clean = () => set((p) => {
@@ -474,7 +478,7 @@ const CHAPTER_LIST: Chapter[] = [
       { it: 'C’è un compromesso: fette lunghe separano le armoniche ma sfocano gli eventi rapidi; fette corte colgono ogni impulso delle corde ma fondono le armoniche. Lo spettrogramma mel piega le frequenze come l’orecchio, le raggruppa in 80 bande e ne prende il logaritmo.', en: 'There is a trade-off: long slices separate the harmonics but blur fast events; short slices catch every pulse of the folds but merge the harmonics. The mel spectrogram bends frequency like the ear, groups it into 80 bands and takes the logarithm.' },
     ],
     actions: [
-      { label: { it: 'Pronuncia una frase', en: 'Speak a sentence' }, run: () => { clean(); store.setUi({ mel: false, specWindow: 30 }); void go(undefined, 'speak'); sayL({ it: 'la voce è fatta di aria', en: 'a buzz, a hiss and a filter' }); } },
+      { label: { it: 'Pronuncia una frase', en: 'Speak a sentence' }, run: () => { clean(); store.setUi({ mel: false, specWindow: 30 }); void go('spectrogram', 'speak'); sayL({ it: 'la voce è fatta di aria', en: 'a buzz, a hiss and a filter' }); } },
       { label: { it: 'Fette lunghe (40 ms)', en: 'Long slices (40 ms)' }, run: () => { store.setUi({ specWindow: 40, mel: false }); sayL({ it: 'sasso', en: 'a hiss' }); } },
       { label: { it: 'Fette corte (4 ms)', en: 'Short slices (4 ms)' }, run: () => { store.setUi({ specWindow: 4, mel: false }); sayL({ it: 'sasso', en: 'a hiss' }); } },
       { label: { it: 'Log-mel, 80 bande', en: 'Log-mel, 80 bands' }, run: () => { store.setUi({ specWindow: 25, mel: true }); sayL({ it: 'un ronzio e un fruscio', en: 'a buzz and a hiss' }); } },
@@ -533,9 +537,15 @@ const CHAPTER_LIST: Chapter[] = [
   },
 ];
 
+/** Quick controls of each chapter, in order. */
+const QUICK: QuickId[][] = [
+  ['vowels', 'pitch'], ['pitch', 'vowels'], ['pitch', 'voices'], ['vowels', 'voices'], ['vowels', 'pitch'], ['fricatives', 'voices'],
+  ['say', 'vowels'], ['nasals', 'nose'], ['mri', 'vowels'], ['say'], ['say', 'voices'], [],
+];
 const cancelling = (a: TourAction): TourAction => ({ ...a, run: () => { pending?.(); pending = null; a.run(); } });
-export const CHAPTERS: Chapter[] = CHAPTER_LIST.map((c) => ({
+export const CHAPTERS: Chapter[] = CHAPTER_LIST.map((c, i) => ({
   ...c,
+  quick: QUICK[i] ?? [],
   actions: c.actions.map(cancelling),
   experiments: c.experiments?.map((e) => ({ ...e, steps: e.steps.map(cancelling) })),
 }));

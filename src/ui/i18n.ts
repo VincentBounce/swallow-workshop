@@ -4,8 +4,12 @@ import { useStore, Lang } from './store';
 export const S = {
   appTitle: { it: 'Officina della voce', en: 'Voice Workshop' },
   appSub: { it: 'un ronzio, un fruscio e un filtro', en: 'a buzz, a hiss and a filter' },
-  tour: { it: 'Visita guidata', en: 'Guided tour' },
-  lab: { it: 'Laboratorio', en: 'Free lab' },
+  mLearn: { it: 'Impara', en: 'Learn' },
+  mPlay: { it: 'Gioca', en: 'Play' },
+  mLab: { it: 'Laboratorio', en: 'Lab' },
+  mLearnHint: { it: 'Capitoli guidati, un passo alla volta', en: 'Guided chapters, one step at a time' },
+  mPlayHint: { it: 'Pochi controlli grandi per giocare con la voce', en: 'A few big controls to play with the voice' },
+  mLabHint: { it: 'Tutti i controlli, ordinati lungo la catena del segnale', en: 'Every control, ordered along the signal chain' },
   sound: { it: 'Suono', en: 'Sound' },
   soundOn: { it: 'Suono acceso', en: 'Sound on' },
   soundHint: { it: 'Accende l’audio e i polmoni: senti la forma della testa', en: 'Starts the audio and the lungs: you hear the shape of the head' },
@@ -56,7 +60,7 @@ export const S = {
   window: { it: 'Finestra', en: 'Window' },
   mel: { it: 'Log-mel 80 bande', en: 'Log-mel 80 bands' },
   linear: { it: 'Lineare', en: 'Linear' },
-  noAudio: { it: 'Accendi l’audio e premi «Soffia» per sentire e vedere la voce.', en: 'Start the audio and press “Blow” to hear and see the voice.' },
+  noAudio: { it: 'Premi «Suono» per sentire e vedere la voce.', en: 'Press “Sound” to hear and see the voice.' },
 } as const;
 
 export type Key = keyof typeof S;

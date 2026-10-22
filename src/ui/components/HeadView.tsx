@@ -340,7 +340,7 @@ export function HeadView() {
       </div>
       <div className="overlay-bottom hint">
         {postureLock ? <span className="locked-note">{L(lockText(postureLock, 'head'))}</span>
-          : !sound ? <span className="sound-note">{L({ it: 'Suono spento: la testa si muove senza voce. Premi «▶ Suono» per sentirla.', en: 'Sound off: the head moves without a voice. Press “▶ Sound” to hear it.' })}</span>
+          : !sound ? <span className="sound-note">{L({ it: 'In silenzio: la testa si muove senza voce. Premi «▶ Suono» per sentirla.', en: 'Silent: the head moves without a voice. Press “▶ Sound” to hear it.' })}</span>
           : t('headHint')}
       </div>
     </div>

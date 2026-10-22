@@ -36,6 +36,18 @@ export function lockText(l: Lock, what: 'control' | 'head' = 'control'): Bi {
   }
 }
 
+/** Who holds a control, in a few words (for badges). */
+export function lockShort(l: Lock): Bi {
+  switch (l.by) {
+    case 'sentence': return { it: `frase «${l.label.it}»`, en: `sentence “${l.label.en}”` };
+    case 'melody': return { it: 'melodia', en: 'melody' };
+    case 'glide': return { it: 'nota che scivola', en: 'pitch glide' };
+    case 'clip': return l.label;
+    case 'tube': return l.label;
+    case 'bypass': return { it: 'filtro: nessuno', en: 'filter: none' };
+  }
+}
+
 /** Who drives the voice right now, what that locks, and the way back to the hands. */
 export function DriverBar() {
   const L = useL();

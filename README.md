@@ -26,21 +26,27 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 82 automated tests (physics, speech, analysis, interface text)
+npm test           # 116 automated tests (physics, speech, analysis, the voice controller, interface text)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
 ```
 
-Click **Accendi l'audio / Start audio** once (browsers only allow audio after a
-user gesture), then **Soffia / Blow** or any phoneme, preset or example.
+Press **▶ Sound / Suono** in the header (browsers only allow audio after a user
+gesture): it starts the audio and the lungs, and you hear the shape of the
+head. Press it again to stop everything. Any phoneme, voice, sentence or
+experiment also starts the audio by itself.
 
 ## What you can do
 
-Two modes, switchable in the header:
+Three modes, switchable in the header and remembered in the browser:
 
-- **Guided tour** (a welcome and 11 chapters, the first ones following the
-  video): a buzz and a filter; waves, harmonics and spectrum; the source
+- **Learn**, for someone who starts from nothing (a welcome and 11 chapters,
+  the first ones following the video). Each chapter is a card of numbered
+  steps beside a stage with the head and one view, chosen by the step, plus
+  the two or three quick controls the chapter needs (vowels, pitch, voices,
+  a hiss, the nose, measured tubes, a sentence); the chapters run along the
+  bottom. The chapters: a buzz and a filter; waves, harmonics and spectrum; the source
   (pulses, pitch, melody with the buzz alone); the filter (formants, vowels,
   the F1-F2 map, what belongs to the person); two independent knobs (source
   and filter); the hiss (s, f, breathy voice, pulsed aspiration); consonants
@@ -49,17 +55,41 @@ Two modes, switchable in the header:
   tract in 3D (the side channels of an "l", the piriform fossae); the
   spectrogram (slices, window trade-off, log-mel); from sounds to sentences
   (coarticulation, timing, melody, each one switched off); a machine voice.
-  Every chapter has buttons that set up what it describes, and most have
-  guided experiments: a question, the steps to try, what to look and listen
-  for, and the answer on demand, with the live numbers behind it when
-  Numbers is on.
-- **Lab**: every control at once.
+  Every step sets up what it describes, and most chapters have guided
+  experiments: a question, the steps to try, what to look and listen for,
+  and the answer on demand, with the live numbers behind it when Numbers is
+  on. Steps that need a tool (A/B, melody, machine voice, your own noise)
+  open it inside the card.
+- **Play**, for someone who wants to try things without the theory: a big
+  head with its handles and a caption of what you are holding, four cards
+  (say something, pick a sound, who is speaking, find your vowel on the map)
+  and the spectrogram along the bottom.
+- **Lab**, for someone who knows the subject. A signal chain, Source → Tract →
+  Noise → Output, chooses what the inspector on the right shows; the
+  experiments (Speak, Melody, A/B, Machine voice) sit at the end of the
+  chain. The views sit in a grid of one, two or four cells, each with its
+  own view picker and an enlarge button (Esc closes it); the layout is
+  remembered in the browser.
+
+Who drives the voice is always shown under the header. Your hands (the
+handles, the sliders, the phoneme buttons) drive it unless something else
+does: a sentence moves the tongue, lips, jaw, velum, pitch, lungs and glottis;
+a melody the pitch, lungs and glottis (the head stays yours, so you can change
+the vowel while it sings); a clip everything but the volume. The filter can
+also leave the head: a measured or drawn tube replaces the tongue, jaw, lips,
+teeth and body, and "no filter" lets you hear the raw source. Whatever is
+driven is locked where you see it: sliders are greyed with a padlock, the
+live value and the reason; the head's handles turn hollow and say who moves
+them. **Stop** gives the voice back to your hands, **Take over** keeps the
+posture and pitch sounding at that instant, **Back to the head** leaves the
+tube. When a sentence, melody or clip ends, the head glides back to the
+posture you had and the lungs stop, so nothing starts again by itself.
 
 Views:
 
 | View | What it shows |
 |---|---|
-| Head (left) | Mid-sagittal head with draggable handles for tongue body, tongue tip, jaw, lips, velum, larynx and incisors. The airway is coloured by the live acoustic field (pressure, particle velocity or airflow), with glottal pulses, nasal airflow, turbulence particles at the jet and the teeth, and sparks on releases. |
+| Head | Mid-sagittal head with draggable handles for tongue body, tongue tip, jaw, lips, velum, larynx and incisors. The airway is coloured by the live acoustic field (pressure, particle velocity or airflow), with glottal pulses, nasal airflow, turbulence particles at the jet and the teeth, and sparks on releases. |
 | Vowel map | F1-F2 chart (log axes) with Peterson & Barney (men, women, children), Hillenbrand et al. and the narrator's vowels of the video; the model's vowels are clickable, dragging blends articulations; the live trail and the microphone's formants are drawn on it. |
 | Spectrum | Measured output spectrum, predicted harmonics (source harmonics x filter), filter envelope, formant labels, optional microphone overlay. |
 | Waveform | Output pressure, glottal flow and noise. |
@@ -68,21 +98,23 @@ Views:
 | 3D tract | The airway in three dimensions, built from the same cross-sections the sound is computed with and coloured by the live field, inside the tongue, palate, teeth, velum, pharynx and lips; the lateral channels and the supralingual cavity of an /l/, the piriform fossae with their water. Drag to turn, scroll to zoom; side, front, top and ¾ views, a mid-sagittal cutaway, tissues and labels on or off; Numbers gives the narrowest passage, the channels and the cavity. Loaded on demand (three.js, WebGL). |
 | Spectrogram | Scrolling, 0-8 kHz linear or 80-band log-mel; analysis window from 3 to 80 ms with a plain explanation of the time-frequency trade-off. |
 
-Control tabs:
+Inspector (Lab) and tools (Learn):
 
-| Tab | Controls |
+| Block | Controls |
 |---|---|
-| Source | Blow, voicing, buzz only (no filter), F0, lung pressure, glottal opening, vibrato; voice presets (man, woman, child, deep, whisper, vocal fry, breathy, pressed, raspy); LF (Rd or Oq / alpha_m / Ra) or two-mass (tension, asymmetry, rest area); peak area, source-tract interaction, posterior chink; jitter, shimmer, diplophonia. |
-| Tract & person | Articulators as sliders, phoneme buttons (IPA), the vowels measured by MRI (Story 2008) loaded as the tube, anatomy (size, pharynx length and width, nasal leak, nasal cycle, each nostril, pinch the nose, air in the piriform fossae), timbre presets, losses. |
-| Teeth & slit | Front view and side view of the incisors with the jet; slit width, extra opening, diastema, overjet, advance, upper / lower incisor length, tongue groove; presets (open bite, gap teeth, overjet, short teeth); s / ʃ / f / θ / z shortcuts; live jet readouts (velocity, Reynolds number, share of the jet hitting the teeth). |
+| Source | Lungs, voicing, F0, lung pressure, glottal opening, vibrato; voice presets (man, woman, child, deep, whisper, vocal fry, breathy, pressed, raspy); LF (Rd or Oq / alpha_m / Ra) or two-mass (tension, asymmetry, rest area); peak area, source-tract interaction, posterior chink; jitter, shimmer, diplophonia. |
+| Tract: tract & person | Filter (head, tube or none), articulators as sliders, phoneme buttons (IPA), the vowels measured by MRI (Story 2008) loaded as the tube, anatomy (size, pharynx length and width, nasal leak, nasal cycle, each nostril, pinch the nose, air in the piriform fossae), timbre presets, losses. |
+| Tract: teeth & slit | Front view and side view of the incisors with the jet; slit width, extra opening, diastema, overjet, advance, upper / lower incisor length, tongue groove; presets (open bite, gap teeth, overjet, short teeth); s / ʃ / f / θ / z shortcuts; live jet readouts (velocity, Reynolds number, share of the jet hitting the teeth). |
 | Noise | The physical sources (aspiration, constriction jet, teeth obstacle, release bursts) with trims and pulsing; your own noise: colour (white, pink, brown, blue, violet), a drawable 32-point spectrum, band limits, level, pulsing by the glottal flow, injection point (glottis, constriction, teeth, lips or anywhere along the tract) or straight to the ears (bypassing the tract). |
 | Speak | English or Italian text (numbers are read out), or IPA between slashes; rate, accent strength; examples in both languages; a phone timeline that follows the playback; "what makes it sound natural": timing, intonation, micro-variation, voice quality and coarticulation, each switchable, with a plain explanation and a one-click robot voice. |
 | Melody | Draw a pitch contour (erase = unvoiced) and play it with the buzz alone or through the current vowel; contour presets (sample sentence, question, flat); a two-octave keyboard (mouse or computer keys) with vibrato. |
-| A/B experiment | Nine ready-made experiments (same filter other pitch, same pitch other filter, same vowel another body, dark vs bright, velum closed vs open, one nostril pinched, steady vs pulsed hiss, voice vs whisper, LF vs two-mass) plus your own A/B captures, rendered offline, played and overlaid as long-term spectra. |
+| A/B experiment | Nine ready-made experiments (same filter other pitch, same pitch other filter, same vowel another body, dark vs bright, velum closed vs open, one nostril pinched, steady vs pulsed hiss, voice vs whisper, LF vs two-mass) plus your own A/B captures. Each side plays through the live engine, so the head and the views show A or B as you hear it, and the long-term spectra are taken from the samples you heard. |
 | Machine voice | Only what the video narration says about the excitation of a neural speech model: nine sines at 1..9 x F0, locked to the pitch, switched off where the melody is zero and replaced by soft noise, mixed by learned weights (here by hand). |
 
-Header extras: microphone (opt-in, analysed locally, never played back),
-numbers on/off, freeze, reset, volume.
+| Output | Volume, sample rate and level; harmonics, filter envelope, log-mel, analysis window; numbers everywhere; freeze the views; the microphone (opt-in, analysed locally, never played back). |
+
+The header holds the three modes, the Sound button, the volume and EN / IT;
+reset sits at the end of the Lab's chain.
 
 ## Architecture
 
@@ -105,21 +137,38 @@ src/
     analysis/             LPC formants, YIN pitch, mel filterbank
     data/vowels.ts        reference vowel formants
     data/mri.ts           vowel area functions measured by MRI (Story 2008)
-  audio/worklet.ts        AudioWorkletProcessor wrapping the engine
-  audio/audioEngine.ts    AudioContext, worklet node, clips, microphone
+  audio/programRunner.ts  what the worklet runs: live parameters, sentences, melodies, clips and samples as programs
+  audio/worklet.ts        AudioWorkletProcessor wrapping the program runner
+  audio/audioEngine.ts    AudioContext, worklet node, microphone (the voice sink)
+  ui/voice/               the voice controller, the only door to the sound: hands, performers, filter lanes, locks
+  ui/modes/               Learn, Play and Lab layouts, the view frame, the quick controls
+  ui/ds/                  small design system: card, pills, icon button, value with unit
   ui/                     React 19 views, panels, store, i18n, guided tour
   ui/three/meshes.ts      pure mesh builder for the 3D view (tested in Node); three.js loads only with that view
 tests/                    Vitest suites with the validation numbers
 scripts/                  validate.ts, say.ts (renders sentences to WAV), tuning and debug tools
 ```
 
-The engine runs inside an `AudioWorkletProcessor`. The UI sends parameter
-changes (coalesced per task) and gestural scores; the worklet streams the
-output, the glottal flow and the noise back in blocks of 1024 samples, plus
-telemetry (areas, field per section, F0, jet, levels) about 60 times per
-second. Canvases read a
-shared ring buffer in `requestAnimationFrame`. Offline renders (A/B, machine
-excitation) use the same engine class synchronously.
+Every change to what you hear goes through one object, the voice controller
+(`src/ui/voice/voice.ts`). It keeps the hands' parameters (read-only to the
+rest of the interface, so the compiler refuses a direct write), knows who
+drives each control, refuses an edit to a locked control unless the action
+explicitly takes over, and talks to the audio through a small interface (the
+voice sink), so the controller, the store and the guided tour are tested in
+Node with a fake sink and a fake clock.
+
+The engine runs inside an `AudioWorkletProcessor`. The controller sends the
+parameters (coalesced per task) and programs: a sentence or melody score, a
+clip of parameters for a few seconds, or ready samples (the machine voice).
+A program carries its own parameters and the ones to return to, so the two
+never arrive out of order; it ends with an `ended` message carrying its id
+(stale ones are ignored), and a 5 ms fade covers the jumps between programs.
+The worklet streams the output, the glottal flow and the noise back in blocks
+of 1024 samples, plus telemetry (areas, field per section, F0, jet, levels)
+about 60 times per second; the views draw what sounds, from that telemetry.
+Canvases read a shared ring buffer in `requestAnimationFrame`. Offline renders
+(tests, the machine excitation, exports) use the same engine class
+synchronously.
 
 ## The model
 

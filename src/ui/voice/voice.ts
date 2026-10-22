@@ -65,6 +65,8 @@ export class VoiceController {
   private locks = new Map<ControlId, Lock | null>();
   private listeners = new Set<() => void>();
   private streamListeners = new Set<(s: StreamBlock) => void>();
+  /** what the hands hold, in words: a phoneme and a speaker preset (cleared when the hands change them otherwise) */
+  held: { phoneme: string | null; speaker: string | null } = { phoneme: null, speaker: null };
   /** messages for the person (an audio start that failed) */
   onInfo: (msg: string) => void = () => {};
   micOn = false;
@@ -158,6 +160,8 @@ export class VoiceController {
       draft = cloneParams(this._manual);
       mut(draft);
     }
+    if (changed.has('posture') || changed.has('velum')) this.held = { ...this.held, phoneme: null };
+    if (changed.has('body') || changed.has('quality')) this.held = { ...this.held, speaker: null };
     this.commit(draft);
     return true;
   }
@@ -165,7 +169,14 @@ export class VoiceController {
   /** Holds a phoneme with the hands (an explicit choice: it takes over by default). */
   holdPhoneme(ipa: string, opts: { f0?: number; takeOver?: boolean } = {}): boolean {
     const ok = this.edit((p) => { applyPhoneme(ipa, p); if (opts.f0) p.source.f0 = opts.f0; p.phonate = true; }, { takeOver: opts.takeOver ?? true });
-    if (ok) void this.ensureAudio();
+    if (ok) { this.held = { ...this.held, phoneme: ipa }; this.emit(); void this.ensureAudio(); }
+    return ok;
+  }
+
+  /** Becomes a speaker (a preset of source and anatomy, by id) and blows. */
+  applyPreset(id: string, apply: (p: EngineParams) => void): boolean {
+    const ok = this.edit((p) => { apply(p); p.phonate = true; }, { takeOver: true });
+    if (ok) { this.held = { ...this.held, speaker: id }; this.emit(); void this.ensureAudio(); }
     return ok;
   }
 
