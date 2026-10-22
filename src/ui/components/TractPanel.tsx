@@ -24,7 +24,7 @@ export function TractPanel() {
     groove: { it: 'Solco della lingua', en: 'Tongue groove' },
     lipOpen: { it: 'Apertura labbra', en: 'Lip opening' },
     lipRound: { it: 'Arrotondamento labbra', en: 'Lip rounding' },
-    lipProtrude: { it: 'Labbra in fuori', en: 'Lip protrusion' },
+    lipProtrude: { it: 'Labbra in fuori (sotto zero: tirate)', en: 'Lip protrusion (below zero: spread)' },
     lipTuck: { it: 'Labbro sotto i denti (f, v)', en: 'Lip under the teeth (f, v)' },
     velum: { it: 'Velo abbassato (naso)', en: 'Velum lowered (nose)' },
     larynx: { it: 'Altezza della laringe', en: 'Larynx height' },

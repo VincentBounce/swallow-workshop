@@ -16,7 +16,7 @@ export interface Articulators {
   lipOpen: number;
   /** lip rounding, 0 = spread, 1 = fully rounded */
   lipRound: number;
-  /** lip protrusion, 0..1 cm */
+  /** lip protrusion, 0..1 cm; below zero the lips are spread back against the teeth (as for /s/) */
   lipProtrude: number;
   /** lower lip tucked under the upper incisors (labiodental), 0..1 */
   lipTuck: number;
@@ -100,7 +100,7 @@ export const ARTICULATOR_RANGES: Record<keyof Articulators, [number, number]> = 
   groove: [0, 1],
   lipOpen: [-0.4, 1.2],
   lipRound: [0, 1],
-  lipProtrude: [0, 1],
+  lipProtrude: [-0.6, 1],
   lipTuck: [0, 1],
   velum: [0, 1],
   larynx: [-1.5, 1.2],

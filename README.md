@@ -178,8 +178,11 @@ d(s) become areas with region-specific power laws A = alpha d^beta (Heinz &
 Stevens 1965; Sundberg et al. 1987), except at the lips (elliptic opening) and
 at the teeth (the explicit slit between the incisor edges). The centreline
 length is measured, so lip protrusion and a lowered larynx really lengthen
-the tube. 12 articulators: jaw, tongue body x/y, tip x/y, blade groove, lip
-opening, rounding, protrusion, labiodental tuck, velum, larynx height. The
+the tube (and spread lips, protrusion below zero, shorten it). 12
+articulators: jaw, tongue body x/y, tip x/y, blade groove, lip opening,
+rounding, protrusion, labiodental tuck, velum, larynx height. A tucked lower
+lip rises to the upper teeth whatever the jaw, as a closing lip does for a
+bilabial (motor equivalence). The
 anatomy (size, pharynx length and width, nasal leak) is the persistent
 "person" part of the filter.
 
@@ -274,7 +277,10 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   which a one-dimensional tube cannot show, and a high vowel next to it
   would otherwise close the passage. The velar nasal /ŋ/ closes against the
   oral face of the lowered velum, in front of the velopharyngeal port;
-  further back it would cut the nose off too. Gestures that cannot be held:
+  further back it would cut the nose off too. /s z/ spread the lips back
+  against the teeth (lip protrusion below zero): the short cavity in front of
+  the groove puts the hiss where it is measured, and a rounded neighbour
+  cannot stretch it down to a lisp. Gestures that cannot be held:
   the tap /ɾ/ (one flick of the tongue tip) and the glottal stop /ʔ/ (the
   folds pressed shut).
 - **Italian G2P**: orthography rules (c/g before e/i, ch/gh, sc(i), gn, gl(i),
@@ -411,16 +417,16 @@ in brackets are the adult male targets described under Speech.
 | LF spectral slope, Rd 1, 1-5 kHz | -11.8 dB/oct (flow derivative), -17.9 dB/oct (flow) |
 | LF H1-H2 | Rd 0.5: -2.0 dB, Rd 1: 3.8 dB, Rd 2.5: 17.5 dB (pressed to breathy) |
 | Two-mass F0 vs tension | Q 0.7: 100 Hz, Q 1.2: 167 Hz, Q 1.8: 245 Hz; automatic tension within 4 % of the target |
-| /s/ | peak 4875 Hz, centroid 4755 Hz, -9.8 dB re /a/ |
+| /s/ | peak 4500 Hz, centroid 6143 Hz, -10.5 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000); in sentences (scripts/sibilants.ts) mean about 5.0-5.3 kHz for the man, 6.2 kHz for the woman |
 | /ʃ/ | peak 3797 Hz, centroid 3027 Hz, -2.4 dB re /a/ |
-| /f/ | centroid 6543 Hz, flat (2-10 kHz spread 9.9 dB vs 15.8 dB for /s/), -19.5 dB re /a/, -9.7 dB re /s/ |
-| Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 19.0 dB |
+| /f/ | centroid 6543 Hz, flat (2-10 kHz spread 9.9 dB vs 13.2 dB for /s/), -19.5 dB re /a/, -9.0 dB re /s/ |
+| Teeth | opening the incisal slit by 6 mm lowers /s/ in 4-10 kHz by 15.3 dB |
 | Breathiness | HF/LF ratio +18.8 dB with a 0.12 cm² chink and Rd 2.2 |
 | Aspiration | F0 envelope modulation depth: steady 0.043, pulsed 0.598 |
 | Period boundaries | jitter 1 % and shimmer 6 % change the 8-16 kHz energy by +0.1 dB (+32 dB when the pulse mean jumped at each period) |
 | Control rate | voice onset from rest: 3-8 kHz at -40.5 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF -2.9 dB in /sː/ vs -34.1 dB in /a/ |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +1.7 dB in /sː/ vs -34.4 dB in /a/ |
 | "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -32.6 dB vs -11.5 dB in the vowel |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
@@ -493,6 +499,8 @@ in brackets are the adult male targets described under Speech.
 - Fletcher, H. (1953). Speech and Hearing in Communication. Van Nostrand.
 - Fry, D. B. (1979). The Physics of Speech. Cambridge University Press.
 - Fujimura, O. (1962). Analysis of nasal consonants. JASA 34.
+- Jongman, A., Wayland, R. & Wong, S. (2000). Acoustic characteristics of English fricatives. JASA 108.
+- Jongman, A. (2024). Phonetics of fricatives. Oxford Research Encyclopedia of Linguistics.
 - Zue, V. W. & Laferriere, M. (1979). Acoustic study of medial /t, d/ in American English. JASA 66.
 - Shadle, C. H. (1985). The acoustics of fricative consonants. PhD thesis, MIT.
 - Sondhi, M. M. & Schroeter, J. (1987). A hybrid time-frequency domain articulatory speech synthesizer. IEEE Trans. ASSP 35.
@@ -518,6 +526,7 @@ npx tsx scripts/melody.ts en "is it raining?"   # planned F0 at each phone
 npx tsx scripts/noisemap.ts en "every voice"    # level of each noise source per phone
 npx tsx scripts/contrast.ts it "il vino"        # how deep each consonant dips below its vowels
 npx tsx scripts/landmarks.ts                    # when constrictions form and open, against the plan
+npx tsx scripts/sibilants.ts a.wav b.wav        # peak and spectral mean of the hissing frames of recordings
 npx tsx scripts/pitch.ts a.wav b.wav            # pitch track, level and F0 spread of recordings
 npx tsx scripts/hnr.ts a.wav b.wav              # harmonics-to-noise ratio, full band and above 2 kHz
 npx tsx scripts/specpng.ts out.png a.wav b.wav  # stacked spectrograms with pitch tracks

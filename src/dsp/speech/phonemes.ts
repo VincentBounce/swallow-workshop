@@ -75,8 +75,12 @@ const C = (
 
 export const CONSONANTS: Record<string, Phoneme> = {
   // fricatives
-  s: C('s', 'fricative', false, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'sasso, hiss, see'),
-  z: C('z', 'fricative', true, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipTuck: 0, velum: 0 }, 0.12, 0.09, 'rosa (N. It.), zoo'),
+  // lips spread back against the teeth: the short cavity in front of the
+  // groove puts the hiss where it is measured (male /s/: peak 4-5 kHz, mean
+  // 5-6 kHz; Jongman et al. 2000), and rounding from the next vowel cannot
+  // stretch it down to a lisp
+  s: C('s', 'fricative', false, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipProtrude: -0.35, lipTuck: 0, velum: 0 }, 0.55, 0.12, 'sasso, hiss, see'),
+  z: C('z', 'fricative', true, { jaw: 0.15, tongueX: 0.3, tongueY: 0.0, tipX: 0.68, tipY: 0.516, groove: 1, lipOpen: 0.18, lipRound: 0, lipProtrude: -0.35, lipTuck: 0, velum: 0 }, 0.12, 0.09, 'rosa (N. It.), zoo'),
   'ʃ': C('ʃ', 'fricative', false, { jaw: 0.2, tongueX: 0.15, tongueY: 1.19, tipX: -0.1, tipY: 1.426, groove: 0.4, lipOpen: 0.12, lipRound: 0.75, lipProtrude: 0.8, lipTuck: 0, velum: 0 }, 0.55, 0.13, 'scena, she'),
   'ʒ': C('ʒ', 'fricative', true, { jaw: 0.2, tongueX: 0.15, tongueY: 1.19, tipX: -0.1, tipY: 1.426, groove: 0.4, lipOpen: 0.12, lipRound: 0.75, lipProtrude: 0.8, lipTuck: 0, velum: 0 }, 0.12, 0.1, 'beige'),
   f: C('f', 'fricative', false, { jaw: 0.12, lipOpen: 0.522, lipTuck: 1, lipRound: 0, lipProtrude: 0, velum: 0 }, 0.55, 0.12, 'fame, father'),

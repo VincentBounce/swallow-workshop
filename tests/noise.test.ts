@@ -29,10 +29,13 @@ describe('fricative noise from flow, constriction and teeth', () => {
   const pS = spectralPeak(s, fs, 1500, 11000), pSh = spectralPeak(sh, fs, 1500, 11000);
   const cS = spectralCentroid(s, fs, 1000, 11000), cSh = spectralCentroid(sh, fs, 1000, 11000), cF = spectralCentroid(f, fs, 1000, 11000);
 
-  it('/s/ peaks between 4 and 8 kHz', () => {
+  it('/s/ peaks between 4 and 8 kHz, with its spectral mean at 5-7 kHz', () => {
+    // male /s/: peak about 4-5 kHz, spectral mean 5-6 kHz (Jongman et al. 2000; Jongman 2024)
     note('/s/ spectrum', `peak ${pS.toFixed(0)} Hz, centroid ${cS.toFixed(0)} Hz, level ${(rmsDb(s) - rmsDb(a)).toFixed(1)} dB re /a/`);
     expect(pS).toBeGreaterThan(4000);
     expect(pS).toBeLessThan(8000);
+    expect(cS).toBeGreaterThan(5000);
+    expect(cS).toBeLessThan(7000);
   });
 
   it('/ʃ/ peaks lower, around 2.5-4 kHz', () => {
