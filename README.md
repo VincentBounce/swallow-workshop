@@ -70,16 +70,24 @@ Three modes, switchable in the header and remembered in the browser:
   sounds, seven steps a chapter) and checks that every step opens in
   silence, that every sound of it is heard as it is shown, and that it rests
   a breath later.
-- **Play**, for someone who wants to try things without the theory: a big
-  head with its handles and a caption of what you are holding, four cards
-  (say something, pick a sound, who is speaking, find your vowel on the map)
-  and the spectrogram along the bottom.
-- **Lab**, for someone who knows the subject. A signal chain, Source → Tract →
-  Noise → Output, chooses what the inspector on the right shows; the
-  experiments (Speak, Melody, A/B, Machine voice) sit at the end of the
-  chain. The views sit in a grid of one, two or four cells, each with its
-  own view picker and an enlarge button (Esc closes it); the layout is
-  remembered in the browser.
+- **Play**, for someone who wants to try things without the theory, one
+  activity at a time. Four big tabs (Speak, Sounds, Voices, Vowels) each
+  show the head with its handles beside the one view that suits them (the
+  spectrogram for a sentence, the spectrum for a sound or a voice, the
+  vowel map for the vowels) and, under them, only that activity's controls:
+  a text to say, the phoneme buttons, the four speakers, the vowels. On a
+  phone the controls sit right under the head.
+- **Lab**, for someone who knows the subject, one bench at a time. A block of
+  the signal chain, Source → Tract → Noise → Output, chooses the bench: the
+  views that part of the chain is seen in (the vocal folds and the spectrum
+  for the source, the tube and the vowel map for the tract, the spectrum
+  and the spectrogram for the noise, the scope and the spectrogram for the
+  output) and its controls in the inspector, where one section is open at
+  a time. The experiments (Speak, Melody, A/B, Machine voice) open from a
+  menu at the end of the chain, in place of the inspector, with a button
+  back to the block you came from. One or two views; each has its own view
+  picker and an enlarge button (Esc closes it), and a view changed is
+  remembered for that bench in the browser.
 
 Who drives the voice is always shown under the header. Your hands (the
 handles, the sliders, the phoneme buttons) drive it unless something else

@@ -15,8 +15,12 @@ export type Lang = 'it' | 'en';
 export type Mode = 'learn' | 'play' | 'lab';
 export type ControlTab = 'source' | 'tract' | 'teeth' | 'noise' | 'output' | 'speak' | 'melody' | 'ab' | 'machine';
 export type ViewTab = 'spectrum' | 'spectrogram' | 'scope' | 'glottis' | 'chart' | 'tube' | 'tract3d';
-/** the lab's view grid: how many cells and what each shows */
-export interface LabViews { layout: 1 | 2 | 4; cells: ViewTab[] }
+/** the lab's benches: the blocks of the signal chain, and the experiments */
+export type Bench = 'source' | 'tract' | 'noise' | 'output' | 'experiments';
+/** the lab's views: one or two, and the two each bench shows */
+export interface LabViews { layout: 1 | 2; bench: Record<Bench, [ViewTab, ViewTab]> }
+/** what the Play mode is doing: one activity at a time */
+export type PlayActivity = 'speak' | 'sounds' | 'voices' | 'vowels';
 export type FieldMode = 'pressure' | 'velocity' | 'air';
 
 export interface UiState {
@@ -30,6 +34,7 @@ export interface UiState {
   learnTool: ControlTab | null;
   viewTab: ViewTab;
   labViews: LabViews;
+  playActivity: PlayActivity;
   /** spectrogram analysis window, ms */
   specWindow: number;
   /** spectrogram as 80-band log-mel */
@@ -61,7 +66,8 @@ const LANG_KEY = 'voice-workshop.lang';
 const MODE_KEY = 'voice-workshop.mode';
 const CHAPTER_KEY = 'voice-workshop.chapter';
 const STEP_KEY = 'voice-workshop.step';
-const VIEWS_KEY = 'voice-workshop.lab-views';
+const VIEWS_KEY = 'voice-workshop.lab-bench';
+const PLAY_KEY = 'voice-workshop.play';
 const VIEW_IDS: ViewTab[] = ['spectrum', 'spectrogram', 'scope', 'glottis', 'chart', 'tube', 'tract3d'];
 
 /** A value this browser remembers (a convenience: everything works without it). */
@@ -88,12 +94,29 @@ function initialStep(): number {
   const n = Number(remembered(STEP_KEY));
   return Number.isInteger(n) && n >= 0 ? n : 0;
 }
+/** The views each bench of the lab starts with: what that part of the chain is seen in. */
+export const BENCH_VIEWS: Record<Bench, [ViewTab, ViewTab]> = {
+  source: ['glottis', 'spectrum'],
+  tract: ['tube', 'chart'],
+  noise: ['spectrum', 'spectrogram'],
+  output: ['scope', 'spectrogram'],
+  experiments: ['spectrogram', 'spectrum'],
+};
 function initialLabViews(): LabViews {
+  const v: LabViews = { layout: 2, bench: { ...BENCH_VIEWS } };
   try {
-    const v = JSON.parse(remembered(VIEWS_KEY) ?? 'null') as LabViews | null;
-    if (v && [1, 2, 4].includes(v.layout) && Array.isArray(v.cells) && v.cells.length === 4 && v.cells.every((c) => VIEW_IDS.includes(c))) return v;
+    const r = JSON.parse(remembered(VIEWS_KEY) ?? 'null') as Partial<LabViews> | null;
+    if (r?.layout === 1 || r?.layout === 2) v.layout = r.layout;
+    for (const b of Object.keys(BENCH_VIEWS) as Bench[]) {
+      const c = r?.bench?.[b];
+      if (Array.isArray(c) && c.length === 2 && c.every((x) => VIEW_IDS.includes(x))) v.bench[b] = [c[0], c[1]];
+    }
   } catch { /* not remembered */ }
-  return { layout: 4, cells: ['spectrum', 'spectrogram', 'chart', 'tube'] };
+  return v;
+}
+function initialPlay(): PlayActivity {
+  const v = remembered(PLAY_KEY);
+  return v === 'speak' || v === 'sounds' || v === 'voices' || v === 'vowels' ? v : 'sounds';
 }
 
 /**
@@ -111,7 +134,7 @@ function initialLang(): Lang {
  */
 class Store {
   ui: UiState = {
-    lang: initialLang(), mode: initialMode(), chapter: initialChapter(), step: initialStep(), controlTab: 'source', learnTool: null, viewTab: 'spectrum', labViews: initialLabViews(), specWindow: 30, mel: false,
+    lang: initialLang(), mode: initialMode(), chapter: initialChapter(), step: initialStep(), controlTab: 'source', learnTool: null, viewTab: 'spectrum', labViews: initialLabViews(), playActivity: initialPlay(), specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
     info: null, numbers: false,
     speech: { text: '', lang: 'en', rate: 1, accent: 5, natural: { ...NATURAL_ALL } },
@@ -165,6 +188,7 @@ class Store {
     if (u.chapter !== undefined) remember(CHAPTER_KEY, String(u.chapter));
     if (u.step !== undefined) remember(STEP_KEY, String(u.step));
     if (u.labViews) remember(VIEWS_KEY, JSON.stringify(u.labViews));
+    if (u.playActivity) remember(PLAY_KEY, u.playActivity);
     if (u.lang && u.lang !== this.ui.lang) {
       remember(LANG_KEY, u.lang);
       // the untouched example sentence follows the interface language

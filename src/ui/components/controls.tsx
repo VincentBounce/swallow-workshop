@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { Children, ReactElement, ReactNode, cloneElement, isValidElement, useState } from 'react';
 import { useStore } from '../store';
 import { useL } from '../i18n';
 import { useLock } from '../voice/hooks';
@@ -67,13 +67,20 @@ export function Seg<T extends string>(props: { value: T; options: [T, string][];
 }
 
 /** Collapsible group with an optional plain-language explanation. */
-export function Section(props: { title: string; children: ReactNode; info?: ReactNode; open?: boolean; accent?: string }) {
-  const [open, setOpen] = useState(props.open ?? true);
+interface SectionProps {
+  title: string; children: ReactNode; info?: ReactNode; open?: boolean; accent?: string;
+  /** set by OneOpen: whether this section is the one unfolded, and how to fold it */
+  unfolded?: boolean; onFold?: () => void;
+}
+
+export function Section(props: SectionProps) {
+  const [own, setOwn] = useState(props.open ?? true);
   const [info, setInfo] = useState(false);
+  const open = props.unfolded ?? own;
   return (
-    <section className="section">
+    <section className={open ? 'section open' : 'section'}>
       <header>
-        <button className="section-title" onClick={() => setOpen(!open)} style={props.accent ? { borderLeftColor: props.accent } : undefined}>
+        <button className="section-title" aria-expanded={open} onClick={() => (props.onFold ? props.onFold() : setOwn(!own))} style={props.accent ? { borderLeftColor: props.accent } : undefined}>
           <span className={open ? 'caret open' : 'caret'}>▸</span>{props.title}
         </button>
         {props.info && <button className={info ? 'info on' : 'info'} onClick={() => setInfo(!info)} aria-label="info">i</button>}
@@ -82,6 +89,21 @@ export function Section(props: { title: string; children: ReactNode; info?: Reac
       {open && <div className="section-body">{props.children}</div>}
     </section>
   );
+}
+
+/**
+ * Keeps one of the sections among its children unfolded at a time (to begin
+ * with, the first one that is open by default): a long panel reads as a list
+ * of titles with one of them open.
+ */
+export function OneOpen({ children }: { children: ReactNode }) {
+  const isSection = (c: ReactNode): c is ReactElement<SectionProps> => isValidElement(c) && c.type === Section;
+  const [open, setOpen] = useState<number | null>(() => {
+    let first: number | null = null;
+    Children.forEach(children, (c, i) => { if (first === null && isSection(c) && c.props.open !== false) first = i; });
+    return first;
+  });
+  return <>{Children.map(children, (c, i) => (isSection(c) ? cloneElement(c, { unfolded: open === i, onFold: () => setOpen(open === i ? null : i) }) : c))}</>;
 }
 
 export function Readout(props: { items: [string, string][] }) {

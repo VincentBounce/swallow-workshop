@@ -1,6 +1,6 @@
 import { store, useStore, useTick } from '../store';
 import { useL } from '../i18n';
-import { Slider, Section, Readout } from './controls';
+import { Slider, Section, Readout, OneOpen } from './controls';
 import { TIMBRE_PRESETS } from '../presets';
 import { voice, mriTube } from '../voice/voice';
 import { useLock, useManual } from '../voice/hooks';
@@ -41,7 +41,7 @@ export function TractPanel() {
   const fm = store.derived().formants;
   const af = store.derived().af;
   return (
-    <div className="panel-body">
+    <div className="panel-body"><OneOpen>
       <Section title={L({ it: 'Vocali', en: 'Vowels' })} accent={C.teal}
         info={L({
           it: 'Ogni vocale è una forma del tubo. Con «i» la lingua è alta e avanti: F1 bassa, F2 alta. Con «a» la bocca è aperta e la lingua bassa: F1 sale, F2 scende. Con «u» le labbra si arrotondano e allungano il tubo: tutte le formanti scendono.',
@@ -114,6 +114,6 @@ export function TractPanel() {
           ...fm.slice(0, 4).map((f, i) => [`F${i + 1}`, `${Math.round(f.f)} Hz (B ${Math.round(f.bw)})`] as [string, string]),
         ]} />
       </Section>
-    </div>
+    </OneOpen></div>
   );
 }

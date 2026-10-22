@@ -3,7 +3,7 @@ import { store, useStore, useTick } from '../store';
 import { voice } from '../voice/voice';
 import { useManual } from '../voice/hooks';
 import { useL } from '../i18n';
-import { Slider, Toggle, Section, Seg, Readout } from './controls';
+import { Slider, Toggle, Section, Seg, Readout, OneOpen } from './controls';
 import { useAnimatedCanvas, C, label } from '../canvas';
 import { NOISE_SHAPES } from '../presets';
 import { NOISE_CURVE_POINTS, NOISE_CURVE_FMIN, NOISE_CURVE_FMAX, noiseCurveFreq } from '../../dsp/noise/noise';
@@ -77,7 +77,7 @@ export function NoisePanel() {
   const tel = store.telemetry;
   const dbl = (x: number) => (x > 0 ? (20 * Math.log10(x)).toFixed(0) + ' dB' : '–');
   return (
-    <div className="panel-body">
+    <div className="panel-body"><OneOpen>
       <Section title={L({ it: 'Fruscio fisico (turbolenza)', en: 'Physical hiss (turbulence)' })} accent={C.violet}
         info={L({
           it: 'Quando l’aria passa veloce per un passaggio stretto il flusso diventa turbolento (numero di Reynolds sopra circa 1800) e produce rumore su un’ampia gamma di frequenze, senza armoniche. Qui nasce in tre punti: alla glottide (aspirazione, «h», voce soffiata), all’uscita della strettoia (parete) e sugli incisivi (ostacolo, la «s»). L’aspirazione pulsa a ogni ciclo delle corde, più forte quando sono aperte.',
@@ -122,6 +122,6 @@ export function NoisePanel() {
           <button className="chip" onClick={() => set((x) => { x.voicing = true; x.noise.aspirationOn = true; x.noise.fricationOn = true; x.noise.obstacleOn = true; })}>{L({ it: 'Riaccendi la voce', en: 'Voice back on' })}</button>
         </div>
       </Section>
-    </div>
+    </OneOpen></div>
   );
 }

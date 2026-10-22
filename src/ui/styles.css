@@ -315,21 +315,26 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 .learn-tool .panel-body { max-height: none; }
 
 /* ------------------------------------------------------------ Play */
-.play { flex: 1; display: grid; gap: 14px; padding: 14px 16px 4px; grid-template-columns: minmax(0, 1fr) minmax(400px, 580px); grid-template-areas: 'head cards' 'strip strip'; align-items: start; }
-.play-head { grid-area: head; display: flex; flex-direction: column; position: sticky; top: var(--header); height: max(500px, calc(100vh - var(--header) - 250px)); overflow: hidden; }
-.play-title { padding: 12px 16px 0; }
-.play-title h2 { margin: 0; font-size: 22px; }
-.play-title p { margin: 2px 0 0; }
+/* one activity at a time: four big tabs, the head beside the activity's one view, its controls under them */
+.play { flex: 1; display: grid; gap: 12px; padding: 12px 16px 4px; grid-template-rows: auto minmax(380px, 1fr) auto; min-height: calc(100vh - var(--header) - 44px); }
+.play-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.play-tab { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 16px; border: 1px solid var(--line2); background: #121925; border-radius: 14px; color: var(--text); cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
+.play-tab:hover { border-color: #43516b; }
+.play-tab.on { border-color: var(--amber); background: rgba(246, 168, 35, 0.1); }
+.play-tab-icon { width: 34px; flex: none; text-align: center; font-size: 24px; color: var(--amber); font-family: 'Noto Sans', 'Segoe UI', 'Lucida Sans Unicode', sans-serif; }
+.play-tab-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.play-tab-text b { font-size: 16px; }
+.play-tab-text small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.play-stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 12px; min-height: 0; }
+.play-head { min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .play-head .head-view { flex: 1; }
+.play-view { min-height: 0; }
 .holding { margin: 0; padding: 6px 12px 10px; text-align: center; font-size: 15px; }
 .holding b { color: var(--amber); font-size: 18px; }
-.play-cards { grid-area: cards; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.play-cards .ds-card-body { display: flex; flex-direction: column; gap: 10px; }
-.play-chart .ds-card-body { height: 220px; position: relative; padding: 0; overflow: hidden; border-radius: 0 0 var(--radius) var(--radius); }
-.play-spectro { grid-area: strip; height: 190px; display: flex; flex-direction: column; overflow: hidden; }
-.play-spectro .view-panel { flex: 1; height: auto; min-height: 0; }
-.strip-title { margin: 0; padding: 6px 12px 2px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
-.live-dot { color: var(--teal); margin-left: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+.play-controls { padding: 14px 20px; display: flex; flex-direction: column; gap: 12px; }
+.play-controls .voice-tiles { width: min(640px, 100%); }
+.play-controls .quick-label { min-width: 104px; }
+.play-note { margin: 0; }
 
 /* ------------------------------------------------------------ Lab */
 .lab { flex: 1; display: grid; gap: 12px; padding: 12px 16px 4px; grid-template-columns: minmax(330px, 0.95fr) minmax(0, 1.75fr) minmax(340px, 0.95fr); grid-template-areas: 'chain chain chain' 'head views inspector'; align-items: start; --lab-h: max(540px, calc(100vh - var(--header) - 96px)); }
@@ -346,12 +351,16 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 .chain-text small { color: var(--muted); font-size: 11px; }
 .chain-lock { font-size: 11px; }
 .chain-sep { flex: 1; }
+.exp-menu { position: relative; }
+.exp-list { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: flex; flex-direction: column; gap: 2px; padding: 6px; min-width: 240px; background: #111823; border: 1px solid #2b3f55; border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55); }
+.exp-list button { padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font-size: 14px; }
+.exp-list button:hover { background: rgba(42, 212, 189, 0.08); }
+.exp-list button.on { background: rgba(42, 212, 189, 0.14); color: var(--teal); }
 .lab-head { grid-area: head; position: sticky; top: var(--header); display: flex; flex-direction: column; height: var(--lab-h); overflow: hidden; }
 .lab-head .head-view { flex: 1; }
 .lab-views { grid-area: views; display: grid; gap: 10px; position: sticky; top: var(--header); height: var(--lab-h); min-width: 0; }
 .lab-views.n1 { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .lab-views.n2 { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); }
-.lab-views.n4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr); }
 .grid-pick { grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-bottom: -4px; }
 .lab-inspector { grid-area: inspector; display: flex; flex-direction: column; height: var(--lab-h); position: sticky; top: var(--header); overflow: hidden; }
 .lab-inspector .panel-body { overflow-y: auto; max-height: none; flex: 1; }
@@ -362,7 +371,6 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 /* ------------------------------------------------------------ narrower screens */
 @media (max-width: 1500px) {
   .lab { grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.5fr) minmax(320px, 0.95fr); }
-  .play { grid-template-columns: minmax(0, 1fr) minmax(360px, 460px); }
   .chain-text small { display: none; }
 }
 @media (max-width: 1100px) {
@@ -371,11 +379,10 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
   .lab-views { height: auto; }
   .lab-views.n1 { grid-template-rows: auto 420px; }
   .lab-views.n2 { grid-template-rows: auto 340px 340px; }
-  .lab-views.n4 { grid-template-rows: auto 320px 320px; }
   .lesson { grid-template-rows: auto auto; min-height: 0; }
   .lesson-stage { grid-template-rows: 460px; }
-  .play { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'head' 'cards' 'strip'; }
-  .play-head { position: static; height: 560px; }
+  .play { grid-template-rows: auto auto auto; min-height: 0; }
+  .play-stage { grid-template-rows: 460px; }
   .chain-sep { display: none; }
 }
 @media (max-width: 760px) {
@@ -388,7 +395,8 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
   .lab { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'chain' 'head' 'views' 'inspector'; padding: 8px; }
   .lab-head { height: 460px; }
   .lab-inspector { height: auto; max-height: none; }
-  .lab-views.n4, .lab-views.n2 { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto repeat(4, 280px); }
+  .lab-views.n2 { grid-template-rows: auto 300px 300px; }
+  .exp-list { left: 0; right: auto; }
   .chain-arrow { display: none; }
   .lesson, .play { padding: 8px; }
   .lesson-stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: 380px 300px; }
@@ -397,8 +405,15 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
   .lesson-idea { font-size: 16.5px; }
   .chapter-title { font-size: 17px; }
   .step-progress .muted { display: none; }
-  .play-head { height: 460px; }
-  .play-cards .ds-card-body { padding: 0 10px 10px; }
+  .play-tabs { gap: 6px; }
+  .play-tab { flex-direction: column; gap: 2px; padding: 8px 4px; text-align: center; }
+  .play-tab-text small { display: none; }
+  .play-tab-text b { font-size: 14px; }
+  /* on a phone the activity's controls sit right under the head, the view after them */
+  .play-stage { display: contents; }
+  .play-head { order: 1; height: 380px; }
+  .play-controls { order: 2; padding: 12px; }
+  .play-view { order: 3; height: 300px; }
   .ipa-btn { min-width: 42px; height: 42px; font-size: 19px; }
   .meters { grid-template-columns: repeat(2, 1fr); }
   .slider { grid-template-columns: 1fr 1.2fr auto; }

@@ -2,7 +2,7 @@ import { store, useStore, useTick } from '../store';
 import { voice } from '../voice/voice';
 import { useLock, useManual } from '../voice/hooks';
 import { useL } from '../i18n';
-import { Slider, Toggle, Seg, Section, Readout } from './controls';
+import { Slider, Toggle, Seg, Section, Readout, OneOpen } from './controls';
 import { VOICE_PRESETS } from '../presets';
 import { noteName, C } from '../canvas';
 import { quotients, rdToTiming } from '../../dsp/glottis/lf';
@@ -21,7 +21,7 @@ export function SourcePanel() {
   const set = (f: (q: EngineParams) => void) => voice.edit(f);
   const q = quotients(rdToTiming(s.rd));
   return (
-    <div className="panel-body">
+    <div className="panel-body"><OneOpen>
       <Section title={L({ it: 'Polmoni e corde vocali', en: 'Lungs and vocal folds' })} accent={C.amber}
         info={L({
           it: 'L’aria dei polmoni spinge le corde vocali e le apre; la loro elasticità e il risucchio dell’aria veloce le richiudono. Ogni ciclo lascia uscire uno sbuffo d’aria: tanti sbuffi al secondo sono il ronzio. La frequenza dei cicli è la nota (F0). Sotto circa 2-3 cm d’acqua di pressione le corde non vibrano più.',
@@ -85,6 +85,6 @@ export function SourcePanel() {
         <Slider label={L({ it: 'Diplofonia', en: 'Diplophonia' })} value={s.diplophonia} control="quality" min={0} max={1} onChange={(v) => set((x) => { x.source.diplophonia = v; })} />
         <Slider label={L({ it: 'Velocità vibrato', en: 'Vibrato rate' })} value={s.vibratoRate} control="pitch" min={3} max={8} step={0.1} onChange={(v) => set((x) => { x.source.vibratoRate = v; })} format={(v) => `${v.toFixed(1)} Hz`} />
       </Section>
-    </div>
+    </OneOpen></div>
   );
 }
