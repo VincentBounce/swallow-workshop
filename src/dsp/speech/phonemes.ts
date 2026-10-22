@@ -50,7 +50,7 @@ export const VOWELS: Record<string, Phoneme> = {
   'ɔ': V('ɔ', { jaw: 0.471, tongueX: -0.965, tongueY: -0.22, tongueRoot: 0.852, lipOpen: -0.05, lipRound: 0.53, lipProtrude: 0.604 }, 'cosa, hawed'),
   o: V('o', { jaw: 0.22, tongueX: -0.869, tongueY: 0.451, tongueRoot: 0.561, lipOpen: -0.05, lipRound: 0.99, lipProtrude: 0.4 }, 'voce'),
   'ʊ': V('ʊ', { jaw: 0.344, tongueX: 0.024, tongueY: 1.171, tongueRoot: -0.197, lipOpen: -0.05, lipRound: 0.93, lipProtrude: 0.926 }, 'hood'),
-  u: V('u', { jaw: 0.084, tongueX: 0.593, tongueY: 1.202, tongueRoot: -0.235, lipOpen: 0.019, lipRound: 1, lipProtrude: 1 }, "who'd, luna"),
+  u: V('u', { jaw: 0.071, tongueX: 0.528, tongueY: 1.203, tongueRoot: -0.229, lipOpen: 0.009, lipRound: 1, lipProtrude: 0.964 }, "who'd, luna"),
   'ʌ': V('ʌ', { jaw: 0.713, tongueX: -0.663, tongueY: 0.526, tongueRoot: 0.343, lipOpen: 0.237, lipRound: 0.21, lipProtrude: 0.441 }, 'hud'),
   // r-coloured vowel of "heard": a bunched or retroflex tongue with the tip up
   // and back plus rounded lips pull F3 down to about 1700 Hz (scripts/tune-rhotic.ts)

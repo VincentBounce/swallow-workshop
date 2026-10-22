@@ -45,6 +45,21 @@ describe('articulatory vowels land in the right regions of the vowel chart', () 
     expect(a[1].f).toBeLessThan(i[1].f);
   });
 
+  it('the formants of /u/ move smoothly as the lips open and close around it', () => {
+    // the lower lip entering the gap above the lower incisors used to split
+    // it in one step: F2 jumped by 5 % between two neighbouring lip openings
+    const base = { ...DEFAULT_ARTICULATORS, ...VOWELS.u.art };
+    let prev: number[] | null = null, worst = 0;
+    for (let k = -14; k <= 16; k++) {
+      const a = { ...base, lipOpen: base.lipOpen + 0.005 * k };
+      const f = formants(sectionsFromGeometry(computeGeometry(a, DEFAULT_ANATOMY, DEFAULT_TEETH)), {}).slice(0, 2).map((x) => x.f);
+      if (prev) for (let j = 0; j < 2; j++) worst = Math.max(worst, Math.abs(f[j] / prev[j] - 1));
+      prev = f;
+    }
+    note('/u/ lip sweep', `largest F1/F2 step ${(100 * worst).toFixed(2)} % per 0.005 of lip opening`);
+    expect(worst).toBeLessThan(0.015);
+  });
+
   it('a smaller speaker (child-sized tract) has proportionally higher formants', () => {
     const big = vowelFormants('a', 1).f;
     const small = vowelFormants('a', 0.75).f;

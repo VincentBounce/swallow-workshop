@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 81 automated tests (physics, speech, analysis, interface text)
+npm test           # 82 automated tests (physics, speech, analysis, interface text)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -496,12 +496,12 @@ in brackets are the adult male targets described under Speech.
 | Real-time waveguide on the same tube | 529 / 1452 / 2406 / 3370 Hz |
 | Waveguide vs reference, /i/ | 290 / 2261 / 2994 vs 288 / 2260 / 2995 Hz |
 | Waveguide vs reference, /a/ | 773 / 1308 / 2685 vs 772 / 1308 / 2686 Hz |
-| Waveguide vs reference, /u/ | 307 / 910 / 2434 vs 304 / 911 / 2433 Hz |
+| Waveguide vs reference, /u/ | 307 / 872 / 2431 vs 304 / 873 / 2431 Hz |
 | Waveguide vs reference, /ɛ/ /o/ | 535 / 1851 / 2417 and 479 / 900 / 2516 Hz (ref 534 / 1850 / 2417 and 475 / 902 / 2515) |
 | Waveguide vs reference, MRI shapes | worst F1-F3 difference 1.3 % over the 11 measured vowels |
 | MRI areas, frequency model | mean difference from the formants Story (2008) computed from the same areas: F1 4.8 %, F2 2.2 %, F3 0.8 % |
 | Vowel shapes vs MRI | log-area distance mean 0.59, worst /ɔ/ 0.80 (the drawing's own vowels: 0.98); no vowel narrower than the measured one |
-| Vowels F1 / F2 (target) | i 288 / 2260 (270 / 2290), ɪ 393 / 2005 (390 / 1990), e 442 / 2058 (440 / 2050), ɛ 534 / 1850 (530 / 1840), æ 666 / 1724 (660 / 1720), a 772 / 1308 (740 / 1300), ɑ 726 / 1083 (730 / 1090), ɔ 575 / 856 (570 / 840), o 475 / 902 (470 / 900), ʊ 447 / 1035 (440 / 1020), u 304 / 911 (300 / 870), ʌ 643 / 1189 (640 / 1190), ə 500 / 1506 (500 / 1500) |
+| Vowels F1 / F2 (target) | i 288 / 2260 (270 / 2290), ɪ 393 / 2005 (390 / 1990), e 442 / 2058 (440 / 2050), ɛ 534 / 1850 (530 / 1840), æ 666 / 1724 (660 / 1720), a 772 / 1308 (740 / 1300), ɑ 726 / 1083 (730 / 1090), ɔ 575 / 856 (570 / 840), o 475 / 902 (470 / 900), ʊ 447 / 1035 (440 / 1020), u 304 / 873 (300 / 870), ʌ 643 / 1189 (640 / 1190), ə 500 / 1506 (500 / 1500) |
 | F1 vs tract length (uniform) | 12 cm 729 Hz, 14.5 cm 603 Hz, 17.5 cm 500 Hz, 20 cm 438 Hz (1/L) |
 | /a/ scaled to 0.75 | F2 ratio 1.329 (ideal 1.333) |
 | LF spectral slope, Rd 1, 1-5 kHz | -11.8 dB/oct (flow derivative), -17.9 dB/oct (flow) |
@@ -546,9 +546,14 @@ in brackets are the adult male targets described under Speech.
   articulators allow (shape distance 0.59, not 0); the consonants are not.
   Areas come from widths through power laws; the lateral shape of the tract is
   not modelled except at the lips and the teeth. Each grid line takes one air
-  passage: just behind nearly closed lips a line can jump between the cavity
-  in front of the teeth and the lip opening, and the formants jump by a few
-  per cent (F2 of /u/ by about 5 %) for a tiny movement.
+  passage; where the tip of the lower lip enters the gap above the lower
+  incisors and splits it, the area and the midpoint pass smoothly from the
+  whole gap to the one between the lips while the lip on the line is thinner
+  than 3 mm, and a gap from the lower incisors to the upper lip is as wide as
+  the lips (largest F1/F2 step of /u/ 0.6 % per 0.005 of lip opening, 4.5 %
+  before). The front end of the tract still moves by whole grid lines: when
+  the upper lip comes down onto the last line the tract grows by 1.5 mm and
+  the formants step by about 1 % (/ʊ/).
 - The epilaryngeal tube has a fixed width: real speakers narrow it for a
   pressed voice and widen it for a breathy one.
 - A held /u/ is probably too weak: 11 dB below /a/, against 4.7 dB for /i/,

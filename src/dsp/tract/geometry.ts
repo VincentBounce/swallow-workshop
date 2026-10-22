@@ -55,6 +55,12 @@ export interface RayHit {
   area: number;
   /** air pocket below the tongue blade (cm), counted for the front rays */
   sub: number;
+  /** the last air pocket below the channel: where it starts along the
+   *  normal, the solid below it, and the thickness of the solid that
+   *  separates it from the channel (-1 when there is none) */
+  pocketT: number;
+  pocketId: SolidId | null;
+  chord: number;
   lowId: SolidId | null;
   upId: SolidId | null;
   /** true when the grid line is beyond the lips (outside the tract) */
@@ -450,6 +456,9 @@ interface Ev { t: number; solid: number }
 const evBuf: Ev[] = [];
 for (let i = 0; i < 128; i++) evBuf.push({ t: 0, solid: 0 });
 
+/** Thickness (cm, scaled) of lower lip over which a split gap stays connected. */
+const LIP_SPLIT = 0.3;
+
 function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
   const px = ray.sx + ray.nx * ray.t0, py = ray.sy + ray.ny * ray.t0;
   const dx = ray.nx, dy = ray.ny;
@@ -493,8 +502,10 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
   let lastLowerExit = 0;
   let lastLowerId: SolidId | null = null;
   let sub = 0;
+  let pocketT = -1, pocketId: SolidId | null = null, chordStart = 0;
   hit.outside = true;
   hit.sub = 0;
+  hit.pocketT = -1; hit.pocketId = null; hit.chord = 0;
   for (let e = 0; e < nev; e++) {
     const ev = evBuf[e];
     const sol = solids[ev.solid];
@@ -503,15 +514,19 @@ function castRay(ray: Ray, solids: Solid[], hit: RayHit): void {
     if (sol.upper) upperIn += wasIn ? -1 : 1; else lowerIn += wasIn ? -1 : 1;
     if (!sol.upper && wasIn && lowerIn === 0) { lastLowerExit = ev.t; lastLowerId = sol.id; }
     if (lowerIn === 0 && upperIn === 0) {
+      if (pocketT >= 0 && airStart < 0) hit.chord = ev.t - chordStart;
       airStart = ev.t; airStartId = sol.id;
     } else if (airStart >= 0 && !wasIn) {
       // entering a solid from air
       if (sol.upper) {
         hit.tLow = airStart; hit.tUp = ev.t; hit.d = ev.t - airStart;
         hit.lowId = airStartId; hit.upId = sol.id; hit.outside = false; hit.sub = sub;
+        hit.pocketT = pocketT; hit.pocketId = pocketId;
+        if (pocketT < 0) hit.chord = 0;
         return;
       }
       sub += ev.t - airStart; // air pocket between lower solids
+      pocketT = airStart; pocketId = airStartId; chordStart = ev.t;
       airStart = -1;
     } else if (!wasIn && sol.upper && lowerIn > 0) {
       // upper solid entered while still inside a lower solid: contact
@@ -613,7 +628,7 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
     const r = rays[i];
     r.sx = wx; r.sy = wy; r.nx = nx; r.ny = ny; r.t0 = t0 * s; r.t1 = t1 * s; r.sc = sc;
     spine.push(wx, wy);
-    if (!hits[i]) hits[i] = { tLow: 0, tUp: 0, d: 0, area: 0, sub: 0, lowId: null, upId: null, outside: true, mx: 0, my: 0, rule: 'oral' };
+    if (!hits[i]) hits[i] = { tLow: 0, tUp: 0, d: 0, area: 0, sub: 0, pocketT: -1, pocketId: null, chord: 0, lowId: null, upId: null, outside: true, mx: 0, my: 0, rule: 'oral' };
   }
   rays.length = GRID_SC.length;
   hits.length = GRID_SC.length;
@@ -634,10 +649,8 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
       h.area = 0; h.rule = 'oral';
       continue;
     }
-    const tLowW = ray.t0 + h.tLow;
+    let tLowW = ray.t0 + h.tLow;
     const tUpW = ray.t0 + h.tUp;
-    h.mx = ray.sx + ray.nx * 0.5 * (tLowW + tUpW);
-    h.my = ray.sy + ray.ny * 0.5 * (tLowW + tUpW);
     const d = Math.max(0, h.d);
     const sc = ray.sc;
     let area: number;
@@ -647,6 +660,12 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
     if (isTeethU && isLipL) {
       rule = 'labiodental';
       area = law.labiodentalWidth * s * d * 0.8;
+    } else if (isTeethL && isLipU) {
+      // from the lower incisors up to the upper lip, across the space behind
+      // the lips: the lips, not the slit between the incisors, bound it at
+      // the sides (the rule keeps the name of the teeth region)
+      rule = 'teeth';
+      area = (Math.PI / 4) * d * wLip;
     } else if (isTeethU || isTeethL) {
       rule = 'teeth';
       const oral = scaleArea(law.oral.alpha, law.oral.beta) * Math.pow(d, law.oral.beta);
@@ -675,6 +694,19 @@ export function computeGeometry(a: Articulators, an: Anatomy, teeth: Teeth, opts
       if (h.sub > 0.05 * s) area += 0.7 * scaleArea(law.oral.alpha, law.oral.beta) * Math.pow(h.sub, law.oral.beta);
     }
     if (d <= 0) { area = rule === 'teeth' && isTeethU && isTeethL ? slit.area : 0; if (area === 0) rule = 'closed'; }
+    // the tip of the lower lip entering the gap above the lower incisors
+    // splits it in two; while the part of the lip on the line is thin the
+    // air still flows around it, so the area and the midpoint pass smoothly
+    // from the undivided gap to the one between the lips
+    if (isLipL && h.pocketId === 'lowerIncisor' && h.chord < LIP_SPLIT * s) {
+      const w = (1 - h.chord / (LIP_SPLIT * s)) ** 2;
+      const dFull = h.tUp - h.pocketT;
+      const full = isTeethU ? slit.area : (Math.PI / 4) * dFull * wLip;
+      area = w * full + (1 - w) * area;
+      tLowW = ray.t0 + (w * h.pocketT + (1 - w) * h.tLow);
+    }
+    h.mx = ray.sx + ray.nx * 0.5 * (tLowW + tUpW);
+    h.my = ray.sy + ray.ny * 0.5 * (tLowW + tUpW);
     h.area = area;
     h.rule = rule;
   }
