@@ -156,6 +156,8 @@ const GRID_SC: number[] = (() => {
 
 const J: [number, number] = [-0.6, 11.0]; // jaw pivot (temporomandibular joint, projected)
 const JAW_MAX = (14 * Math.PI) / 180;
+/** jaw opening of the held labiodental fricatives /f v/ (see PHONEMES) */
+const LABIODENTAL_JAW = 0.12;
 
 const WALL: number[] = [
   -0.55, -2.5, -0.55, 0.0, -0.62, 0.8, -0.75, 1.8, -0.9, 2.8, -1.02, 4.0, -1.12, 5.2, -1.15, 6.4,
@@ -323,7 +325,11 @@ function buildLowerLip(a: Articulators, jawAngle: number): number[] {
   // the lip contact point by about 8.8 cm * sin(angle).
   const drive = Math.min(1, Math.max(0, (-a.lipOpen - 0.1) / 0.2));
   const jawDrop = 8.8 * Math.sin(-jawAngle);
-  const y = LIP_CONTACT_Y - 0.7 * a.lipOpen + 0.25 * t + drive * jawDrop;
+  // The same for the labiodentals: a tucked lower lip rises to the upper
+  // incisors whatever the jaw (beyond the jaw opening of a held /f v/), so a
+  // short /v/ after an open vowel still makes its slit
+  const tuckDrop = t * Math.max(0, jawDrop - 8.8 * Math.sin(JAW_MAX * LABIODENTAL_JAW));
+  const y = LIP_CONTACT_Y - 0.7 * a.lipOpen + 0.25 * t + drive * jawDrop + (1 - drive) * tuckDrop;
   const pts = [
     7.05 - 0.5 * t, 7.0, 7.1 - 0.5 * t, 7.6, 7.25 - 0.55 * t, y - 0.12, 7.5 - 0.55 * t, y,
     8.15 + p - 0.3 * t, y - 0.02, 8.38 + p - 0.2 * t, y - 0.3, 8.4 + 0.8 * p, 7.4, 8.2, 6.6, 7.7, 6.0, 7.0, 6.2,

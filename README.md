@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 64 automated tests (physics, speech, analysis)
+npm test           # 66 automated tests (physics, speech, analysis)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -269,9 +269,14 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   pulls F3 down to about 1600-1750 Hz (scripts/tune-rhotic.ts), with the
   narrowest passage kept at 0.3 cm² on the fine grid the aerodynamics uses:
   narrower, the jet turns them into fricatives that hiss; the dark /ɫ/
-  of English codas backs the tongue body (F2 about 1000 Hz). Gestures that
-  cannot be held: the tap /ɾ/ (one flick of the tongue tip) and the glottal
-  stop /ʔ/ (the folds pressed shut).
+  of English codas backs the tongue body (F2 about 1000 Hz). The clear /l/
+  sets its own tongue body: its air flows around the sides of the tongue,
+  which a one-dimensional tube cannot show, and a high vowel next to it
+  would otherwise close the passage. The velar nasal /ŋ/ closes against the
+  oral face of the lowered velum, in front of the velopharyngeal port;
+  further back it would cut the nose off too. Gestures that cannot be held:
+  the tap /ɾ/ (one flick of the tongue tip) and the glottal stop /ʔ/ (the
+  folds pressed shut).
 - **Italian G2P**: orthography rules (c/g before e/i, ch/gh, sc(i), gn, gl(i),
   qu, z, geminates, silent h, intervocalic s voiced in the northern norm,
   ɲ ʎ ʃ ts dz always long between vowels, penultimate stress unless an accent
@@ -328,8 +333,22 @@ sibilants. The teeth panel draws the front and side views with the live jet.
     the last sound ends, without a trailing breath.
   - *Coarticulation*: consonants only set the articulators they need; the
     others are interpolated from the neighbouring vowels (Öhman 1966), so lips
-    round ahead of /u/ and the tongue glides through /p/. Off: every sound
-    sets every articulator.
+    round ahead of /u/ and the tongue glides through /p/. After a consonant,
+    the articulators it used are released at once toward their next target
+    (the tip leaves the ridge, the lip the teeth) instead of drifting back
+    through the following sounds, where they would close the tract again.
+    Off: every sound sets every articulator.
+  Consonant gestures are timed so that their sound happens when planned
+  (scripts/landmarks.ts): fricatives, nasals and approximants start 20 ms
+  ahead and overlap the vowel before, so a 50 ms /v/ still reaches its slit;
+  stops aim beyond the contact and close in time anyway. Every consonant lets
+  its target go just before the planned release, earlier for the slower
+  articulators (tongue body, jaw, velum, in proportion to their time
+  constants), so that all of them open together. In the tract model the
+  tucked lower lip of /f v/ rises to the upper teeth whatever the jaw (motor
+  equivalence, as for bilabial closure). The result: nasals dip 6-13 dB below
+  their vowels and /v/ 8-18 dB, as in the relative intensities of speech
+  sounds (Fletcher 1953; Fry 1979).
   Stops are split into closure and release. English voiceless stops at the
   start of a stressed syllable (not after /s/) keep the glottis open past the
   release: aspiration, a voice onset time of about 60-70 ms; Italian ones
@@ -401,16 +420,17 @@ in brackets are the adult male targets described under Speech.
 | Period boundaries | jitter 1 % and shimmer 6 % change the 8-16 kHz energy by +0.1 dB (+32 dB when the pulse mean jumped at each period) |
 | Control rate | voice onset from rest: 3-8 kHz at -40.5 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF -6.1 dB in /sː/ vs -34.1 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -33.2 dB vs -11.0 dB in the vowel |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF -2.9 dB in /sː/ vs -34.1 dB in /a/ |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -32.6 dB vs -11.5 dB in the vowel |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
 | American r | /ɹ/ 420 / 1140 / 1608 Hz, /ɝ/ 474 / 1307 / 1758 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690), narrowest passage 0.3 cm² (no hiss) |
-| Dark l | F2 clear /l/ 1497 Hz, dark /ɫ/ 985 Hz |
+| Dark l | F2 clear /l/ 1524 Hz, dark /ɫ/ 985 Hz |
 | Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
-| Voice onset time | /t/ English 69 ms, Italian 9 ms (typical 60-70 and 10-25 ms) |
-| Trill and tap | tongue-tip closures: "carro" 3, "caro" 1 |
+| Voice onset time | /t/ English 77 ms, Italian 8 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian 10-25 ms) |
+| Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
+| Consonant dips | nasals 6.4-12.9 dB, /v/ 8.1-18.3 dB below their vowels ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/; /ŋ/ in front of the nasal port in every vowel context |
 | Fujisaki intonation | final F0: statement 105 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
 | Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.61 st (90 %), 2.0 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
@@ -470,6 +490,10 @@ in brackets are the adult male targets described under Speech.
 - Klatt, D. H. (1979). Synthesis by rule of segmental durations in English sentences. In Frontiers of Speech Communication Research. Academic Press.
 - Klatt, D. H. & Klatt, L. C. (1990). Analysis, synthesis, and perception of voice quality variations among female and male talkers. JASA 87.
 - Lisker, L. & Abramson, A. S. (1964). A cross-language study of voicing in initial stops: acoustical measurements. Word 20.
+- Fletcher, H. (1953). Speech and Hearing in Communication. Van Nostrand.
+- Fry, D. B. (1979). The Physics of Speech. Cambridge University Press.
+- Fujimura, O. (1962). Analysis of nasal consonants. JASA 34.
+- Zue, V. W. & Laferriere, M. (1979). Acoustic study of medial /t, d/ in American English. JASA 66.
 - Shadle, C. H. (1985). The acoustics of fricative consonants. PhD thesis, MIT.
 - Sondhi, M. M. & Schroeter, J. (1987). A hybrid time-frequency domain articulatory speech synthesizer. IEEE Trans. ASSP 35.
 - Steinecke, I. & Herzel, H. (1995). Bifurcations in an asymmetric vocal-fold model. JASA 97.
@@ -492,6 +516,8 @@ npx tsx scripts/tune-rhotic.ts 490,1350,1690 ɹ  # fit an articulation to F1/F2/
 npx tsx scripts/areas.ts ɹ ɝ j l w              # narrowest passage and formants of each phoneme's posture
 npx tsx scripts/melody.ts en "is it raining?"   # planned F0 at each phone
 npx tsx scripts/noisemap.ts en "every voice"    # level of each noise source per phone
+npx tsx scripts/contrast.ts it "il vino"        # how deep each consonant dips below its vowels
+npx tsx scripts/landmarks.ts                    # when constrictions form and open, against the plan
 npx tsx scripts/pitch.ts a.wav b.wav            # pitch track, level and F0 spread of recordings
 npx tsx scripts/hnr.ts a.wav b.wav              # harmonics-to-noise ratio, full band and above 2 kHz
 npx tsx scripts/specpng.ts out.png a.wav b.wav  # stacked spectrograms with pitch tracks

@@ -96,9 +96,14 @@ export const CONSONANTS: Record<string, Phoneme> = {
   m: C('m', 'nasal', true, { jaw: 0.3, lipOpen: -0.35, lipTuck: 0, velum: 1 }, 0, 0.08, 'mamma'),
   n: C('n', 'nasal', true, { jaw: 0.12, tipX: 0.25, tipY: 1.75, groove: 0, lipTuck: 0, velum: 1 }, 0, 0.07, 'nonno'),
   'ɲ': C('ɲ', 'nasal', true, { jaw: 0.1, tongueX: 0.9, tongueY: 1.5, tipY: 0.1, velum: 1 }, 0, 0.09, 'gnocchi'),
-  'ŋ': C('ŋ', 'nasal', true, { tongueX: -0.25, tongueY: 1.7, tipY: 0, velum: 1 }, 0, 0.08, 'sing', { dorsal: true }),
+  // the dorsum closes against the oral face of the lowered velum, in front of
+  // the velopharyngeal port: further back it would cut the nose off too
+  'ŋ': C('ŋ', 'nasal', true, { tongueX: 0.15, tongueY: 1.7, tipY: 0, velum: 1 }, 0, 0.08, 'sing', { dorsal: true }),
   // approximants, laterals, trill
-  l: C('l', 'lateral', true, { jaw: 0.15, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.07, 'luna'),
+  // the air of a lateral flows around the sides of the tongue, which a one-
+  // dimensional tube cannot show: the tongue body has its own target here, so
+  // that a high vowel next to it (il, lino) cannot close the passage
+  l: C('l', 'lateral', true, { jaw: 0.15, tongueX: 0.4, tongueY: 0.4, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.07, 'luna'),
   'ʎ': C('ʎ', 'lateral', true, { jaw: 0.1, tongueX: 0.9, tongueY: 0.962, tipY: 0.1, velum: 0 }, 0, 0.09, 'figlio'),
   // dark (velarised) l of English codas, "feel": the tongue body backs up, F2 near 1000 Hz
   'ɫ': C('ɫ', 'lateral', true, { jaw: 0.2, tongueX: -1.19, tongueY: 0.38, tipX: 0.2, tipY: 1.054, groove: 0, velum: 0 }, 0, 0.08, 'feel, milk'),
@@ -109,7 +114,7 @@ export const CONSONANTS: Record<string, Phoneme> = {
   // about 1600 Hz with the passage kept at 0.3 cm^2, so it does not hiss
   'ɹ': C('ɹ', 'approximant', true, { jaw: 0.2, tongueX: -0.707, tongueY: -0.975, tipX: -0.97, tipY: 2.197, lipOpen: 0.197, lipRound: 0.81, lipProtrude: 0.332, velum: 0 }, 0, 0.08, 'red'),
   j: C('j', 'approximant', true, { jaw: 0.06, tongueX: 1.0, tongueY: 0.925, lipRound: 0, velum: 0 }, 0, 0.06, 'ieri, yes'),
-  w: C('w', 'approximant', true, { jaw: 0.1, tongueX: -0.8, tongueY: 0.3, lipOpen: -0.08, lipRound: 1, lipProtrude: 0.8, velum: 0 }, 0, 0.06, 'uomo, we'),
+  w: C('w', 'approximant', true, { jaw: 0.1, tongueX: -0.8, tongueY: 0.3, lipOpen: -0.08, lipRound: 1, lipProtrude: 0.8, lipTuck: 0, velum: 0 }, 0, 0.06, 'uomo, we'),
   // affricates
   'tʃ': C('tʃ', 'affricate', false, {}, 0.5, 0.14, 'voce, ciao', { parts: ['t', 'ʃ'] }),
   'dʒ': C('dʒ', 'affricate', true, {}, 0.1, 0.12, 'gelato', { parts: ['d', 'ʒ'] }),

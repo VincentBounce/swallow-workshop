@@ -3,7 +3,7 @@ import { textToPhones } from '../src/dsp/speech/g2p';
 import { englishPronunciation, englishNumber } from '../src/dsp/speech/english';
 import { PHONEMES, GLIDING } from '../src/dsp/speech/phonemes';
 import { computeGeometry } from '../src/dsp/tract/geometry';
-import { sectionsFromGeometry } from '../src/dsp/tract/areaFunction';
+import { sectionsFromGeometry, N_SECTIONS } from '../src/dsp/tract/areaFunction';
 import { formants } from '../src/dsp/tract/acoustics';
 import { DEFAULT_ANATOMY, DEFAULT_ARTICULATORS, DEFAULT_TEETH } from '../src/dsp/tract/types';
 import { note, loadEnglishLexicon } from './helpers';
@@ -77,6 +77,14 @@ describe('English sounds in the tract model', () => {
       return m;
     };
     for (const ph of ['ɹ', 'ɝ', 'ɚ']) expect(minArea(ph)).toBeGreaterThan(0.28);
+  });
+  it('the velar nasal closes in front of the nasal port, whatever the vowel', () => {
+    const coupling = Math.round(0.43 * N_SECTIONS) - 1;
+    for (const ctx of ['ə', 'ɪ', 'i', 'a', 'u', 'o', 'ɑ']) {
+      const af = sectionsFromGeometry(computeGeometry({ ...DEFAULT_ARTICULATORS, ...PHONEMES[ctx].art, ...PHONEMES['ŋ'].art }, DEFAULT_ANATOMY, DEFAULT_TEETH));
+      // the sections up to the nasal junction stay open: the glottis reaches the nose
+      for (let i = 0; i <= coupling; i++) expect(af.areas[i]).toBeGreaterThan(0.02);
+    }
   });
   it('dark l has a lower F2 than clear l', () => {
     const clear = formantsOf('l'), dark = formantsOf('ɫ');

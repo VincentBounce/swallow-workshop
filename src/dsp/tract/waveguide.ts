@@ -79,7 +79,11 @@ export interface WaveguideLossParams {
   nasal: number;
 }
 
-export const DEFAULT_LOSSES: WaveguideLossParams = { base: 70, narrow: 45, nasal: 3.5 };
+// The nasal passages are narrow, folded (the turbinates) and lined with soft
+// mucosa: their resonances are heavily damped (Fujimura 1962). x12 puts a held
+// /m/ about 9 dB below /a/ and 3 dB below /i/, as in the measured relative
+// intensities of speech sounds (Fletcher 1953; Fry 1979).
+export const DEFAULT_LOSSES: WaveguideLossParams = { base: 70, narrow: 45, nasal: 12 };
 
 class Branch {
   readonly n: number;

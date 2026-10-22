@@ -221,6 +221,44 @@ describe('timing, melody and gestures of sequenced speech', () => {
     expect(fast).toBeLessThan(slow / 2);
   });
 
+  it('consonants dip below their vowels as much as in natural speech, and never vanish', () => {
+    // quietest 10 ms of each consonant against the loudest 10 ms of its
+    // vowels, and the narrowest passage reached (Fletcher 1953, Fry 1979:
+    // nasals about 6-12 dB below the vowels, voiced fricatives 12-20 dB)
+    const dips = (text: string, lang: 'it' | 'en') => {
+      const sc = buildScore(textToPhones(text, lang), { lang });
+      const e = new VoiceEngine(fs, defaultParams());
+      e.snapArticulators(); e.snapPressure(); e.playScore(sc);
+      const hop = 96, dt = hop / fs, buf = new Float32Array(hop);
+      const en: number[] = [], area: number[] = [];
+      for (let t = 0; t < sc.duration; t += dt) {
+        e.process(buf, hop);
+        let r = 0; for (const x of buf) r += x * x;
+        en.push(r / hop); area.push(e.telemetry().constrictionArea);
+      }
+      const lev = en.map((_, i) => { let s = 0, n = 0; for (let k = i - 2; k <= i + 2; k++) if (k >= 0 && k < en.length) { s += en[k]; n++; } return 10 * Math.log10(s / n + 1e-14); });
+      const span = (t0: number, t1: number) => [Math.max(0, Math.round(t0 / dt)), Math.min(lev.length - 1, Math.round(t1 / dt))];
+      const isV = (q: string) => /^[aeiouɑɛɔəɪʊʌæɝɚ]/.test(q);
+      return sc.phones.map((q, i) => {
+        if (isV(q.ipa) || q.ipa === '_') return null;
+        const vs = [sc.phones.slice(0, i).reverse().find((x) => isV(x.ipa)), sc.phones.slice(i + 1).find((x) => isV(x.ipa))].filter(Boolean) as typeof sc.phones;
+        let vmax = -Infinity; for (const v of vs) { const [a, b] = span(v.t0, v.t1); for (let k = a; k <= b; k++) vmax = Math.max(vmax, lev[k]); }
+        const [a, b] = span(q.t0 + 0.01, q.t1 + 0.012);
+        let cmin = Infinity, amin = Infinity; for (let k = a; k <= b; k++) { cmin = Math.min(cmin, lev[k]); amin = Math.min(amin, area[k]); }
+        return { ipa: q.ipa, dip: vmax - cmin, area: amin };
+      }).filter(Boolean) as { ipa: string; dip: number; area: number }[];
+    };
+    const it = dips('la mamma vuole la nonna e il vino', 'it');
+    const en = dips('Every voice you have ever heard is raining in.', 'en');
+    const nasal = [...it, ...en].filter((d) => 'mnŋ'.includes(d.ipa));
+    const v = [...it, ...en].filter((d) => d.ipa === 'v');
+    note('consonant dips', `nasals ${Math.min(...nasal.map((d) => d.dip)).toFixed(1)}-${Math.max(...nasal.map((d) => d.dip)).toFixed(1)} dB, /v/ ${Math.min(...v.map((d) => d.dip)).toFixed(1)}-${Math.max(...v.map((d) => d.dip)).toFixed(1)} dB below the vowels ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in.")`);
+    for (const d of nasal) { expect(d.dip).toBeGreaterThan(5); expect(d.dip).toBeLessThan(20); }
+    for (const d of v) { expect(d.dip).toBeGreaterThan(8); expect(d.area).toBeGreaterThan(0.02); }
+    // the laterals and /w/ stay open whatever vowel is next to them
+    for (const d of it.filter((x) => x.ipa === 'l' || x.ipa === 'w')) expect(d.area).toBeGreaterThan(0.1);
+  });
+
   it('an utterance ends with its last sound, without a trailing breath', () => {
     const s = buildScore(textToPhones('is it raining in the city today?', 'en'), { lang: 'en' });
     const last = s.phones[s.phones.length - 1];

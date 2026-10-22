@@ -106,6 +106,10 @@ interface Unit {
 }
 
 const FRAME = 0.005;
+/** how much earlier than its sound a consonant gesture starts (s) */
+const CONS_ONSET = 0.02;
+/** how long before its planned release a consonant lets its target go (s) */
+const RELEASE_LEAD = 0.012;
 const isObstruent = (ph: Phoneme | undefined) => !!ph && (ph.manner === 'stop' || ph.manner === 'fricative' || ph.manner === 'affricate');
 const isCons = (u: Unit | undefined) => !!u && !u.vowel && u.ph.manner !== 'silence';
 
@@ -362,7 +366,7 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
 
   // ---------------------------------------------------------- articulation
   // per-key anchor points: (interval, value) at the segments that specify the key
-  const anchors: Record<string, { t0: number; t1: number; v: number }[]> = {};
+  const anchors: Record<string, { t0: number; t1: number; v: number; cons?: boolean }[]> = {};
   for (const k of ARTICULATOR_KEYS) anchors[k] = [];
   const neutral: Articulators = { ...DEFAULT_ARTICULATORS, ...PHONEMES['ə'].art };
   for (const s of segs) {
@@ -380,6 +384,21 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
         const d = s.t1 - s.t0;
         anchors[k].push({ t0: s.t0 - lead, t1: s.t0 + 0.35 * d - lead, v });
         anchors[k].push({ t0: s.t1 - 0.2 * d - lead, t1: s.t1 - lead, v: off[k] ?? v });
+      } else if (m !== 'vowel') {
+        // a consonant gesture starts earlier than its sound (it overlaps the
+        // vowel before), so that a short fricative or nasal still reaches its
+        // target; a stop aims beyond the contact and closes in time anyway.
+        // The target is let go just before the planned release: the opening
+        // of a closure clears it within a few milliseconds, a fricative's
+        // narrow slit needs a little longer to open, and a slow articulator
+        // (tongue body, jaw, velum) lets go earlier than the tip, so that all
+        // open together (a velar released late behind a velum already raised
+        // would cut off both mouth and nose)
+        const t0 = s.t0 - lead - (m === 'stop' ? 0 : CONS_ONSET);
+        const prev = anchors[k][anchors[k].length - 1];
+        if (prev && prev.t1 > t0) prev.t1 = Math.max(prev.t0, t0);
+        const release = (m === 'fricative' ? 2 : 1) * RELEASE_LEAD * (TAM_TAU[k] / TAM_TAU.tipY);
+        anchors[k].push({ t0: Math.max(t0, prev ? prev.t1 : -Infinity), t1: Math.max(t0 + 0.01, s.t1 - release), v, cons: true });
       } else anchors[k].push({ t0: s.t0 - lead, t1: s.t1 - lead, v });
     }
   }
@@ -392,6 +411,10 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
     for (let i = 0; i < a.length; i++) {
       if (time >= a[i].t0 && time <= a[i].t1) return a[i].v;
       if (i + 1 < a.length && time > a[i].t1 && time < a[i + 1].t0) {
+        // after a consonant the articulator it used is released at once
+        // toward its next target (the tip leaves the ridge, the lip the teeth);
+        // between vowels it glides, through the consonants that leave it free
+        if (a[i].cons) return a[i + 1].v;
         const w = (time - a[i].t1) / (a[i + 1].t0 - a[i].t1);
         return a[i].v + (a[i + 1].v - a[i].v) * w;
       }
@@ -409,8 +432,11 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
   const flicks: { c: number; w: number; a: number }[] = [];
   for (const s of segs) {
     if (s.ph.manner === 'tap') {
-      const c = 0.5 * (s.t0 + s.t1) - lead * 0.5;
-      flicks.push({ c, w: Math.max(0.024, (s.t1 - s.t0) * 1.2), a: Math.max(0, 1.9 - tipNow(c)) });
+      // the flick is added after the smoothing, so it is not led like the
+      // postures; it overshoots the ridge so that the contact lasts about
+      // 10-15 ms (American flaps 10-40 ms, Zue & Laferriere 1979)
+      const c = 0.5 * (s.t0 + s.t1);
+      flicks.push({ c, w: Math.max(0.04, (s.t1 - s.t0) * 1.6), a: Math.max(0, 2.2 - tipNow(c)) });
     } else if (s.ph.manner === 'trill') {
       const period = 1 / 26;
       const n = Math.max(1, Math.round((s.t1 - s.t0) / period));
