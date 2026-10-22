@@ -7,7 +7,7 @@ import { Slider, Toggle, Section, Seg, Readout } from './controls';
 import { useAnimatedCanvas, C, label } from '../canvas';
 import { NOISE_SHAPES } from '../presets';
 import { NOISE_CURVE_POINTS, NOISE_CURVE_FMIN, NOISE_CURVE_FMAX, noiseCurveFreq } from '../../dsp/noise/noise';
-import type { NoiseLocation } from '../../dsp/engine/params';
+import type { EngineParams, NoiseLocation } from '../../dsp/engine/params';
 
 const DB_MIN = -45, DB_MAX = 10;
 
@@ -73,7 +73,7 @@ export function NoisePanel() {
   const numbers = useStore((s) => s.ui.numbers);
   useTick(numbers ? 4 : 0);
   const n = p.noise, u = n.user;
-  const set = (f: (q: typeof p) => void, o?: { takeOver?: boolean }) => voice.edit(f, o);
+  const set = (f: (q: EngineParams) => void, o?: { takeOver?: boolean }) => voice.edit(f, o);
   const tel = store.telemetry;
   const dbl = (x: number) => (x > 0 ? (20 * Math.log10(x)).toFixed(0) + ' dB' : '–');
   return (

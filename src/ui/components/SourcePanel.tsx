@@ -6,6 +6,7 @@ import { Slider, Toggle, Seg, Section, Readout } from './controls';
 import { VOICE_PRESETS } from '../presets';
 import { noteName, C } from '../canvas';
 import { quotients, rdToTiming } from '../../dsp/glottis/lf';
+import type { EngineParams } from '../../dsp/engine/params';
 
 export function SourcePanel() {
   const L = useL();
@@ -17,7 +18,7 @@ export function SourcePanel() {
   useTick(driven ? 15 : numbers ? 4 : 0);
   const t = store.telemetry;
   const live = voice.sounding();
-  const set = (f: (q: typeof p) => void) => voice.edit(f);
+  const set = (f: (q: EngineParams) => void) => voice.edit(f);
   const q = quotients(rdToTiming(s.rd));
   return (
     <div className="panel-body">

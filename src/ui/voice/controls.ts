@@ -76,8 +76,11 @@ export function touched(before: EngineParams, after: EngineParams): Set<ControlI
   return out;
 }
 
+/** A view of a value that the compiler refuses to change, at any depth. */
+export type DeepReadonly<T> = T extends (infer U)[] ? readonly DeepReadonly<U>[] : T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
+
 /** A copy deep enough that changing it never touches the original. */
-export function cloneParams(o: EngineParams): EngineParams {
+export function cloneParams(o: DeepReadonly<EngineParams> | EngineParams): EngineParams {
   return {
     ...o,
     articulators: { ...o.articulators }, anatomy: { ...o.anatomy }, teeth: { ...o.teeth }, source: { ...o.source },

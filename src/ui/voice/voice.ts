@@ -22,7 +22,7 @@ import { DEFAULT_ANATOMY, DEFAULT_ARTICULATORS, DEFAULT_TEETH } from '../../dsp/
 import { PHONEMES } from '../../dsp/speech/phonemes';
 import { colourCurve } from '../../dsp/noise/noise';
 import { applyPhoneme } from '../presets';
-import { ControlId, touched, cloneParams } from './controls';
+import { ControlId, touched, cloneParams, DeepReadonly } from './controls';
 import { Bi, Filter, Lanes, Lock, lockOf, Performer } from './drivers';
 import type { VoiceSink, StreamBlock, EndReason } from './sink';
 
@@ -86,8 +86,8 @@ export class VoiceController {
 
   // ------------------------------------------------------------ reading
 
-  /** The hands' parameters. Never change them in place: use edit(). */
-  get manual(): EngineParams { return this._manual; }
+  /** The hands' parameters, read-only: change them with edit(). */
+  get manual(): DeepReadonly<EngineParams> { return this._manual; }
   get lanes(): Lanes { return this._lanes; }
   get running(): boolean { return !!this.sink?.running; }
   get sampleRate(): number { return this.sink?.sampleRate ?? 48000; }
