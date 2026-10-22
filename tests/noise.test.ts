@@ -128,6 +128,16 @@ describe('kinetic losses of the jets', () => {
     expect(r[0] + r[1] + r[3] + r[4] + r[5]).toBe(0);
   });
 
+  it('the air leaving the lips always loses its kinetic pressure, even behind a narrower passage', () => {
+    // as in /u/: the narrowest section just behind slightly wider lips
+    const areas = [3, 3, 3, 0.18, 0.19];
+    const r = kineticResistances(areas, 200, new Float64Array(areas.length));
+    expect(r[3]).toBeCloseTo(((1 - 0.18 / 0.19) ** 2 * (200 / 0.18)) / (C_SOUND * 0.18), 6);
+    expect(r[4]).toBeCloseTo(200 / 0.19 / (C_SOUND * 0.19), 6);
+    // open lips: the exit loss is negligible
+    expect(kineticResistances([3, 3, 3, 3, 7], 200, new Float64Array(5))[4]).toBeLessThan(2e-4);
+  });
+
   it('they damp the resonances around a fricative, hardly those of a vowel', () => {
     const narrowest = (ph: string) => {
       const g = computeGeometry({ ...defaultParams().articulators, ...PHONEMES[ph].art }, DEFAULT_ANATOMY, DEFAULT_TEETH);

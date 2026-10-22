@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 80 automated tests (physics, speech, analysis, interface text)
+npm test           # 81 automated tests (physics, speech, analysis, interface text)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -233,7 +233,9 @@ incisors, the lips) it separates into a jet that loses its kinetic pressure in
 the wider part downstream (Borda-Carnot), dp = rho/2 v² (1 - A/A_down)². For
 the sound this is a series resistance R = rho U (1 - A/A_down)² / A² at that
 junction, with the mean flow U of the aerodynamic model (Birkholz, Jackèl &
-Kröger 2007; Stevens 1998). It widens the resonances around a fricative
+Kröger 2007; Stevens 1998). The air always leaves the lips into open air,
+so the lips carry the whole exit loss, R = rho U / A², even when a passage
+just behind them is narrower. It widens the resonances around a fricative
 several times (the sharpest one below 4 kHz in /ʃ/ 3.6 times at
 600 cm³/s) and those of a vowel hardly at all (1.15 times in /i/ at
 150 cm³/s). The output is low-passed (8th-order
@@ -505,7 +507,7 @@ in brackets are the adult male targets described under Speech.
 | LF spectral slope, Rd 1, 1-5 kHz | -11.8 dB/oct (flow derivative), -17.9 dB/oct (flow) |
 | LF H1-H2 | Rd 0.5: -2.0 dB, Rd 1: 3.8 dB, Rd 2.5: 17.5 dB (pressed to breathy) |
 | Two-mass F0 vs tension | Q 0.7: 95 Hz, Q 1.2: 163 Hz, Q 1.8: 241 Hz; automatic tension within 4 % of the target |
-| /s/ | peak 4500 Hz, centroid 6233 Hz, -9.2 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000); in sentences (scripts/sibilants.ts) mean about 5.2 kHz for the man, 6.5 kHz for the woman |
+| /s/ | peak 4500 Hz, centroid 6233 Hz, -9.1 dB re /a/ (male /s/: peak 4-5 kHz, mean 5-6 kHz, Jongman et al. 2000); in sentences (scripts/sibilants.ts) mean about 5.2 kHz for the man, 6.5 kHz for the woman |
 | /ʃ/ | peak 3141 Hz, centroid 3952 Hz, 0.7-1.8 kHz band 7.8 dB below the 2-3.5 kHz band, -7.6 dB re /a/ (1.6 dB louder than /s/; Jongman et al. 2000: peak about 3-4 kHz, mean 4.2 kHz, lower for men); before the fit peak 3844, centroid 3055 Hz, low band 1.5 dB above |
 | Fricative spectrum, waveguide vs reference | /ʃ/ obstacle source: worst difference 1.1 dB over 8 bands, 0.5-8 kHz |
 | Jet losses | the sharpest resonance below 4 kHz widens 3.6 times in /ʃ/ (600 cm³/s), 1.15 times in /i/ (150 cm³/s) |
@@ -532,7 +534,7 @@ in brackets are the adult male targets described under Speech.
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
 | Voice onset time | /t/ English 79 ms, after /s/ 21 ms; Italian /p t k/ 13 / 19 / 26 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian voiceless stops short-lag, under about 30 ms, /k/ longest) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
-| Consonant dips | nasals 5.9-12.0 dB, /v/ 13.3-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
+| Consonant dips | nasals 5.9-12.0 dB, /v/ 13.4-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
 | Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
 | Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.58 st (90 %), 1.9 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
@@ -549,6 +551,15 @@ in brackets are the adult male targets described under Speech.
   per cent (F2 of /u/ by about 5 %) for a tiny movement.
 - The epilaryngeal tube has a fixed width: real speakers narrow it for a
   pressed voice and widen it for a breathy one.
+- A held /u/ is probably too weak: 11 dB below /a/, against 4.7 dB for /i/,
+  where natural speech has close vowels only a few dB below open ones. Its
+  first resonance is damped by the soft walls, which also lift it from
+  208 Hz (rigid walls) to 304 Hz: the bandwidth is 108 Hz in both acoustic
+  models, against about 70 Hz measured for close vowels with the glottis
+  closed (Fujimura & Lindqvist 1971; /i/ here 79 Hz). The jet losses at the
+  velar passage and the lips (0.15 and 0.19 cm², as in the MRI shape) take
+  about 2 dB more. The wall constants (Ishizaka, French & Flanagan 1975)
+  are the same for every vowel.
 - One-dimensional plane-wave acoustics: no cross modes (fine below about
   5 kHz for an adult tract), no 3D flow. The noise sources are lumped dipoles
   with laws and constants calibrated to match measured fricative levels and
@@ -612,6 +623,7 @@ in brackets are the adult male targets described under Speech.
 - Fletcher, H. (1953). Speech and Hearing in Communication. Van Nostrand.
 - Fry, D. B. (1979). The Physics of Speech. Cambridge University Press.
 - Fujimura, O. (1962). Analysis of nasal consonants. JASA 34.
+- Fujimura, O. & Lindqvist, J. (1971). Sweep-tone measurements of vocal-tract characteristics. JASA 49.
 - Jongman, A., Wayland, R. & Wong, S. (2000). Acoustic characteristics of English fricatives. JASA 108.
 - Jongman, A. (2024). Phonetics of fricatives. Oxford Research Encyclopedia of Linguistics.
 - Zue, V. W. & Laferriere, M. (1979). Acoustic study of medial /t, d/ in American English. JASA 66.

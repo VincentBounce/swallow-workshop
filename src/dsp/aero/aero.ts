@@ -144,21 +144,19 @@ export function kineticResistances(areas: ArrayLike<number>, flow: number, out: 
   const n = areas.length;
   if (!(flow > 0)) return out;
   const at = (i: number) => (i === narrowIndex ? Math.min(areas[i], narrowArea) : areas[i]);
-  for (let i = 1; i < n; i++) {
+  // the jet speed is bounded by the lung pressure (about 0.15 c)
+  const r = (a: number, loss: number) => (loss * Math.min(flow / a, 0.15 * C_SOUND)) / (C_SOUND * a);
+  for (let i = 1; i < n - 1; i++) {
     const a = Math.max(at(i), 1e-4);
-    if (a > at(i - 1) || (i < n - 1 && a >= at(i + 1))) continue;
-    // widest part downstream before the tract narrows again (open air at the lips)
-    let down = Infinity;
-    if (i < n - 1) {
-      let j = i + 1;
-      while (j < n - 1 && at(j + 1) >= at(j)) j++;
-      down = at(j);
-    }
-    const loss = (1 - a / down) ** 2;
-    // the jet speed is bounded by the lung pressure (about 0.15 c)
-    const v = Math.min(flow / a, 0.15 * C_SOUND);
-    out[i] = (loss * v) / (C_SOUND * a);
+    if (a > at(i - 1) || a >= at(i + 1)) continue;
+    // widest part downstream before the tract narrows again
+    let j = i + 1;
+    while (j < n - 1 && at(j + 1) >= at(j)) j++;
+    out[i] = r(a, (1 - a / at(j)) ** 2);
   }
+  // the air always leaves the lips into open air, which takes all of its
+  // kinetic pressure (exit loss), whether or not the lips are the narrowest
+  out[n - 1] = r(Math.max(at(n - 1), 1e-4), 1);
   return out;
 }
 
