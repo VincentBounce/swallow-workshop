@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { store, useUi } from '../store';
+import { voice } from '../voice/voice';
 import { useT, useL } from '../i18n';
 import { useAnimatedCanvas, C, fmtHz, label } from '../canvas';
 import { spectrumDb, sourceHarmonics, filterResponse } from '../analysis';
@@ -20,10 +21,10 @@ export function Spectrum() {
   const buf = useRef(new Float32Array(4096));
 
   const ref = useAnimatedCanvas(({ ctx, w, h }) => {
-    const p = store.params;
+    const p = voice.sounding();
     const tel = store.ui.audioOn ? store.telemetry : null;
     const { af, formants } = store.derived();
-    const a = store.currentArticulators();
+    const a = p.articulators;
     const padL = 38, padB = 22, padT = 10, padR = 10;
     const W = w - padL - padR, H = h - padT - padB;
     const X = (f: number) => padL + (f / fmax) * W;
@@ -65,12 +66,12 @@ export function Spectrum() {
     // measured spectrum
     let measuredMax = -200;
     let meas: Float32Array | null = null;
-    if (store.ring.total > 4096 && (tel || store.audio.ctx)) {
+    if (store.ring.total > 4096 && (tel || voice.running)) {
       store.readRing('out', 4096, buf.current);
       meas = spectrumDb(buf.current, 4096, 4096, meas ?? undefined);
       if (!avg.current || avg.current.length !== meas.length) avg.current = meas.slice();
       else for (let k = 0; k < meas.length; k++) avg.current[k] = 0.6 * avg.current[k] + 0.4 * meas[k];
-      const fsr = store.audio.sampleRate;
+      const fsr = voice.sampleRate;
       for (let k = 1; k < meas.length; k++) { const f = (k * fsr) / 4096; if (f > fmax) break; if (avg.current[k] > measuredMax) measuredMax = avg.current[k]; }
     }
     const K = f0 > 0 ? Math.min(400, Math.floor(fmax / f0)) : 0;
@@ -121,7 +122,7 @@ export function Spectrum() {
     }
     // measured
     if (avg.current && measuredMax > -150) {
-      const fsr = store.audio.sampleRate;
+      const fsr = voice.sampleRate;
       ctx.strokeStyle = 'rgba(231,235,243,0.85)'; ctx.lineWidth = 1.2;
       ctx.beginPath();
       let first = true;
@@ -134,12 +135,12 @@ export function Spectrum() {
       ctx.stroke();
     }
     // microphone
-    const an = store.audio.micAnalyser;
+    const an = voice.micAnalyser;
     if (store.ui.micOn && an) {
       if (!mic.current || mic.current.length !== an.fftSize) mic.current = new Float32Array(an.fftSize);
       an.getFloatTimeDomainData(mic.current as Float32Array<ArrayBuffer>);
       const md = spectrumDb(mic.current, mic.current.length, mic.current.length);
-      const fsr = store.audio.sampleRate;
+      const fsr = voice.sampleRate;
       ctx.strokeStyle = 'rgba(69,184,245,0.85)'; ctx.lineWidth = 1.2;
       ctx.beginPath();
       for (let k = 1; k < md.length; k++) {

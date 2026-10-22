@@ -1,5 +1,7 @@
 import { store, ViewTab, ControlTab } from './store';
-import { applyPhoneme, VOICE_PRESETS, TIMBRE_PRESETS, setPhoneme } from './presets';
+import { VOICE_PRESETS, TIMBRE_PRESETS } from './presets';
+import { voice, mriTube } from './voice/voice';
+import type { EngineParams } from '../dsp/engine/params';
 import { textToPhones } from '../dsp/speech/g2p';
 import { buildScore } from '../dsp/speech/sequencer';
 import { DEFAULT_SOURCE, DEFAULT_NOISE } from '../dsp/engine/params';
@@ -15,37 +17,45 @@ type Bi = { it: string; en: string };
 export interface TourAction { label: Bi; run: () => void }
 export interface Chapter { title: Bi; kicker: Bi; paragraphs: Bi[]; actions: TourAction[]; experiments?: GuidedExperiment[] }
 
+/*
+ * Every action of the tour is an explicit choice of the reader, so it takes
+ * over whatever was playing (a sentence, a melody, a tube) before it acts.
+ */
+const set = (mut: (p: EngineParams) => void) => voice.edit(mut, { takeOver: true });
+/** A step that follows by itself after a moment (cancelled by the next action). */
+let pending: (() => void) | null = null;
+const later = (ms: number, fn: () => void) => {
+  const id = setTimeout(() => { pending = null; fn(); }, ms);
+  pending = () => clearTimeout(id);
+};
 const go = async (view?: ViewTab, tab?: ControlTab) => {
-  if (!store.audio.running) await store.startAudio();
+  await voice.ensureAudio();
   const u: Partial<typeof store.ui> = {};
   if (view) u.viewTab = view;
   if (tab) u.controlTab = tab;
   store.setUi(u);
 };
-const clean = () => store.setParams((p) => {
+const clean = () => set((p) => {
   p.source = { ...DEFAULT_SOURCE, f0: p.source.f0 };
   p.noise = { ...DEFAULT_NOISE, user: { ...p.noise.user, on: false } };
   p.anatomy = { ...DEFAULT_ANATOMY };
   p.voicing = true; p.bypassTract = false; p.tubeMode = false; p.abduction = 0;
 });
-const vowel = (v: string, f0?: number) => store.setParams((p) => { applyPhoneme(v, p); if (f0) p.source.f0 = f0; p.phonate = true; });
+const vowel = (v: string, f0?: number) => voice.holdPhoneme(v, { f0 });
+const phoneme = (v: string) => voice.holdPhoneme(v);
+/** Speaks a text; resolves 'done' when it has been heard to the end. */
 const say = async (text: string, lang: 'it' | 'en') => {
   if (lang === 'en') await store.ensureLexicon();
-  const p = store.params;
-  void store.speak(buildScore(textToPhones(text, lang), { lang, f0: p.source.f0, ps: Math.max(7, p.source.ps) }));
+  const p = voice.manual;
+  return voice.speak(buildScore(textToPhones(text, lang), { lang, f0: p.source.f0, ps: Math.max(7, p.source.ps) }), { it: text, en: text });
 };
 /** Speaks the example in the language of the interface. */
-const sayL = (text: Bi) => { const lang = store.ui.lang; say(text[lang], lang); };
-/** Glides a source parameter over time (for demonstrations). */
-const glide = (from: number, to: number, seconds: number, set: (v: number) => void) => {
-  const t0 = performance.now();
-  const step = () => {
-    const u = Math.min(1, (performance.now() - t0) / (seconds * 1000));
-    set(from * Math.pow(to / from, u));
-    if (u < 1) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-};
+const sayL = (text: Bi) => { const lang = store.ui.lang; return say(text[lang], lang); };
+/** Speaks two examples one after the other (the second only if the first was heard to the end). */
+const sayTwo = async (a: () => Promise<'done' | 'stopped'>, b: () => Promise<'done' | 'stopped'>) => { if ((await a()) === 'done') await b(); };
+/** Glides the pitch (a demonstration): the pitch slider follows and stays at the end value. */
+const glide = (from: number, to: number, seconds: number) =>
+  void voice.glide(from, to, seconds, { it: `da ${Math.round(from)} a ${Math.round(to)} Hz`, en: `from ${Math.round(from)} to ${Math.round(to)} Hz` });
 
 /**
  * A guided experiment: a question, the steps to try (in order), what to look
@@ -65,8 +75,8 @@ const formantNumbers = (): Bi => {
 };
 /** Mouth and lung pressure, pitch and nasal airflow, from the running engine. */
 const airNumbers = (): Bi => {
-  const t = store.telemetry;
-  if (!t) return { it: 'accendi l’audio', en: 'switch the audio on' };
+  const t = voice.live();
+  if (!t) return { it: 'accendi il suono', en: 'switch the sound on' };
   return both((l) => {
     const f0 = t.f0 > 0 ? `${Math.round(t.f0)} Hz` : l === 'it' ? 'nessuna (corde ferme)' : 'none (folds still)';
     return l === 'it'
@@ -78,17 +88,17 @@ const airNumbers = (): Bi => {
 const mri = (ipa: string) => {
   const v = MRI_VOWELS.find((m) => m.ipa === ipa);
   if (!v) return;
-  store.setParams((q) => { q.tubeAreas = v.areas.slice(); q.tubeLength = v.areas.length * v.dx; q.tubeMode = true; q.articulators.velum = 0; q.phonate = true; q.voicing = true; q.abduction = 0; });
+  voice.loadTube(v.areas, v.areas.length * v.dx, mriTube(ipa), { takeOver: true });
   void go('tube', 'tract');
 };
 /** Peaks and valleys of the current filter below 3 kHz, nose included. */
 let extremaCache: { key: unknown; value: Bi } | null = null;
 const peakNumbers = (): Bi => {
-  const d = store.derived(), p = store.params;
+  const d = store.derived(), p = voice.sounding();
   if (extremaCache?.key === d) return extremaCache.value;
   const fr: number[] = [];
   for (let f = 100; f <= 3000; f += 10) fr.push(f);
-  const port = portArea(store.currentArticulators().velum, p.anatomy.nasalLeak, p.anatomy.scale);
+  const port = portArea(voice.sounding().articulators.velum, p.anatomy.nasalLeak, p.anatomy.scale);
   const mag = transferMagnitudes(d.af, fr, { port, scale: p.anatomy.scale, nose: noseOf(p.anatomy) });
   const poles: number[] = [], zeros: number[] = [];
   for (let i = 1; i < fr.length - 1; i++) {
@@ -104,12 +114,12 @@ const peakNumbers = (): Bi => {
 /** Where a side branch swallows the sound: the deepest dip of the filter with the branch relative to without it. */
 let valleyCache: { key: unknown; value: { f: number; db: number } } | null = null;
 const branchValley = (without: AcousticOptions, lo: number, hi: number): { f: number; db: number } => {
-  const d = store.derived(), p = store.params;
+  const d = store.derived(), p = voice.sounding();
   const key = [d, JSON.stringify(without)].join();
   if (valleyCache?.key === key) return valleyCache.value;
   const fr: number[] = [];
   for (let f = lo; f <= hi; f += 10) fr.push(f);
-  const port = portArea(store.currentArticulators().velum, p.anatomy.nasalLeak, p.anatomy.scale);
+  const port = portArea(voice.sounding().articulators.velum, p.anatomy.nasalLeak, p.anatomy.scale);
   const o: AcousticOptions = { port, scale: p.anatomy.scale, nose: noseOf(p.anatomy) };
   const a = transferMagnitudes(d.af, fr, o), b = transferMagnitudes(d.af, fr, { ...o, ...without });
   let value = { f: 0, db: 0 };
@@ -139,7 +149,7 @@ const piriformNumbers = (): Bi => {
 };
 /** H1-H2 of the source pulse at the current Rd: the buzz before the filter. */
 const sourceNumbers = (): Bi => {
-  const s = store.params.source;
+  const s = voice.sounding().source;
   const sh = solveLF(rdToTiming(s.rd));
   const n = 256;
   const h = (k: number) => {
@@ -158,8 +168,8 @@ const NO_NATURAL: NaturalnessOptions = { timing: false, intonation: false, micro
 const sayWithout = async (text: Bi, off: Partial<NaturalnessOptions>) => {
   const lang = store.ui.lang;
   if (lang === 'en') await store.ensureLexicon();
-  const p = store.params;
-  void store.speak(buildScore(textToPhones(text[lang], lang), { lang, f0: p.source.f0, ps: Math.max(7, p.source.ps), natural: { ...off } }));
+  const p = voice.manual;
+  return voice.speak(buildScore(textToPhones(text[lang], lang), { lang, f0: p.source.f0, ps: Math.max(7, p.source.ps), natural: { ...off } }), text);
 };
 /** Duration of the first vowel of a word, in ms, as the sequencer plans it. */
 const vowelMs = (word: string, lang: 'it' | 'en'): number => {
@@ -169,7 +179,7 @@ const vowelMs = (word: string, lang: 'it' | 'en'): number => {
 };
 const SENTENCE: Bi = { it: 'la voce è fatta di aria e di un filtro', en: 'every voice is made of air and a filter' };
 
-export const CHAPTERS: Chapter[] = [
+const CHAPTER_LIST: Chapter[] = [
   {
     kicker: { it: 'Benvenuto', en: 'Welcome' },
     title: { it: 'Un ronzio e un filtro', en: 'A buzz and a filter' },
@@ -181,7 +191,7 @@ export const CHAPTERS: Chapter[] = [
     actions: [
       { label: { it: 'Accendi e soffia una «a»', en: 'Switch on and blow an “ah”' }, run: () => { clean(); vowel('a', 120); void go('spectrum'); } },
       { label: { it: 'Passa a una «i»', en: 'Move to an “ee”' }, run: () => { vowel('i'); void go(); } },
-      { label: { it: 'Fermati', en: 'Stop' }, run: () => store.setParams((p) => { p.phonate = false; }) },
+      { label: { it: 'Fermati', en: 'Stop' }, run: () => set((p) => { p.phonate = false; }) },
     ],
   },
   {
@@ -195,14 +205,14 @@ export const CHAPTERS: Chapter[] = [
     actions: [
       { label: { it: 'Guarda l’onda', en: 'Look at the wave' }, run: () => { vowel('a', 110); void go('scope'); } },
       { label: { it: 'Guarda lo spettro', en: 'Look at the spectrum' }, run: () => { vowel('a', 110); store.setUi({ showHarmonics: true, envelope: false }); void go('spectrum'); } },
-      { label: { it: 'Raddoppia la nota', en: 'Double the pitch' }, run: () => { glide(store.params.source.f0, Math.min(440, store.params.source.f0 * 2), 1.2, (v) => store.setParams((p) => { p.source.f0 = v; })); void go('spectrum'); } },
+      { label: { it: 'Raddoppia la nota', en: 'Double the pitch' }, run: () => { glide(voice.manual.source.f0, Math.min(440, voice.manual.source.f0 * 2), 1.2); void go('spectrum'); } },
     ],
     experiments: [
       {
         question: { it: 'Che cosa succede alle armoniche se la nota raddoppia?', en: 'What happens to the harmonics when the pitch doubles?' },
         steps: [
           { label: { it: 'Una «a» a 110 Hz', en: 'An “ah” at 110 Hz' }, run: () => { clean(); vowel('a', 110); store.setUi({ showHarmonics: true, envelope: false }); void go('spectrum'); } },
-          { label: { it: 'La stessa «a» a 220 Hz', en: 'The same “ah” at 220 Hz' }, run: () => store.setParams((p) => { p.source.f0 = 220; }) },
+          { label: { it: 'La stessa «a» a 220 Hz', en: 'The same “ah” at 220 Hz' }, run: () => set((p) => { p.source.f0 = 220; }) },
         ],
         look: { it: 'Conta le righe dello spettro sotto 1 kHz, prima e dopo.', en: 'Count the spikes of the spectrum below 1 kHz, before and after.' },
         answer: { it: 'Le armoniche stanno sempre a multipli esatti della fondamentale: a 110 Hz cadono a 110, 220, 330… e sotto 1 kHz ce ne sono 9; a 220 Hz cadono a 220, 440, 660… e ne restano 4. Raddoppiare la frequenza è salire di un’ottava: le righe si allontanano del doppio, ma senti ancora una «a», perché il filtro non è cambiato.', en: 'The harmonics always sit at exact multiples of the fundamental: at 110 Hz they fall at 110, 220, 330… and there are 9 below 1 kHz; at 220 Hz they fall at 220, 440, 660… and only 4 are left. Doubling the frequency is going up an octave: the spikes move twice as far apart, but you still hear an “ah”, because the filter has not changed.' },
@@ -226,17 +236,17 @@ export const CHAPTERS: Chapter[] = [
     ],
     actions: [
       { label: { it: 'Le corde al rallentatore', en: 'The folds in slow motion' }, run: () => { vowel('a', 110); void go('glottis', 'source'); } },
-      { label: { it: 'Ascolta il ronzio da solo', en: 'Hear the buzz alone' }, run: () => { vowel('a', 110); store.setParams((p) => { p.bypassTract = true; }); void go('spectrum', 'source'); } },
-      { label: { it: 'Tendi le corde', en: 'Stretch the folds' }, run: () => { store.setParams((p) => { p.bypassTract = false; }); vowel('a', 100); glide(100, 220, 2, (v) => store.setParams((p) => { p.source.f0 = v; })); void go('spectrum'); } },
-      { label: { it: 'La melodia col solo ronzio', en: 'The melody on the buzz alone' }, run: () => { store.setParams((p) => { p.bypassTract = false; }); void go('spectrum', 'melody'); } },
-      { label: { it: 'Corde che oscillano da sole', en: 'Self-oscillating folds' }, run: () => { vowel('a', 120); store.setParams((p) => { p.bypassTract = false; p.source.model = 'twomass'; }); void go('glottis', 'source'); } },
+      { label: { it: 'Ascolta il ronzio da solo', en: 'Hear the buzz alone' }, run: () => { vowel('a', 110); set((p) => { p.bypassTract = true; }); void go('spectrum', 'source'); } },
+      { label: { it: 'Tendi le corde', en: 'Stretch the folds' }, run: () => { set((p) => { p.bypassTract = false; }); vowel('a', 100); glide(100, 220, 2); void go('spectrum'); } },
+      { label: { it: 'La melodia col solo ronzio', en: 'The melody on the buzz alone' }, run: () => { set((p) => { p.bypassTract = false; }); void go('spectrum', 'melody'); } },
+      { label: { it: 'Corde che oscillano da sole', en: 'Self-oscillating folds' }, run: () => { vowel('a', 120); set((p) => { p.bypassTract = false; p.source.model = 'twomass'; }); void go('glottis', 'source'); } },
     ],
     experiments: [
       {
         question: { it: 'Voce pressata o soffiata: che cosa cambia nel ronzio?', en: 'Pressed or breathy voice: what changes in the buzz?' },
         steps: [
-          { label: { it: 'Voce pressata', en: 'Pressed voice' }, run: () => { clean(); vowel('a', 110); store.setParams(VOICE_PRESETS.find((x) => x.id === 'pressed')!.apply); store.setUi({ showHarmonics: true }); void go('spectrum', 'source'); } },
-          { label: { it: 'Voce soffiata', en: 'Breathy voice' }, run: () => { clean(); vowel('a', 110); store.setParams(VOICE_PRESETS.find((x) => x.id === 'breathy')!.apply); void go('spectrum', 'source'); } },
+          { label: { it: 'Voce pressata', en: 'Pressed voice' }, run: () => { clean(); vowel('a', 110); set(VOICE_PRESETS.find((x) => x.id === 'pressed')!.apply); store.setUi({ showHarmonics: true }); void go('spectrum', 'source'); } },
+          { label: { it: 'Voce soffiata', en: 'Breathy voice' }, run: () => { clean(); vowel('a', 110); set(VOICE_PRESETS.find((x) => x.id === 'breathy')!.apply); void go('spectrum', 'source'); } },
           { label: { it: 'Guarda gli sbuffi', en: 'Look at the puffs' }, run: () => { void go('glottis'); } },
         ],
         look: { it: 'Nello spettro confronta le prime due armoniche e quelle in alto, sopra i 2 kHz. Nella vista delle corde guarda quanto in fretta si chiude ogni sbuffo.', en: 'In the spectrum compare the first two harmonics and the high ones, above 2 kHz. In the folds view see how fast each puff closes.' },
@@ -255,17 +265,17 @@ export const CHAPTERS: Chapter[] = [
     ],
     actions: [
       { label: { it: 'Il tubo e le sue onde', en: 'The tube and its waves' }, run: () => { vowel('ə', 110); store.setUi({ standing: 1 }); void go('tube', 'tract'); } },
-      { label: { it: '«heed» e «father»', en: '“heed” and “father”' }, run: () => { void go('chart'); say('heed', 'en'); setTimeout(() => say('father', 'en'), 1100); } },
+      { label: { it: '«heed» e «father»', en: '“heed” and “father”' }, run: () => { void go('chart'); void sayTwo(() => say('heed', 'en'), () => say('father', 'en')); } },
       { label: { it: 'La mappa delle vocali', en: 'The vowel map' }, run: () => { vowel('a', 120); void go('chart', 'tract'); } },
-      { label: { it: 'Voce di bambino', en: 'A child’s voice' }, run: () => { store.setParams(VOICE_PRESETS.find((x) => x.id === 'child')!.apply); vowel('a'); void go('spectrum', 'tract'); } },
-      { label: { it: 'Scuro, chiaro, nasale', en: 'Dark, bright, nasal' }, run: () => { clean(); vowel('a', 120); store.setParams(TIMBRE_PRESETS.find((x) => x.id === 'dark')!.apply); void go('spectrum', 'tract'); } },
+      { label: { it: 'Voce di bambino', en: 'A child’s voice' }, run: () => { set(VOICE_PRESETS.find((x) => x.id === 'child')!.apply); vowel('a'); void go('spectrum', 'tract'); } },
+      { label: { it: 'Scuro, chiaro, nasale', en: 'Dark, bright, nasal' }, run: () => { clean(); vowel('a', 120); set(TIMBRE_PRESETS.find((x) => x.id === 'dark')!.apply); void go('spectrum', 'tract'); } },
     ],
     experiments: [
       {
         question: { it: 'Che cosa fa la mascella alla prima formante?', en: 'What does the jaw do to the first formant?' },
         steps: [
-          { label: { it: 'Mascella quasi chiusa', en: 'Jaw nearly closed' }, run: () => { clean(); vowel('ə', 120); store.setParams((p) => { p.articulators.jaw = 0.1; }); void go('chart', 'tract'); } },
-          { label: { it: 'Apri la mascella', en: 'Open the jaw' }, run: () => { store.setParams((p) => { p.articulators.jaw = 0.9; }); void go('chart'); } },
+          { label: { it: 'Mascella quasi chiusa', en: 'Jaw nearly closed' }, run: () => { clean(); vowel('ə', 120); set((p) => { p.articulators.jaw = 0.1; }); void go('chart', 'tract'); } },
+          { label: { it: 'Apri la mascella', en: 'Open the jaw' }, run: () => { set((p) => { p.articulators.jaw = 0.9; }); void go('chart'); } },
         ],
         look: { it: 'Segui il punto giallo sulla mappa delle vocali: in verticale c’è F1.', en: 'Follow the yellow dot on the vowel map: F1 is the vertical axis.' },
         answer: { it: 'Aprendo la mascella la bocca si allarga davanti e la gola si stringe dietro: F1 sale, qui da circa 420 a 620 Hz. In parole semplici F1 dice quanto è aperta la bocca, F2 quanto è avanti la lingua.', en: 'Opening the jaw widens the mouth in front and narrows the throat behind: F1 goes up, here from about 420 to 620 Hz. Put simply, F1 tells how open the mouth is, F2 how far forward the tongue is.' },
@@ -275,7 +285,7 @@ export const CHAPTERS: Chapter[] = [
         question: { it: 'E se arrotondo le labbra su una «i»?', en: 'And if I round my lips on an “ee”?' },
         steps: [
           { label: { it: '«i» con le labbra distese', en: '“ee” with spread lips' }, run: () => { clean(); vowel('i', 120); store.setUi({ envelope: true }); void go('spectrum', 'tract'); } },
-          { label: { it: 'Arrotonda e sporgi le labbra', en: 'Round and push the lips forward' }, run: () => store.setParams((p) => { p.articulators.lipRound = 1; p.articulators.lipProtrude = 1; p.articulators.lipOpen = 0.05; }) },
+          { label: { it: 'Arrotonda e sporgi le labbra', en: 'Round and push the lips forward' }, run: () => set((p) => { p.articulators.lipRound = 1; p.articulators.lipProtrude = 1; p.articulators.lipOpen = 0.05; }) },
         ],
         look: { it: 'Guarda i picchi alti dell’inviluppo, F2 e F3, e ascolta come si scurisce il suono.', en: 'Watch the high peaks of the envelope, F2 and F3, and hear the sound darken.' },
         answer: { it: 'Labbra arrotondate e in avanti allungano il tubo e ne stringono l’uscita: tutte le risonanze scendono, F2 e F3 più di tutte (qui F2 da 2260 a circa 1950 Hz, F3 da 3000 a 2500). La lingua è quella di una «i» e le labbra quelle di una «u»: è la «u» francese, la «ü» tedesca.', en: 'Rounded, forward lips lengthen the tube and narrow its exit: every resonance goes down, F2 and F3 most (here F2 from 2260 to about 1950 Hz, F3 from 3000 to 2500). An “ee” tongue with “oo” lips: the French “u”, the German “ü”.' },
@@ -292,8 +302,8 @@ export const CHAPTERS: Chapter[] = [
       { it: 'Per questo puoi cantare una nota più alta e suonare ancora come te: melodia e colore sono due manopole diverse.', en: 'That is why you can sing a higher note and still sound like yourself: melody and color are two different knobs.' },
     ],
     actions: [
-      { label: { it: 'Alza la nota, filtro fermo', en: 'Raise the pitch, filter fixed' }, run: () => { clean(); vowel('a', 110); store.setUi({ envelope: true, showHarmonics: true }); glide(110, 260, 2.5, (v) => store.setParams((p) => { p.source.f0 = v; })); void go('spectrum'); } },
-      { label: { it: 'Nota ferma, da «a» a «i»', en: 'Same note, from “ah” to “ee”' }, run: () => { vowel('a', 150); setTimeout(() => setPhoneme('i'), 900); void go('spectrum'); } },
+      { label: { it: 'Alza la nota, filtro fermo', en: 'Raise the pitch, filter fixed' }, run: () => { clean(); vowel('a', 110); store.setUi({ envelope: true, showHarmonics: true }); glide(110, 260, 2.5); void go('spectrum'); } },
+      { label: { it: 'Nota ferma, da «a» a «i»', en: 'Same note, from “ah” to “ee”' }, run: () => { vowel('a', 150); later(900, () => phoneme('i')); void go('spectrum'); } },
       { label: { it: 'Esperimenti A/B', en: 'A/B experiments' }, run: () => { void go('spectrum', 'ab'); } },
     ],
   },
@@ -306,9 +316,9 @@ export const CHAPTERS: Chapter[] = [
       { it: 'Una voce sono dunque tre cose: un ronzio che porta la melodia, un fruscio, e un filtro che li colora entrambi.', en: 'So a voice is three things: a buzz that carries the melody, a hiss, and a filter that colors them both.' },
     ],
     actions: [
-      { label: { it: 'Una «s»: il getto sui denti', en: 'An “s”: the jet on the teeth' }, run: () => { clean(); setPhoneme('s'); void go('spectrum', 'teeth'); } },
-      { label: { it: 'Una «f»: piatta e debole', en: 'An “f”: flat and weak' }, run: () => { setPhoneme('f'); void go('spectrum', 'teeth'); } },
-      { label: { it: 'Voce soffiata', en: 'Breathy voice' }, run: () => { clean(); vowel('a', 110); store.setParams(VOICE_PRESETS.find((x) => x.id === 'breathy')!.apply); void go('spectrum', 'noise'); } },
+      { label: { it: 'Una «s»: il getto sui denti', en: 'An “s”: the jet on the teeth' }, run: () => { clean(); phoneme('s'); void go('spectrum', 'teeth'); } },
+      { label: { it: 'Una «f»: piatta e debole', en: 'An “f”: flat and weak' }, run: () => { phoneme('f'); void go('spectrum', 'teeth'); } },
+      { label: { it: 'Voce soffiata', en: 'Breathy voice' }, run: () => { clean(); vowel('a', 110); set(VOICE_PRESETS.find((x) => x.id === 'breathy')!.apply); void go('spectrum', 'noise'); } },
       { label: { it: 'Fruscio costante o pulsato', en: 'Steady or pulsed hiss' }, run: () => { void go('scope', 'ab'); } },
       { label: { it: 'Disegna il tuo rumore', en: 'Draw your own noise' }, run: () => { void go('spectrum', 'noise'); } },
     ],
@@ -316,8 +326,8 @@ export const CHAPTERS: Chapter[] = [
       {
         question: { it: 'Perché la «sc» di «scena» fruscia più in basso della «s»?', en: 'Why does “sh” hiss lower than “s”?' },
         steps: [
-          { label: { it: 'Una «s»', en: 'An “s”' }, run: () => { clean(); setPhoneme('s'); void go('spectrum', 'teeth'); } },
-          { label: { it: 'Una «sc» (ʃ)', en: 'A “sh” (ʃ)' }, run: () => { setPhoneme('ʃ'); void go('spectrum'); } },
+          { label: { it: 'Una «s»', en: 'An “s”' }, run: () => { clean(); phoneme('s'); void go('spectrum', 'teeth'); } },
+          { label: { it: 'Una «sc» (ʃ)', en: 'A “sh” (ʃ)' }, run: () => { phoneme('ʃ'); void go('spectrum'); } },
         ],
         look: { it: 'Guarda dove il fruscio è più forte nello spettro, e osserva lingua e labbra nella testa.', en: 'See where the hiss is strongest in the spectrum, and watch the tongue and the lips in the head.' },
         answer: { it: 'In tutte e due il getto d’aria sbatte sugli incisivi, e il fruscio prende colore dalla piccola cavità tra la lingua e le labbra. Nella «sc» la lingua sta più indietro e le labbra si arrotondano: la cavità davanti è più lunga e risuona più in basso, intorno ai 3 kHz invece dei 4,5 della «s».', en: 'In both the air jet hits the incisors, and the hiss takes its color from the small cavity between the tongue and the lips. For “sh” the tongue sits further back and the lips round: the cavity in front is longer and resonates lower, around 3 kHz instead of the 4.5 kHz of “s”.' },
@@ -334,7 +344,7 @@ export const CHAPTERS: Chapter[] = [
       { it: 'Conta dove si chiude (le labbra per p e b, la punta della lingua per t e d, il dorso per k e g) e quando riparte il ronzio. Nell’inglese «top» il ronzio aspetta circa 60-70 millisecondi e intanto esce un soffio, l’aspirazione; nell’italiano «topo» riparte quasi subito.', en: 'It matters where the tube closes (the lips for p and b, the tongue tip for t and d, the back of the tongue for k and g) and when the buzz comes back. In English “top” the buzz waits about 60-70 milliseconds while a puff of breath comes out, the aspiration; in Italian “topo” it starts almost at once.' },
     ],
     actions: [
-      { label: { it: '«papà» e «babbo»', en: '“pop” and “Bob”' }, run: () => { clean(); void go('spectrum', 'speak'); sayL({ it: 'papà', en: 'pop' }); setTimeout(() => sayL({ it: 'babbo', en: 'Bob' }), 1100); } },
+      { label: { it: '«papà» e «babbo»', en: '“pop” and “Bob”' }, run: () => { clean(); void go('spectrum', 'speak'); void sayTwo(() => sayL({ it: 'papà', en: 'pop' }), () => sayL({ it: 'babbo', en: 'Bob' })); } },
       { label: { it: 'Tre luoghi: «pa», «ta», «ca»', en: 'Three places: “pa”, “ta”, “ka”' }, run: () => { clean(); void go('spectrum', 'speak'); sayL({ it: 'pa ta ca', en: 'pa ta ka' }); } },
     ],
     experiments: [
@@ -342,7 +352,7 @@ export const CHAPTERS: Chapter[] = [
         question: { it: 'Dove va l’aria se chiudo le labbra e continuo a dare voce?', en: 'Where does the air go if I close my lips and keep voicing?' },
         steps: [
           { label: { it: 'Una vocale: «a»', en: 'A vowel: “ah”' }, run: () => { clean(); vowel('a', 120); void go('spectrum', 'tract'); } },
-          { label: { it: 'Chiudi le labbra: «b»', en: 'Close the lips: “b”' }, run: () => { setPhoneme('b'); } },
+          { label: { it: 'Chiudi le labbra: «b»', en: 'Close the lips: “b”' }, run: () => { phoneme('b'); } },
         ],
         look: { it: 'Guarda l’indicatore «ronzio» sotto la testa: si spegne in pochi decimi di secondo. Con i Numeri accesi vedi salire la pressione in bocca.', en: 'Watch the “buzz” meter under the head: it fades within a few tenths of a second. With Numbers on you can see the mouth pressure rise.' },
         answer: { it: 'Con le labbra chiuse la bocca si riempie: in circa due decimi di secondo la pressione arriva a 6 cmH₂O, poi a quella dei polmoni, e le corde smettono di vibrare perché non resta una differenza di pressione a spingerle. Anche per questo una «b» vera dura poco; chi parla gonfia un po’ le guance e abbassa la laringe per guadagnare spazio.', en: 'With the lips shut the mouth fills up: in about two tenths of a second its pressure reaches 6 cmH₂O, then the lung pressure, and the folds stop because no pressure difference is left to drive them. This is one reason a real “b” is short; speakers also puff their cheeks a little and lower the larynx to make room.' },
@@ -369,17 +379,17 @@ export const CHAPTERS: Chapter[] = [
       { it: 'E il naso non è un tubo solo: il setto lo divide in due fosse, ognuna con la sua narice, e i seni paranasali vi si aprono come piccole cavità. Le due fosse quasi mai sono uguali: ogni poche ore la mucosa di un lato si gonfia e quella dell’altro si sgonfia, il ciclo nasale.', en: 'And the nose is not one tube: the septum splits it into two passages, each with its nostril, and the sinuses open into them like small cavities. The two passages are almost never equal: every few hours the lining of one side swells while the other side’s shrinks, the nasal cycle.' },
     ],
     actions: [
-      { label: { it: 'Ronza una «m»', en: 'Hum an “m”' }, run: () => { clean(); setPhoneme('m'); void go('spectrum', 'tract'); } },
-      { label: { it: 'Una «a» nasale', en: 'A nasal “ah”' }, run: () => { clean(); vowel('a', 120); store.setParams((p) => { p.articulators.velum = 0.7; }); void go('spectrum', 'tract'); } },
+      { label: { it: 'Ronza una «m»', en: 'Hum an “m”' }, run: () => { clean(); phoneme('m'); void go('spectrum', 'tract'); } },
+      { label: { it: 'Una «a» nasale', en: 'A nasal “ah”' }, run: () => { clean(); vowel('a', 120); set((p) => { p.articulators.velum = 0.7; }); void go('spectrum', 'tract'); } },
       { label: { it: '«la mamma e la nonna»', en: '“many men and women”' }, run: () => { clean(); void go('spectrum', 'speak'); sayL({ it: 'la mamma e la nonna', en: 'many men and women' }); } },
     ],
     experiments: [
       {
         question: { it: 'Cosa succede se tappi il naso mentre ronzi una «m»?', en: 'What happens if you pinch your nose while humming an “m”?' },
         steps: [
-          { label: { it: 'Ronza una «m»', en: 'Hum an “m”' }, run: () => { clean(); setPhoneme('m'); void go('spectrum', 'tract'); } },
-          { label: { it: 'Tappa il naso', en: 'Pinch the nose' }, run: () => store.setParams((p) => { p.anatomy.nostrilLeft = 0; p.anatomy.nostrilRight = 0; }) },
-          { label: { it: 'Lascialo', en: 'Let go' }, run: () => store.setParams((p) => { p.anatomy.nostrilLeft = 1; p.anatomy.nostrilRight = 1; }) },
+          { label: { it: 'Ronza una «m»', en: 'Hum an “m”' }, run: () => { clean(); phoneme('m'); void go('spectrum', 'tract'); } },
+          { label: { it: 'Tappa il naso', en: 'Pinch the nose' }, run: () => set((p) => { p.anatomy.nostrilLeft = 0; p.anatomy.nostrilRight = 0; }) },
+          { label: { it: 'Lascialo', en: 'Let go' }, run: () => set((p) => { p.anatomy.nostrilLeft = 1; p.anatomy.nostrilRight = 1; }) },
         ],
         look: { it: 'Ascolta, e guarda l’indicatore «ronzio» e il flusso d’aria nella testa.', en: 'Listen, and watch the “buzz” meter and the airflow in the head.' },
         answer: { it: 'Con le labbra chiuse e il naso tappato l’aria non ha più uscita: in una frazione di secondo la pressione in bocca sale fino a quella dei polmoni e le corde si fermano. Prova su di te: ronza e tappati il naso, il ronzio si spegne (o ti si gonfiano le guance). Per questo con il raffreddore «mamma» diventa quasi «babba».', en: 'With the lips closed and the nose pinched the air has no way out: within a fraction of a second the mouth pressure rises to the lung pressure and the folds stop. Try it yourself: hum and pinch your nose, the hum dies (or your cheeks puff out). That is why with a cold “mommy” turns into something like “bobby”.' },
@@ -388,9 +398,9 @@ export const CHAPTERS: Chapter[] = [
       {
         question: { it: 'Due fosse uguali o diverse: si vede?', en: 'Two equal passages or unequal ones: does it show?' },
         steps: [
-          { label: { it: 'Fosse uguali', en: 'Equal passages' }, run: () => { clean(); setPhoneme('m'); store.setUi({ envelope: true }); void go('spectrum', 'tract'); } },
-          { label: { it: 'Lato sinistro congestionato', en: 'Left side congested' }, run: () => store.setParams((p) => { p.anatomy.nasalCycle = -0.7; p.anatomy.nostrilLeft = 1; }) },
-          { label: { it: 'Narice sinistra tappata', en: 'Left nostril pinched' }, run: () => store.setParams((p) => { p.anatomy.nasalCycle = 0; p.anatomy.nostrilLeft = 0; }) },
+          { label: { it: 'Fosse uguali', en: 'Equal passages' }, run: () => { clean(); phoneme('m'); store.setUi({ envelope: true }); void go('spectrum', 'tract'); } },
+          { label: { it: 'Lato sinistro congestionato', en: 'Left side congested' }, run: () => set((p) => { p.anatomy.nasalCycle = -0.7; p.anatomy.nostrilLeft = 1; }) },
+          { label: { it: 'Narice sinistra tappata', en: 'Left nostril pinched' }, run: () => set((p) => { p.anatomy.nasalCycle = 0; p.anatomy.nostrilLeft = 0; }) },
         ],
         look: { it: 'Guarda l’inviluppo, e accendi i Numeri per l’elenco di picchi e valli: con le fosse diverse compare un picco nuovo verso 2,2 kHz con la sua valle; con una narice tappata il primo picco del ronzio scende, da circa 320 a 240 Hz, e tra 1,5 e 1,8 kHz nasce un’altra coppia.', en: 'Watch the envelope, and switch Numbers on for the list of peaks and valleys: with unequal passages a new peak appears near 2.2 kHz with its valley; with one nostril pinched the first peak of the hum drops, from about 320 to 240 Hz, and another pair appears between 1.5 and 1.8 kHz.' },
         answer: { it: 'Due strade di larghezza diversa interferiscono: a certe frequenze le onde arrivano alle narici in fase e si sommano, ad altre in controfase e si cancellano. Una fossa tappata diventa una diramazione chiusa, come una canna d’organo tappata: inghiotte il suono alla sua frequenza di risonanza. L’orecchio lo nota appena, ma è uno dei motivi per cui ogni naso suona un po’ diverso.', en: 'Two paths of different width interfere: at some frequencies the waves reach the nostrils in step and add up, at others out of step and cancel. A pinched passage becomes a closed side branch, like a stopped organ pipe: it swallows sound at its own resonance. The ear barely notices, but it is one reason why every nose sounds a little different.' },
@@ -433,9 +443,9 @@ export const CHAPTERS: Chapter[] = [
       {
         question: { it: 'Se la punta della lingua chiude la bocca, da dove esce l’aria di una «l»?', en: 'If the tongue tip closes the mouth, where does the air of an “l” go?' },
         steps: [
-          { label: { it: 'Tieni una «l»', en: 'Hold an “l”' }, run: () => { clean(); setPhoneme('l'); void go('tract3d', 'tract'); } },
-          { label: { it: 'Ora una «n»', en: 'Now an “n”' }, run: () => setPhoneme('n') },
-          { label: { it: 'Una «l» scura (inglese «feel»)', en: 'A dark “l” (as in “feel”)' }, run: () => setPhoneme('ɫ') },
+          { label: { it: 'Tieni una «l»', en: 'Hold an “l”' }, run: () => { clean(); phoneme('l'); void go('tract3d', 'tract'); } },
+          { label: { it: 'Ora una «n»', en: 'Now an “n”' }, run: () => phoneme('n') },
+          { label: { it: 'Una «l» scura (inglese «feel»)', en: 'A dark “l” (as in “feel”)' }, run: () => phoneme('ɫ') },
         ],
         look: { it: 'Con lo spaccato acceso scegli la vista di fronte o dall’alto: accanto alla linea di mezzo chiusa corrono due canali d’aria, e dietro il contatto c’è una sacca, la «cavità sopralinguale». Accendi i Numeri per la valle che crea.', en: 'With the cutaway on, pick the front or top view: beside the closed midline run two air channels, and behind the contact sits a pocket, the “supralingual cavity”. Switch Numbers on for the valley it makes.' },
         answer: { it: 'La punta tocca la cresta dietro i denti di sopra solo nel mezzo: i margini della lingua si stringono e si abbassano, e l’aria passa ai due lati, come l’acqua attorno a un sasso. L’aria tra i margini, dietro il contatto, è un vicolo cieco: come la bocca chiusa nella «m», inghiotte il suono alla frequenza della sua risonanza, una valle tra 3 e 4 kHz che si vede negli spettri delle «l» vere (Zhang ed Espy-Wilson 2004). Nella «n» i lati restano sigillati e l’aria sale nel naso. Nella «l» scura il corpo della lingua arretra: F2 scende da circa 1500 a circa 950 Hz, ed è questo a farla suonare cupa.', en: 'The tip touches the ridge behind the upper teeth only in the middle: the margins of the tongue draw in and drop, and the air flows past both sides, like water round a stone. The air between the margins, behind the contact, is a dead end: like the closed mouth in an “m”, it swallows the sound at its own resonance, a valley between 3 and 4 kHz that shows in the spectra of real “l”s (Zhang & Espy-Wilson 2004). In the “n” the sides stay sealed and the air goes up through the nose. In the dark “l” the body of the tongue draws back: F2 falls from about 1500 to about 950 Hz, and that is what makes it sound dark.' },
@@ -446,8 +456,8 @@ export const CHAPTERS: Chapter[] = [
         steps: [
           { label: { it: 'Una «a» e i seni piriformi', en: 'An “ah” and the fossae' }, run: () => { clean(); vowel('a', 120); void go('tract3d', 'tract'); } },
           { label: { it: 'Guarda la loro valle', en: 'See their valley' }, run: () => { store.setUi({ envelope: true }); void go('spectrum', 'tract'); } },
-          { label: { it: 'Riempili a metà d’acqua', en: 'Fill them halfway with water' }, run: () => store.setParams((p) => { p.anatomy.piriform = 0.5; }) },
-          { label: { it: 'Svuotali', en: 'Empty them' }, run: () => store.setParams((p) => { p.anatomy.piriform = 1; }) },
+          { label: { it: 'Riempili a metà d’acqua', en: 'Fill them halfway with water' }, run: () => set((p) => { p.anatomy.piriform = 0.5; }) },
+          { label: { it: 'Svuotali', en: 'Empty them' }, run: () => set((p) => { p.anatomy.piriform = 1; }) },
         ],
         look: { it: 'Nella vista 3D le due tasche pendono ai lati della laringe, l’acqua in azzurro. Nello spettro passa a 0–10 kHz e guarda l’inviluppo verso 4,5 kHz: con l’acqua la valle salta verso 8 kHz.', en: 'In the 3D view the two pouches hang beside the larynx, the water in blue. In the spectrum switch to 0–10 kHz and watch the envelope near 4.5 kHz: with water the valley jumps to near 8 kHz.' },
         answer: { it: 'Ogni seno è un tubetto chiuso in fondo, profondo circa 2 cm, che si apre nella gola appena sopra la laringe. Come ogni diramazione cieca inghiotte il suono alla sua risonanza, dove un quarto della lunghezza d’onda ci sta dentro: con la sua forma a imbuto, verso 4,5 kHz. Con l’acqua la colonna d’aria si dimezza e la valle sale verso 8 kHz. Dang e Honda (1997) lo hanno fatto davvero: hanno riempito d’acqua i seni piriformi di persone vere e hanno visto la valle spostarsi. Queste tasche cambiano da persona a persona, e sono uno dei motivi per cui le voci si distinguono più sopra i 4 kHz che sotto.', en: 'Each fossa is a little tube closed at the bottom, about 2 cm deep, opening into the throat just above the larynx. Like every blind side branch it swallows the sound at its own resonance, where a quarter of the wavelength fits inside: with its funnel shape, near 4.5 kHz. With water the air column is halved and the valley climbs to near 8 kHz. Dang and Honda (1997) did this for real: they filled the piriform fossae of real speakers with water and watched the valley move. The pouches differ from person to person, and are one reason why voices differ more above 4 kHz than below.' },
@@ -522,3 +532,10 @@ export const CHAPTERS: Chapter[] = [
     ],
   },
 ];
+
+const cancelling = (a: TourAction): TourAction => ({ ...a, run: () => { pending?.(); pending = null; a.run(); } });
+export const CHAPTERS: Chapter[] = CHAPTER_LIST.map((c) => ({
+  ...c,
+  actions: c.actions.map(cancelling),
+  experiments: c.experiments?.map((e) => ({ ...e, steps: e.steps.map(cancelling) })),
+}));

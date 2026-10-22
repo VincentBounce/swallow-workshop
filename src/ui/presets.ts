@@ -1,8 +1,7 @@
 import { EngineParams, Score, ScoreFrame, DEFAULT_SOURCE, DEFAULT_NOISE } from '../dsp/engine/params';
 import { PHONEMES } from '../dsp/speech/phonemes';
-import { Articulators, DEFAULT_ANATOMY, DEFAULT_ARTICULATORS, DEFAULT_TEETH } from '../dsp/tract/types';
+import { DEFAULT_ANATOMY, DEFAULT_ARTICULATORS } from '../dsp/tract/types';
 import { colourCurve, NoiseColour, NOISE_CURVE_POINTS, noiseCurveFreq } from '../dsp/noise/noise';
-import { store } from './store';
 
 type Bi = { it: string; en: string };
 
@@ -81,19 +80,6 @@ export function applyPhoneme(ipa: string, p: EngineParams): void {
   p.phonate = true;
 }
 
-export function setPhoneme(ipa: string): void { store.setParams((p) => applyPhoneme(ipa, p)); }
-
-export function resetAll(): void {
-  store.setParams((p) => {
-    p.articulators = { ...DEFAULT_ARTICULATORS, ...PHONEMES.a.art };
-    p.anatomy = { ...DEFAULT_ANATOMY };
-    p.teeth = { ...DEFAULT_TEETH };
-    p.source = { ...DEFAULT_SOURCE };
-    p.noise = { ...DEFAULT_NOISE, user: { ...DEFAULT_NOISE.user, curve: Array.from(colourCurve('white')) } };
-    p.abduction = 0; p.voicing = true; p.bypassTract = false; p.tubeMode = false; p.losses = 1;
-  });
-}
-
 /** Noise colour presets for the user noise designer. */
 export const NOISE_SHAPES: { id: string; name: Bi; curve: () => number[] }[] = [
   ...(['white', 'pink', 'brown', 'blue', 'violet'] as NoiseColour[]).map((c) => ({
@@ -120,8 +106,8 @@ export function bandCurve(fc: number, octaves: number, peak: number, floor: numb
   return out;
 }
 
-/** Score holding the articulators and following an F0 contour (melody pad, singing). */
-export function contourScore(points: { t: number; f0: number }[], art: Articulators, ps: number, abduction = 0): Score {
+/** Score following an F0 contour (melody pad, singing); it has no articulators, so the hands keep the tract. */
+export function contourScore(points: { t: number; f0: number }[], ps: number, abduction = 0): Score {
   const frames: ScoreFrame[] = [];
   const dur = points.length ? points[points.length - 1].t : 0;
   const FR = 0.005;
@@ -132,7 +118,7 @@ export function contourScore(points: { t: number; f0: number }[], art: Articulat
     const u = b.t > a.t ? Math.max(0, Math.min(1, (t - a.t) / (b.t - a.t))) : 0;
     const f0 = a.f0 > 0 && b.f0 > 0 ? a.f0 * Math.pow(b.f0 / a.f0, u) : (u < 0.5 ? a.f0 : b.f0);
     const voiced = f0 > 0;
-    frames.push({ t, art: { ...art }, abduction: voiced ? abduction : 0.6, f0: voiced ? f0 : (points.find((q) => q.f0 > 0)?.f0 ?? 120), ps: t < dur ? ps : 0 });
+    frames.push({ t, abduction: voiced ? abduction : 0.6, f0: voiced ? f0 : (points.find((q) => q.f0 > 0)?.f0 ?? 120), ps: t < dur ? ps : 0 });
   }
   return { frames, phones: [{ ipa: '', t0: 0, t1: dur }], duration: dur };
 }

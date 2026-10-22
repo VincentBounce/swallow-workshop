@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { store } from '../store';
 import { useL } from '../i18n';
 import { Section } from './controls';
 import { useAnimatedCanvas, C } from '../canvas';
-import { renderOffline } from '../../dsp/engine/engine';
 import { EngineParams } from '../../dsp/engine/params';
+import { voice } from '../voice/voice';
+import { cloneParams } from '../voice/controls';
+import { useLanes } from '../voice/hooks';
 import { welch } from '../../dsp/util/fft';
 import { applyPhoneme, VOICE_PRESETS, TIMBRE_PRESETS } from '../presets';
 
@@ -81,42 +82,38 @@ const EXPERIMENTS: Experiment[] = [
   },
 ];
 
-interface Clip { samples: Float32Array; spec: Float64Array; label: string }
+/** Long-term spectrum of a clip as heard, from 0.2 s on (after the onset). */
+interface Clip { spec: Float64Array; fs: number }
+const CLIP_SECONDS = 1.5;
 
 export function ABPanel() {
   const L = useL();
   const [exp, setExp] = useState(EXPERIMENTS[0]);
   const [clips, setClips] = useState<{ a: Clip | null; b: Clip | null }>({ a: null, b: null });
-  const [busy, setBusy] = useState(false);
+  const perf = useLanes().performer;
   const [showAnswer, setShowAnswer] = useState(false);
   const custom = useRef<{ a: EngineParams | null; b: EngineParams | null }>({ a: null, b: null });
 
-  const render = (p: EngineParams, lbl: string): Clip => {
-    const q: EngineParams = structuredClone(p);
-    q.phonate = true;
-    const { out } = renderOffline(q, 1.5, 48000);
-    const body = out.subarray(9600);
-    // fade in/out
-    const s = out.slice();
-    for (let i = 0; i < 2400; i++) { s[i] *= i / 2400; s[s.length - 1 - i] *= i / 2400; }
-    return { samples: s, spec: welch(body, 4096), label: lbl };
+  /** The experiments start from the hands' voice, on the head. */
+  const base = (): EngineParams => { const p = cloneParams(voice.manual); p.tubeMode = false; p.bypassTract = false; return p; };
+  const clipLabel = (which: 'a' | 'b') => {
+    const l = which === 'a' ? exp.a : exp.b, k = which.toUpperCase();
+    return { it: `${k} · ${l.it}`, en: `${k} · ${l.en}` };
   };
-  const base = (): EngineParams => structuredClone(store.params);
-  const run = (which: 'a' | 'b') => {
-    setBusy(true);
-    setTimeout(() => {
-      let p: EngineParams;
-      if (exp.id === 'custom') {
-        const c = custom.current[which];
-        if (!c) { setBusy(false); return; }
-        p = structuredClone(c);
-      } else { p = base(); (which === 'a' ? exp.setA : exp.setB)(p); }
-      const clip = render(p, L(which === 'a' ? exp.a : exp.b));
-      setClips((c) => ({ ...c, [which]: clip }));
-      void store.playClip(clip.samples, 48000);
-      setBusy(false);
-    }, 10);
+  const run = async (which: 'a' | 'b') => {
+    let p: EngineParams;
+    if (exp.id === 'custom') {
+      const c = custom.current[which];
+      if (!c) return;
+      p = cloneParams(c);
+    } else { p = base(); (which === 'a' ? exp.setA : exp.setB)(p); }
+    p.phonate = true;
+    // the voice plays the state live (the head and the views show it); the spectrum comes from the samples heard
+    const { samples } = await voice.playClip(p, CLIP_SECONDS, clipLabel(which));
+    const fs = voice.sampleRate;
+    if (samples && samples.length > 0.6 * fs) setClips((c) => ({ ...c, [which]: { spec: welch(samples.subarray(Math.round(0.2 * fs)), 4096), fs } }));
   };
+  const playing = (which: 'a' | 'b') => perf.kind === 'clip' && perf.label.en === clipLabel(which).en;
 
   const ref = useAnimatedCanvas(({ ctx, w, h }) => {
     ctx.fillStyle = C.panel; ctx.fillRect(0, 0, w, h);
@@ -127,12 +124,12 @@ export function ABPanel() {
     for (let f = 0; f <= fmax; f += 1000) { ctx.beginPath(); ctx.moveTo(X(f), 8); ctx.lineTo(X(f), h - 18); ctx.stroke(); ctx.fillText(f ? f / 1000 + 'k' : '0', X(f), h - 15); }
     const all = [clips.a, clips.b].filter(Boolean) as Clip[];
     let mx = -200;
-    for (const c of all) for (let k = 1; k < c.spec.length; k++) { const f = (k * 48000) / 4096; if (f > fmax) break; mx = Math.max(mx, 10 * Math.log10(c.spec[k] + 1e-20)); }
+    for (const c of all) for (let k = 1; k < c.spec.length; k++) { const f = (k * c.fs) / 4096; if (f > fmax) break; mx = Math.max(mx, 10 * Math.log10(c.spec[k] + 1e-20)); }
     const draw = (c: Clip | null, col: string) => {
       if (!c) return;
       ctx.strokeStyle = col; ctx.lineWidth = 1.4;
       ctx.beginPath();
-      for (let k = 1; k < c.spec.length; k++) { const f = (k * 48000) / 4096; if (f > fmax) break; const y = Y(Math.max(-80, 10 * Math.log10(c.spec[k] + 1e-20) - mx)); if (k === 1) ctx.moveTo(X(f), y); else ctx.lineTo(X(f), y); }
+      for (let k = 1; k < c.spec.length; k++) { const f = (k * c.fs) / 4096; if (f > fmax) break; const y = Y(Math.max(-80, 10 * Math.log10(c.spec[k] + 1e-20) - mx)); if (k === 1) ctx.moveTo(X(f), y); else ctx.lineTo(X(f), y); }
       ctx.stroke();
     };
     draw(clips.a, C.amber); draw(clips.b, C.teal);
@@ -150,13 +147,13 @@ export function ABPanel() {
         <p className="question">{L(exp.question)}</p>
         {exp.id === 'custom' && (
           <div className="row">
-            <button className="chip" onClick={() => { custom.current.a = structuredClone(store.params); setClips((c) => ({ ...c, a: null })); }}>{L({ it: 'Cattura A dal laboratorio', en: 'Capture A from the lab' })}{custom.current.a ? ' ✓' : ''}</button>
-            <button className="chip" onClick={() => { custom.current.b = structuredClone(store.params); setClips((c) => ({ ...c, b: null })); }}>{L({ it: 'Cattura B dal laboratorio', en: 'Capture B from the lab' })}{custom.current.b ? ' ✓' : ''}</button>
+            <button className="chip" onClick={() => { custom.current.a = cloneParams(voice.manual); setClips((c) => ({ ...c, a: null })); }}>{L({ it: 'Cattura A dal laboratorio', en: 'Capture A from the lab' })}{custom.current.a ? ' ✓' : ''}</button>
+            <button className="chip" onClick={() => { custom.current.b = cloneParams(voice.manual); setClips((c) => ({ ...c, b: null })); }}>{L({ it: 'Cattura B dal laboratorio', en: 'Capture B from the lab' })}{custom.current.b ? ' ✓' : ''}</button>
           </div>
         )}
         <div className="ab-buttons">
-          <button className="btn ab a" disabled={busy} onClick={() => run('a')}><b>A</b> {L(exp.a)}</button>
-          <button className="btn ab b" disabled={busy} onClick={() => run('b')}><b>B</b> {L(exp.b)}</button>
+          <button className={playing('a') ? 'btn ab a on' : 'btn ab a'} onClick={() => void run('a')}><b>A</b> {L(exp.a)}</button>
+          <button className={playing('b') ? 'btn ab b on' : 'btn ab b'} onClick={() => void run('b')}><b>B</b> {L(exp.b)}</button>
         </div>
         <canvas ref={ref} className="ab-canvas" />
         {exp.id !== 'custom' && (

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { store } from '../store';
+import { voice } from '../voice/voice';
 import { useL } from '../i18n';
 import { Section, Slider } from './controls';
 import { useAnimatedCanvas, C, label } from '../canvas';
@@ -7,7 +7,6 @@ import { melodyState } from './MelodyPanel';
 import { welch } from '../../dsp/util/fft';
 import { Rng } from '../../dsp/util/rng';
 
-const FS = 48000;
 const DUR = 3.2;
 
 /**
@@ -18,7 +17,7 @@ const DUR = 3.2;
  * learned numbers mixes the nine sines into one signal, the excitation, which
  * a learned filter (the decoder) then turns into a voice.
  */
-function excitation(weights: number[], contour: number[]): Float32Array {
+function excitation(weights: number[], contour: number[], FS: number): Float32Array {
   const n = Math.round(DUR * FS);
   const out = new Float32Array(n);
   const rng = new Rng(7);
@@ -45,11 +44,12 @@ function excitation(weights: number[], contour: number[]): Float32Array {
 export function MachinePanel() {
   const L = useL();
   const [w, setW] = useState<number[]>([1, 0.7, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.12]);
-  const spec = useRef<Float64Array | null>(null);
+  const spec = useRef<{ s: Float64Array; fs: number } | null>(null);
   const play = () => {
-    const x = excitation(w, melodyState.contour);
-    spec.current = welch(x, 8192);
-    void store.playClip(x, FS);
+    const fs = voice.sampleRate;
+    const x = excitation(w, melodyState.contour, fs);
+    spec.current = { s: welch(x, 8192), fs };
+    void voice.playSamples(x, { it: 'l’eccitazione', en: 'the excitation' });
   };
   const ref = useAnimatedCanvas(({ ctx, w: cw, h }) => {
     ctx.fillStyle = C.panel; ctx.fillRect(0, 0, cw, h);
@@ -69,8 +69,9 @@ export function MachinePanel() {
     ctx.fillStyle = 'rgba(169,139,250,0.12)';
     ctx.fillRect(X(9 * f0 + f0 / 2), 10, cw - 10 - X(9 * f0 + f0 / 2), h - 28);
     label(ctx, L({ it: 'oltre la 9ª armonica: tocca al filtro appreso', en: 'beyond the 9th harmonic: up to the learned filter' }), Math.min(cw - 120, X(9 * f0) + 130), 22, C.violet);
-    const s = spec.current;
-    if (s) {
+    const sp = spec.current;
+    if (sp) {
+      const s = sp.s, FS = sp.fs;
       let m = -200; for (let k = 1; k < s.length; k++) m = Math.max(m, 10 * Math.log10(s[k] + 1e-20));
       ctx.strokeStyle = 'rgba(231,235,243,0.7)'; ctx.lineWidth = 1;
       ctx.beginPath();

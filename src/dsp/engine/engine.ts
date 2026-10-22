@@ -238,7 +238,7 @@ export class VoiceEngine {
 
   // ------------------------------------------------------------ control
 
-  private targetFrame(): { art: Articulators; abduction: number; f0: number; ps: number; tip: number; rd: number; gate: number } | null {
+  private targetFrame(): { art: Articulators | null; abduction: number; f0: number; ps: number; tip: number; rd: number; gate: number } | null {
     const sc = this.score;
     if (!sc) return null;
     if (this.scoreTime > sc.duration + this.scoreHold) { this.score = null; this.tam.f0.tau = TAM_TAU.f0; return null; }
@@ -247,8 +247,11 @@ export class VoiceEngine {
     const a = fr[this.scoreIdx], b = fr[Math.min(this.scoreIdx + 1, fr.length - 1)];
     const t = b.t > a.t ? Math.min(1, Math.max(0, (this.scoreTime - a.t) / (b.t - a.t))) : 0;
     const mix = (x: number, y: number) => x + (y - x) * t;
-    const art = {} as Articulators;
-    for (const k of ARTICULATOR_KEYS) art[k] = mix(a.art[k], b.art[k]);
+    let art: Articulators | null = null;
+    if (a.art && b.art) {
+      art = {} as Articulators;
+      for (const k of ARTICULATOR_KEYS) art[k] = mix(a.art[k], b.art[k]);
+    }
     return {
       art, abduction: mix(a.abduction, b.abduction), f0: mix(a.f0, b.f0), ps: mix(a.ps, b.ps),
       tip: mix(a.tip ?? 0, b.tip ?? 0), rd: mix(a.rd ?? 0, b.rd ?? 0), gate: mix(a.gate ?? 1, b.gate ?? 1),
@@ -260,7 +263,7 @@ export class VoiceEngine {
     const p = this.params;
     const fr = this.targetFrame();
     if (this.score) this.scoreTime += dt;
-    const artT = fr ? fr.art : p.articulators;
+    const artT = fr?.art ?? p.articulators;
     for (const k of ARTICULATOR_KEYS) this.art[k] = this.tam[k].step(artT[k], dt);
     // taps and trills: the contacts of the tongue tip are ballistic, added on
     // top of the smoothed posture (alveolar trill about 26 Hz, Recasens 1991)

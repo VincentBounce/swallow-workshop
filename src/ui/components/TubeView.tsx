@@ -1,5 +1,9 @@
 import { useRef } from 'react';
-import { store, useParams, useUi } from '../store';
+import { store, useUi } from '../store';
+import { voice } from '../voice/voice';
+import { useLock, useManual } from '../voice/hooks';
+import { LockIcon } from './controls';
+import { lockText } from './DriverBar';
 import { useL } from '../i18n';
 import { useAnimatedCanvas, C, fieldColor, label, fmtHz } from '../canvas';
 import { standingWave } from '../../dsp/tract/acoustics';
@@ -16,13 +20,15 @@ const CTRL = 16;
  */
 export function TubeView() {
   const L = useL();
-  const p = useParams();
+  const p = useManual();
   const ui = useUi();
+  const lockTube = useLock('tube'), lockFilter = useLock('filter');
+  const lock = lockTube ?? lockFilter;
   const geo = useRef({ x0: 0, x1: 1, yc: 0, k: 1 });
   const drawing = useRef(false);
 
   const ref = useAnimatedCanvas(({ ctx, w, h }) => {
-    const prm = store.params;
+    const prm = voice.sounding();
     const { af, formants } = store.derived();
     const tel = store.ui.audioOn ? store.telemetry : null;
     ctx.fillStyle = C.panel; ctx.fillRect(0, 0, w, h);
@@ -34,7 +40,7 @@ export function TubeView() {
     const n = af.areas.length;
     const X = (i: number) => x0 + (i / n) * (x1 - x0);
     // nasal branch
-    const port = portArea(store.currentArticulators().velum, prm.anatomy.nasalLeak, prm.anatomy.scale);
+    const port = portArea(prm.articulators.velum, prm.anatomy.nasalLeak, prm.anatomy.scale);
     const J = Math.round(0.43 * n);
     if (port > 0.01) {
       const bx = X(J), r = rOf(port);
@@ -106,7 +112,7 @@ export function TubeView() {
     if (frac < 0 || frac >= 1) return;
     const rad = Math.abs(py - g.yc) / g.k;
     const area = Math.max(0.0, Math.min(12, rad * rad * 8));
-    store.setParams((p) => {
+    voice.edit((p) => {
       if (!p.tubeMode) {
         const af = store.derived().af;
         p.tubeAreas = Array.from({ length: CTRL }, (_, k) => af.areas[Math.min(af.areas.length - 1, Math.floor(((k + 0.5) / CTRL) * af.areas.length))]);
@@ -130,11 +136,12 @@ export function TubeView() {
         ))}
       </div>
       <div className="overlay-bottom row">
+        {lock && <span className="hint locked-note"><LockIcon /> {L(lockText(lock))}</span>}
         <span className="hint">{p.tubeMode ? L({ it: 'Modalità tubo: disegna il profilo trascinando.', en: 'Tube mode: draw the profile by dragging.' }) : L({ it: 'Trascina sul tubo per disegnarlo a mano.', en: 'Drag on the tube to draw it by hand.' })}</span>
         {p.tubeMode && <>
-          <label className="mini">L {p.tubeLength.toFixed(1)} cm<input type="range" min={8} max={26} step={0.1} value={p.tubeLength} onChange={(e) => store.setParams((q) => { q.tubeLength = Number(e.target.value); })} /></label>
-          <button className="chip" onClick={() => store.setParams((q) => { q.tubeAreas = new Array(CTRL).fill(3); q.tubeLength = 17.5; })}>{L({ it: 'Uniforme', en: 'Uniform' })}</button>
-          <button className="chip on" onClick={() => store.setParams((q) => { q.tubeMode = false; })}>{L({ it: 'Torna alla testa', en: 'Back to the head' })}</button>
+          <label className="mini">L {p.tubeLength.toFixed(1)} cm<input type="range" min={8} max={26} step={0.1} value={p.tubeLength} onChange={(e) => voice.edit((q) => { q.tubeLength = Number(e.target.value); })} /></label>
+          <button className="chip" onClick={() => voice.edit((q) => { q.tubeAreas = new Array(CTRL).fill(3); q.tubeLength = 17.5; })}>{L({ it: 'Uniforme', en: 'Uniform' })}</button>
+          <button className="chip on" onClick={() => voice.setFilter('head', { takeOver: true })}>{L({ it: 'Torna alla testa', en: 'Back to the head' })}</button>
         </>}
       </div>
     </div>

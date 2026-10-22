@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { store, useUi, useTick } from '../store';
+import { voice } from '../voice/voice';
+import { useLanes } from '../voice/hooks';
 import { useL } from '../i18n';
 import { Slider, Section, Seg, Toggle } from './controls';
 import { C } from '../canvas';
@@ -69,7 +71,9 @@ export function SpeakPanel() {
   const ui = useUi();
   const sp = ui.speech;
   const { text, lang, rate, accent, natural } = sp;
-  useTick(ui.speaking ? 20 : 0);
+  const perf = useLanes().performer;
+  const sc = perf.kind === 'sentence' ? perf.score : null;
+  useTick(sc ? 20 : 0);
   useEffect(() => { if (lang === 'en') void store.ensureLexicon(); }, [lang]);
   let phones: Phone[] = [];
   try { phones = textToPhones(text, lang); } catch { phones = []; }
@@ -77,15 +81,14 @@ export function SpeakPanel() {
     if (lg === 'en') await store.ensureLexicon();
     const ph = textToPhones(t, lg);
     if (!ph.length) return;
-    const p = store.params;
+    const p = voice.manual;
     const score = buildScore(ph, { lang: lg, f0: p.source.f0, ps: Math.max(6, p.source.ps), rate, accent, natural });
-    void store.speak(score);
+    void voice.speak(score, { it: t, en: t });
   };
   const setNatural = (n: Partial<NaturalnessOptions>) => store.setSpeech({ natural: { ...natural, ...n } });
   const robot = INGREDIENTS.every((g) => !natural[g.key]);
   const all = INGREDIENTS.every((g) => natural[g.key]);
-  const sc = ui.speaking;
-  const now = store.telemetry?.scoreTime ?? 0;
+  const now = voice.progress()?.t ?? 0;
   const lexNote: Bi | null = lang !== 'en' ? null
     : ui.lexicon === 'ready' ? { it: 'dizionario americano: 89 mila parole', en: 'American dictionary: 89 thousand words' }
       : ui.lexicon === 'error' ? { it: 'dizionario non disponibile: uso le regole di lettura', en: 'dictionary unavailable: using spelling rules' }
@@ -105,7 +108,7 @@ export function SpeakPanel() {
         {lexNote && <p className="small muted">{L(lexNote)}</p>}
         <div className="row">
           <button className="btn primary" onClick={() => void speak()}>{L({ it: 'Parla', en: 'Speak' })}</button>
-          <button className="btn" onClick={() => store.stopSpeaking()}>{L({ it: 'Ferma', en: 'Stop' })}</button>
+          <button className="btn" onClick={() => voice.stop()}>{L({ it: 'Ferma', en: 'Stop' })}</button>
         </div>
         <div className="chips">
           {[...EXAMPLES.filter((e) => e.lang === ui.lang), ...EXAMPLES.filter((e) => e.lang !== ui.lang)].map((e) => (

@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { store, useParams } from '../store';
+import { store } from '../store';
+import { voice } from '../voice/voice';
+import { useManual } from '../voice/hooks';
 import { useL } from '../i18n';
 import { useAnimatedCanvas, C, label } from '../canvas';
 import { lfFlow, lfDerivative, rdToTiming, solveLF, timingFromQuotients, LFShape } from '../../dsp/glottis/lf';
@@ -12,7 +14,7 @@ import { lfFlow, lfDerivative, rdToTiming, solveLF, timingFromQuotients, LFShape
  */
 export function GlottisView() {
   const L = useL();
-  const p = useParams();
+  const p = useManual();
   const [speed, setSpeed] = useState(0.6);
   const phase = useRef(0);
   const puffs = useRef<{ y: number; a: number; x: number }[]>([]);
@@ -22,7 +24,7 @@ export function GlottisView() {
   const tmTime = useRef(0);
 
   const ref = useAnimatedCanvas(({ ctx, w, h, dt }) => {
-    const prm = store.params;
+    const prm = voice.sounding();
     const s = prm.source;
     const tel = store.ui.audioOn ? store.telemetry : null;
     ctx.fillStyle = C.panel; ctx.fillRect(0, 0, w, h);
@@ -43,7 +45,7 @@ export function GlottisView() {
       tmTime.current += dt;
       if ((!tmCycle.current || tmTime.current > 0.5) && tel && tel.f0 > 0 && store.ring.total > 8192) {
         tmTime.current = 0;
-        const fs = store.audio.sampleRate;
+        const fs = voice.sampleRate;
         const per = Math.round(fs / tel.f0);
         const x = store.readRing('flow', per * 3 + 10);
         // align on the minimum

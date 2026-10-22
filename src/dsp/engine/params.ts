@@ -175,7 +175,8 @@ export { NOISE_CURVE_POINTS };
 export interface ScoreFrame {
   /** time, s */
   t: number;
-  art: Articulators;
+  /** articulator targets; a score without them (a melody) leaves the tract to the hands */
+  art?: Articulators;
   abduction: number;
   f0: number;
   /** lung pressure, cm H2O */

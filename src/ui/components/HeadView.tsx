@@ -1,6 +1,10 @@
 import { useRef, useState } from 'react';
 import { store, useUi, FieldMode } from '../store';
-import { useT } from '../i18n';
+import { useT, useL } from '../i18n';
+import { voice } from '../voice/voice';
+import { useSoundOn, useVoice } from '../voice/hooks';
+import type { ControlId } from '../voice/controls';
+import { lockText } from './DriverBar';
 import { useAnimatedCanvas, C, fieldColor, label } from '../canvas';
 import {
   canonToWorld, tongueOffsetFromWorld, tipOffsetFromWorld, velumFromWorld, velumTip, GEOMETRY_CONST, TractGeometry, Solid,
@@ -10,6 +14,9 @@ import { N_SECTIONS } from '../../dsp/tract/areaFunction';
 import type { Telemetry } from '../../dsp/engine/engine';
 
 type HandleId = 'tongue' | 'tip' | 'jaw' | 'lips' | 'velum' | 'larynx' | 'teeth';
+
+/** The control each handle moves (it is locked while someone else drives it). */
+const HANDLE_CONTROL: Record<HandleId, ControlId> = { tongue: 'posture', tip: 'posture', jaw: 'posture', lips: 'posture', larynx: 'posture', velum: 'velum', teeth: 'teeth' };
 
 interface Particle { s: number; off: number; nose: boolean; age: number }
 
@@ -25,7 +32,10 @@ const chinWeight = (x: number) => Math.max(0, Math.min(1, (x - 3.2) / 3.0));
 
 export function HeadView() {
   const t = useT();
+  const L = useL();
   const ui = useUi();
+  const sound = useSoundOn();
+  const postureLock = useVoice((v) => v.lock('posture'));
   const [labels, setLabels] = useState(true);
   const drag = useRef<{ id: HandleId; x0: number; y0: number; a0: Articulators; t0: Teeth; ang0: number } | null>(null);
   const hover = useRef<HandleId | null>(null);
@@ -35,9 +45,10 @@ export function HeadView() {
   const sparks = useRef<{ x: number; y: number; vx: number; vy: number; life: number; c: string }[]>([]);
 
   const ref = useAnimatedCanvas(({ ctx, w, h, dt, t: time }) => {
-    const p = store.params;
+    // what sounds: a sentence or a clip moves the head by itself
+    const p = voice.sounding();
     const an = p.anatomy;
-    const a = store.currentArticulators();
+    const a = p.articulators;
     const { geom } = store.derived();
     const tel = store.ui.audioOn ? store.telemetry : null;
     const s = an.scale * 0.9;
@@ -208,18 +219,23 @@ export function HeadView() {
     const col: Record<HandleId, string> = { tongue: C.rose, tip: C.rose, jaw: C.bone, lips: C.rose, velum: C.teal, larynx: C.amber, teeth: C.tooth };
     for (const id of Object.keys(H) as HandleId[]) {
       const [hx, hy] = H[id];
-      const active = drag.current?.id === id || hover.current === id;
+      // a handle someone else drives is hollow and grey
+      const locked = !!voice.lock(HANDLE_CONTROL[id]);
+      const active = !locked && (drag.current?.id === id || hover.current === id);
+      const c = locked ? C.muted : col[id];
       ctx.beginPath();
       ctx.arc(X(hx), Y(hy), active ? 9 : 6.5, 0, Math.PI * 2);
-      ctx.fillStyle = active ? col[id] : 'rgba(11,14,20,0.55)';
+      ctx.fillStyle = active ? c : locked ? 'rgba(11,14,20,0.2)' : 'rgba(11,14,20,0.55)';
       ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = col[id];
+      ctx.lineWidth = locked ? 1.5 : 2;
+      if (locked) ctx.setLineDash([2.5, 2.5]);
+      ctx.strokeStyle = c;
       ctx.stroke();
+      ctx.setLineDash([]);
       if (labels || active) {
         const dxl = id === 'larynx' ? 34 : id === 'lips' || id === 'jaw' ? 30 : 0;
         const dyl = id === 'larynx' || id === 'lips' || id === 'jaw' ? 0 : -16;
-        label(ctx, names[id], X(hx) + dxl, Y(hy) + dyl, col[id]);
+        label(ctx, names[id], X(hx) + dxl, Y(hy) + dyl, c);
       }
     }
     if (id_larynxLine) {
@@ -238,7 +254,7 @@ export function HeadView() {
     return [(e.clientX - r.left - v.ox) / v.k, (v.oy - (e.clientY - r.top)) / v.k] as [number, number];
   };
   const hit = (x: number, y: number): HandleId | null => {
-    let best: HandleId | null = null, bd = 0.7 * Math.max(0.6, store.params.anatomy.scale);
+    let best: HandleId | null = null, bd = 0.7 * Math.max(0.6, voice.sounding().anatomy.scale);
     for (const id of Object.keys(handles.current) as HandleId[]) {
       const [hx, hy] = handles.current[id];
       const d = Math.hypot(hx - x, hy - y);
@@ -249,50 +265,59 @@ export function HeadView() {
   const onDown = (e: React.PointerEvent) => {
     const [x, y] = toWorld(e);
     const id = hit(x, y);
-    if (!id) return;
+    if (!id || voice.lock(HANDLE_CONTROL[id])) return;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    // the drag starts from the posture you see, and gives it air if the audio runs
+    voice.grab({ blow: true });
     const J = store.derived().geom.landmarks.jawPivot;
-    drag.current = { id, x0: x, y0: y, a0: { ...store.params.articulators }, t0: { ...store.params.teeth }, ang0: Math.atan2(y - J[1], x - J[0]) };
-    if (!store.params.phonate && store.ui.audioOn) store.setParams((p) => { p.phonate = true; });
+    const m = voice.manual;
+    drag.current = { id, x0: x, y0: y, a0: { ...m.articulators }, t0: { ...m.teeth }, ang0: Math.atan2(y - J[1], x - J[0]) };
   };
   const onMove = (e: React.PointerEvent) => {
     const [x, y] = toWorld(e);
     const d = drag.current;
     if (!d) {
       const h = hit(x, y);
-      if (h !== hover.current) { hover.current = h; (e.target as HTMLElement).style.cursor = h ? 'grab' : 'default'; }
+      if (h !== hover.current) {
+        hover.current = h;
+        const el = e.target as HTMLElement;
+        const lk = h ? voice.lock(HANDLE_CONTROL[h]) : null;
+        el.style.cursor = !h ? 'default' : lk ? 'not-allowed' : 'grab';
+        el.title = lk ? L(lockText(lk)) : '';
+      }
       return;
     }
-    const an = store.params.anatomy;
+    const an = voice.manual.anatomy;
+    const setArt = (o: Partial<Articulators>) => voice.edit((q) => { Object.assign(q.articulators, o); });
     const s = an.scale * 0.9;
     const a0 = d.a0;
     const dx = x - d.x0, dy = y - d.y0;
     switch (d.id) {
       case 'tongue': {
         const o = tongueOffsetFromWorld(x, y, a0, an);
-        store.setArticulators({ tongueX: clampArt('tongueX', o.tongueX), tongueY: clampArt('tongueY', o.tongueY) });
+        setArt({ tongueX: clampArt('tongueX', o.tongueX), tongueY: clampArt('tongueY', o.tongueY) });
         break;
       }
       case 'tip': {
         const o = tipOffsetFromWorld(x, y, a0, an);
-        store.setArticulators({ tipX: clampArt('tipX', o.tipX), tipY: clampArt('tipY', o.tipY) });
+        setArt({ tipX: clampArt('tipX', o.tipX), tipY: clampArt('tipY', o.tipY) });
         break;
       }
       case 'jaw': {
         const J = store.derived().geom.landmarks.jawPivot;
         const ang = Math.atan2(y - J[1], x - J[0]);
-        store.setArticulators({ jaw: clampArt('jaw', a0.jaw + (d.ang0 - ang) / GEOMETRY_CONST.JAW_MAX) });
+        setArt({ jaw: clampArt('jaw', a0.jaw + (d.ang0 - ang) / GEOMETRY_CONST.JAW_MAX) });
         break;
       }
       case 'lips': {
         const r = clampArt('lipRound', a0.lipRound + dx / (0.9 * s));
-        store.setArticulators({ lipOpen: clampArt('lipOpen', a0.lipOpen - dy / s), lipRound: r, lipProtrude: clampArt('lipProtrude', a0.lipProtrude + dx / (0.9 * s)) });
+        setArt({ lipOpen: clampArt('lipOpen', a0.lipOpen - dy / s), lipRound: r, lipProtrude: clampArt('lipProtrude', a0.lipProtrude + dx / (0.9 * s)) });
         break;
       }
-      case 'velum': store.setArticulators({ velum: velumFromWorld(x, y, an) }); break;
-      case 'larynx': store.setArticulators({ larynx: clampArt('larynx', a0.larynx + dy / an.scale) }); break;
+      case 'velum': setArt({ velum: velumFromWorld(x, y, an) }); break;
+      case 'larynx': setArt({ larynx: clampArt('larynx', a0.larynx + dy / an.scale) }); break;
       case 'teeth':
-        store.setParams((p) => {
+        voice.edit((p) => {
           p.teeth.slitOpen = Math.max(-0.15, Math.min(0.8, d.t0.slitOpen - dy / s));
           p.teeth.advance = Math.max(-0.3, Math.min(0.4, d.t0.advance + dx / s));
         });
@@ -313,7 +338,11 @@ export function HeadView() {
         </div>
         <button className={labels ? 'chip on' : 'chip'} onClick={() => setLabels(!labels)}>Aa</button>
       </div>
-      <div className="overlay-bottom hint">{t('headHint')}</div>
+      <div className="overlay-bottom hint">
+        {postureLock ? <span className="locked-note">{L(lockText(postureLock, 'head'))}</span>
+          : !sound ? <span className="sound-note">{L({ it: 'Suono spento: la testa si muove senza voce. Premi «▶ Suono» per sentirla.', en: 'Sound off: the head moves without a voice. Press “▶ Sound” to hear it.' })}</span>
+          : t('headHint')}
+      </div>
     </div>
   );
 }

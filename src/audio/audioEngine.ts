@@ -1,25 +1,26 @@
 import workletUrl from './worklet.ts?worker&url';
 import type { Telemetry } from '../dsp/engine/engine';
-import type { EngineParams, Score } from '../dsp/engine/params';
-
-export interface StreamBlock { out: Float32Array; flow: Float32Array; noise: Float32Array }
+import type { EngineParams } from '../dsp/engine/params';
+import type { Program, RunnerIn, RunnerOut, EndReason } from './programRunner';
+import type { VoiceSink, StreamBlock } from '../ui/voice/sink';
 
 /**
- * Main-thread side of the audio engine: owns the AudioContext, the worklet
- * node, offline-rendered clips (A/B experiments) and the optional microphone.
+ * Main-thread side of the audio: owns the AudioContext, the worklet node
+ * and the optional microphone. Messages keep their order; parameters sent in
+ * the same task are coalesced into the last one.
  */
-export class AudioBridge {
-  ctx: AudioContext | null = null;
+export class AudioBridge implements VoiceSink {
+  private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
   private master: GainNode | null = null;
-  private clip: AudioBufferSourceNode | null = null;
-  private pendingParams: EngineParams | null = null;
-  private queued = false;
+  private queue: RunnerIn[] = [];
+  private flushing = false;
   micAnalyser: AnalyserNode | null = null;
   private micStream: MediaStream | null = null;
 
-  onTelemetry: (t: Telemetry) => void = () => {};
+  onTelemetry: (t: Telemetry, program: number) => void = () => {};
   onStream: (s: StreamBlock) => void = () => {};
+  onEnded: (id: number, reason: EndReason, captured?: Float32Array) => void = () => {};
   onState: (running: boolean) => void = () => {};
 
   get running(): boolean { return !!this.ctx && this.ctx.state === 'running'; }
@@ -33,25 +34,35 @@ export class AudioBridge {
     return this.starting;
   }
 
+  private context(): AudioContext {
+    if (!this.ctx) {
+      const ctx = new AudioContext({ latencyHint: 'interactive' });
+      const master = ctx.createGain();
+      master.gain.value = 1;
+      master.connect(ctx.destination);
+      ctx.onstatechange = () => this.onState(this.running);
+      this.ctx = ctx; this.master = master;
+    }
+    return this.ctx;
+  }
+
   private async doStart(params: EngineParams): Promise<void> {
+    const ctx = this.context();
     if (!this.node) {
-      // a clip may have created the context already
-      const ctx = this.ctx ?? new AudioContext({ latencyHint: 'interactive' });
       await ctx.audioWorklet.addModule(workletUrl);
       const node = new AudioWorkletNode(ctx, 'voice-processor', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] });
-      node.port.onmessage = (e: MessageEvent) => {
+      node.port.onmessage = (e: MessageEvent<RunnerOut>) => {
         const d = e.data;
-        if (d.type === 'telemetry') this.onTelemetry(d.telemetry as Telemetry);
-        else if (d.type === 'stream') this.onStream(d as StreamBlock);
+        if (d.type === 'telemetry') this.onTelemetry(d.telemetry, d.program);
+        else if (d.type === 'stream') this.onStream(d);
+        else if (d.type === 'ended') this.onEnded(d.id, d.reason, d.captured);
       };
-      const master = this.master ?? ctx.createGain();
-      if (!this.master) { master.gain.value = 1; master.connect(ctx.destination); }
-      node.connect(master);
-      this.ctx = ctx; this.node = node; this.master = master;
-      node.port.postMessage({ type: 'params', params });
-      ctx.onstatechange = () => this.onState(this.running);
+      node.connect(this.master!);
+      // the first parameters snap the articulators; anything sent before the node existed follows
+      node.port.postMessage({ type: 'params', params, after: params, program: 0 } satisfies RunnerIn);
+      this.node = node;
+      this.flush();
     }
-    const ctx = this.ctx!;
     if (ctx.state !== 'running') await ctx.resume();
     this.onState(this.running);
   }
@@ -61,59 +72,34 @@ export class AudioBridge {
     this.onState(this.running);
   }
 
-  /**
-   * Sends parameters to the worklet; several changes made in the same task
-   * are coalesced into one message (a microtask, so it also works while the
-   * page is in the background, where animation frames are paused).
-   */
-  setParams(p: EngineParams): void {
-    this.pendingParams = p;
-    if (this.queued || !this.node) return;
-    this.queued = true;
-    queueMicrotask(() => {
-      this.queued = false;
-      if (this.pendingParams && this.node) this.node.port.postMessage({ type: 'params', params: this.pendingParams });
-      this.pendingParams = null;
-    });
+  private send(m: RunnerIn): void {
+    const last = this.queue[this.queue.length - 1];
+    if (m.type === 'params' && last?.type === 'params') this.queue[this.queue.length - 1] = m;
+    else this.queue.push(m);
+    if (this.flushing || !this.node) return;
+    // a microtask, so it also works while the page is in the background, where animation frames are paused
+    this.flushing = true;
+    queueMicrotask(() => this.flush());
   }
 
-  playScore(score: Score): void { this.node?.port.postMessage({ type: 'score', score }); }
-  stopScore(): void { this.node?.port.postMessage({ type: 'stop' }); }
-
-  /** Plays an offline-rendered clip (it mixes with the live voice). */
-  async playClip(samples: Float32Array, fs: number, onEnd?: () => void): Promise<void> {
-    if (!this.ctx) {
-      this.ctx = new AudioContext({ latencyHint: 'interactive' });
-      this.master = this.ctx.createGain();
-      this.master.connect(this.ctx.destination);
-    }
-    if (this.ctx.state !== 'running') await this.ctx.resume();
-    this.stopClip();
-    const buf = this.ctx.createBuffer(1, samples.length, fs);
-    buf.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
-    const src = this.ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(this.master!);
-    src.onended = () => { if (this.clip === src) this.clip = null; onEnd?.(); };
-    src.start();
-    this.clip = src;
+  private flush(): void {
+    this.flushing = false;
+    if (!this.node) return;
+    for (const m of this.queue) this.node.port.postMessage(m);
+    this.queue = [];
   }
 
-  stopClip(): void {
-    if (this.clip) { try { this.clip.stop(); } catch { /* already stopped */ } this.clip = null; }
-  }
+  params(params: EngineParams, after: EngineParams, program: number): void { this.send({ type: 'params', params, after, program }); }
+  program(p: Program): void { this.send({ type: 'program', program: p }); }
+  stop(id: number): void { this.send({ type: 'stop', id }); }
 
   /** Opt-in microphone analysis (never routed to the speakers). */
   async enableMic(): Promise<AnalyserNode> {
-    if (!this.ctx) {
-      this.ctx = new AudioContext({ latencyHint: 'interactive' });
-      this.master = this.ctx.createGain();
-      this.master.connect(this.ctx.destination);
-    }
-    if (this.ctx.state !== 'running') await this.ctx.resume();
+    const ctx = this.context();
+    if (ctx.state !== 'running') await ctx.resume();
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-    const src = this.ctx.createMediaStreamSource(stream);
-    const an = this.ctx.createAnalyser();
+    const src = ctx.createMediaStreamSource(stream);
+    const an = ctx.createAnalyser();
     an.fftSize = 4096;
     an.smoothingTimeConstant = 0;
     src.connect(an);

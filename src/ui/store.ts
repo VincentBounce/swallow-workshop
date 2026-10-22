@@ -1,14 +1,14 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { AudioBridge, StreamBlock } from '../audio/audioEngine';
 import type { Telemetry } from '../dsp/engine/engine';
-import { defaultParams, EngineParams, Score } from '../dsp/engine/params';
-import { Articulators } from '../dsp/tract/types';
+import type { EngineParams } from '../dsp/engine/params';
 import { computeGeometry, TractGeometry } from '../dsp/tract/geometry';
 import { AreaFunction, sectionsFromGeometry, resampleTube } from '../dsp/tract/areaFunction';
 import { formants, Formant } from '../dsp/tract/acoustics';
 import { noseOf, portArea } from '../dsp/tract/nasal';
 import { loadEnglishLexicon, englishLexiconSize } from '../dsp/speech/english';
 import { NaturalnessOptions, NATURAL_ALL } from '../dsp/speech/sequencer';
+import { voice } from './voice/voice';
+import type { StreamBlock } from './voice/sink';
 
 export type Lang = 'it' | 'en';
 export type Mode = 'tour' | 'lab';
@@ -34,9 +34,8 @@ export interface UiState {
   standing: number;
   freeze: boolean;
   micOn: boolean;
+  /** the audio is running (mirrors the voice) */
   audioOn: boolean;
-  /** text currently spoken and its score */
-  speaking: Score | null;
   info: string | null;
   /** show numeric readouts everywhere (plain words otherwise) */
   numbers: boolean;
@@ -68,60 +67,37 @@ function initialLang(): Lang {
   return 'en';
 }
 
+/**
+ * The state of the interface and of the analysis views. What is heard lives
+ * in the voice controller (./voice/voice.ts), the only door to the audio.
+ */
 class Store {
-  params: EngineParams = defaultParams();
   ui: UiState = {
     lang: initialLang(), mode: 'lab', chapter: 0, controlTab: 'source', viewTab: 'chart', specWindow: 30, mel: false,
     field: 'pressure', envelope: true, showHarmonics: true, standing: 0, freeze: false, micOn: false, audioOn: false,
-    speaking: null, info: null, numbers: false,
+    info: null, numbers: false,
     speech: { text: '', lang: 'en', rate: 1, accent: 5, natural: { ...NATURAL_ALL } },
     lexicon: 'idle',
   };
-  telemetry: Telemetry | null = null;
-  telemetryTime = 0;
-  readonly audio = new AudioBridge();
   readonly ring = { out: new Float32Array(RING), flow: new Float32Array(RING), noise: new Float32Array(RING), w: 0, total: 0 };
   private listeners = new Set<() => void>();
   private version = 0;
 
   constructor() {
     this.ui.speech = { ...this.ui.speech, text: DEFAULT_SPEECH_TEXT[this.ui.lang], lang: this.ui.lang };
-    this.params.phonate = false;
-    this.params.articulators = { ...this.params.articulators, ...{ jaw: 0.94, tongueX: 0.06, tongueY: -0.83, lipOpen: 0.5, lipProtrude: 0.04 } };
-    this.audio.onTelemetry = (t) => { this.telemetry = t; this.telemetryTime = performance.now(); if (this.ui.speaking && !t.playing) this.setUi({ speaking: null }); };
-    this.audio.onStream = (s) => this.pushStream(s);
-    this.audio.onState = (r) => { if (r !== this.ui.audioOn) this.setUi({ audioOn: r }); };
+    voice.onStream((s) => this.pushStream(s));
+    voice.onInfo = (msg) => this.setUi({ info: msg });
+    voice.subscribe(() => {
+      if (voice.running !== this.ui.audioOn) this.ui = { ...this.ui, audioOn: voice.running };
+      this.emit();
+    });
   }
 
-  private clipTimer = 0;
-  private clipFeeding = false;
+  /** Latest telemetry of the engine (may be stale when the audio sleeps: see voice.live()). */
+  get telemetry(): Telemetry | null { return voice.telemetry; }
 
-  /**
-   * Plays an offline-rendered clip and feeds it to the analysis views at the
-   * real-time rate (the live voice is silenced meanwhile).
-   */
-  async playClip(samples: Float32Array, fs: number, flow?: Float32Array): Promise<void> {
-    this.setParams((p) => { p.phonate = false; });
-    await this.audio.playClip(samples, fs, () => { this.clipFeeding = false; });
-    window.clearInterval(this.clipTimer);
-    this.clipFeeding = true;
-    const block = 1024;
-    let pos = 0;
-    const t0 = performance.now();
-    this.clipTimer = window.setInterval(() => {
-      const due = Math.min(samples.length, Math.floor(((performance.now() - t0) / 1000) * fs));
-      while (pos + block <= due) {
-        const out = samples.subarray(pos, pos + block);
-        this.pushStream({ out, flow: flow ? flow.subarray(pos, pos + block) : new Float32Array(block), noise: new Float32Array(block) }, true);
-        pos += block;
-      }
-      if (pos + block > samples.length) { window.clearInterval(this.clipTimer); this.clipFeeding = false; }
-    }, 15);
-  }
-
-  private pushStream(s: StreamBlock, fromClip = false): void {
+  private pushStream(s: StreamBlock): void {
     if (this.ui.freeze) return;
-    if (this.clipFeeding && !fromClip) return;
     const r = this.ring;
     const n = s.out.length;
     for (let i = 0; i < n; i++) {
@@ -146,21 +122,6 @@ class Store {
   getVersion = (): number => this.version;
   private emit(): void { this.version++; for (const l of this.listeners) l(); }
 
-  setParams(mut: (p: EngineParams) => void): void {
-    const o = this.params;
-    const p: EngineParams = {
-      ...o,
-      articulators: { ...o.articulators }, anatomy: { ...o.anatomy }, teeth: { ...o.teeth }, source: { ...o.source },
-      noise: { ...o.noise, user: { ...o.noise.user, curve: o.noise.user.curve.slice() } }, tubeAreas: o.tubeAreas.slice(),
-    };
-    mut(p);
-    this.params = p;
-    this.audio.setParams(p);
-    this.emit();
-  }
-
-  setArticulators(a: Partial<Articulators>): void { this.setParams((p) => { Object.assign(p.articulators, a); }); }
-
   setUi(u: Partial<UiState>): void {
     if (u.lang && u.lang !== this.ui.lang) {
       try { window.localStorage.setItem(LANG_KEY, u.lang); } catch { /* storage blocked */ }
@@ -171,28 +132,6 @@ class Store {
     this.ui = { ...this.ui, ...u };
     this.emit();
   }
-
-  async startAudio(): Promise<void> {
-    try {
-      await this.audio.start(this.params);
-      this.setUi({ audioOn: this.audio.running });
-    } catch (e) {
-      this.setUi({ info: String(e) });
-    }
-  }
-
-  async toggleAudio(): Promise<void> {
-    if (this.audio.running) { await this.audio.suspend(); this.setUi({ audioOn: false }); }
-    else await this.startAudio();
-  }
-
-  async speak(score: Score): Promise<void> {
-    if (!this.audio.running) await this.startAudio();
-    this.audio.playScore(score);
-    this.setUi({ speaking: score });
-  }
-
-  stopSpeaking(): void { this.audio.stopScore(); this.setUi({ speaking: null }); }
 
   /** Loads the English pronunciation dictionary once (spelling rules are used until it arrives). */
   async ensureLexicon(): Promise<void> {
@@ -213,17 +152,10 @@ class Store {
   private geomKey = '';
   private geomCache: { geom: TractGeometry; af: AreaFunction; formants: Formant[] } | null = null;
 
-  /** Current articulators (smoothed ones from the engine when it runs). */
-  currentArticulators(): Articulators {
-    const t = this.telemetry;
-    if (t && this.ui.audioOn && performance.now() - this.telemetryTime < 500) return t.articulators;
-    return this.params.articulators;
-  }
-
-  /** Geometry, area function and formants of the current shape (cached). */
+  /** Geometry, area function and formants of the shape that sounds (cached). */
   derived(): { geom: TractGeometry; af: AreaFunction; formants: Formant[] } {
-    const a = this.currentArticulators();
-    const p = this.params;
+    const p = voice.sounding();
+    const a = p.articulators;
     let key = '';
     for (const k in a) key += (Math.round((a as unknown as Record<string, number>)[k] * 200) / 200) + ',';
     key += JSON.stringify(p.anatomy) + JSON.stringify(p.teeth) + (p.tubeMode ? p.tubeAreas.join(',') + p.tubeLength : '');
@@ -254,7 +186,6 @@ export function useStore<T>(sel: (s: Store) => T): T {
   return useSyncExternalStore(store.subscribe, () => sel(store));
 }
 
-export function useParams(): EngineParams { return useStore((s) => s.params); }
 export function useUi(): UiState { return useStore((s) => s.ui); }
 export type { Store };
 

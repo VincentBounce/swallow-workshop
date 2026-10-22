@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { store, useParams } from '../store';
 import { useL } from '../i18n';
-import { Section, Toggle } from './controls';
+import { Section, Toggle, LockIcon } from './controls';
+import { lockText } from './DriverBar';
+import { voice } from '../voice/voice';
+import { useLock, useManual } from '../voice/hooks';
 import { useAnimatedCanvas, C, noteName, label } from '../canvas';
 import { contourScore } from '../presets';
 
@@ -32,12 +34,11 @@ export const melodyState = { contour: defaultContour(120) };
  */
 export function MelodyPanel() {
   const L = useL();
-  const p = useParams();
+  const p = useManual();
   const [, force] = useState(0);
   const [octave, setOctave] = useState(p.source.f0 > 170 ? 4 : 3);
   const [vib, setVib] = useState(true);
-  const playing = useRef<{ t0: number; dur: number } | null>(null);
-  const restore = useRef<number | null>(null);
+  const pitchLock = useLock('pitch');
 
   const ref = useAnimatedCanvas(({ ctx, w, h }) => {
     const c = melodyState.contour;
@@ -64,11 +65,10 @@ export function MelodyPanel() {
     }
     ctx.stroke();
     // playhead
-    const pl = playing.current;
-    if (pl) {
-      const t = (performance.now() / 1000 - pl.t0) / pl.dur;
-      if (t > 1.05) playing.current = null;
-      else { ctx.strokeStyle = 'rgba(231,235,243,0.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(t * (NPTS - 1)), 8); ctx.lineTo(X(t * (NPTS - 1)), h - 18); ctx.stroke(); }
+    const pr = voice.lanes.performer.kind === 'melody' ? voice.progress() : null;
+    if (pr) {
+      const t = Math.min(1, pr.t / DUR);
+      { ctx.strokeStyle = 'rgba(231,235,243,0.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X(t * (NPTS - 1)), 8); ctx.lineTo(X(t * (NPTS - 1)), h - 18); ctx.stroke(); }
     }
     ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     for (let s = 0; s <= DUR; s += 0.5) ctx.fillText(`${s.toFixed(1)} s`, X((s / DUR) * (NPTS - 1)), h - 15);
@@ -93,25 +93,18 @@ export function MelodyPanel() {
   const play = (mode: 'buzz' | 'vowel') => {
     const c = melodyState.contour;
     const pts = c.map((f0, i) => ({ t: (i / (NPTS - 1)) * DUR, f0 }));
-    const prm = store.params;
-    const score = contourScore(pts, { ...prm.articulators }, Math.max(6, prm.source.ps));
-    if (restore.current) { clearTimeout(restore.current); restore.current = null; }
-    const wasBypass = prm.bypassTract;
-    if (mode === 'buzz') store.setParams((q) => { q.bypassTract = true; });
-    else store.setParams((q) => { q.bypassTract = false; });
-    void store.speak(score);
-    playing.current = { t0: performance.now() / 1000, dur: DUR };
-    if (mode === 'buzz') restore.current = window.setTimeout(() => { store.setParams((q) => { q.bypassTract = wasBypass; }); }, (DUR + 0.6) * 1000);
+    const score = contourScore(pts, Math.max(6, voice.manual.source.ps));
+    const label = mode === 'buzz' ? { it: 'col solo ronzio', en: 'on the buzz alone' } : { it: 'sulla vocale della testa', en: 'on the head’s vowel' };
+    void voice.sing(score, { buzz: mode === 'buzz', label });
   };
 
   // keyboard
   const held = useRef<string | null>(null);
   const noteOn = (m: number) => {
     const f = 440 * Math.pow(2, (m - 69) / 12);
-    store.setParams((q) => { q.source.f0 = f; q.phonate = true; q.abduction = 0; q.source.vibratoDepth = vib ? 35 : 0; });
-    if (!store.audio.running) void store.startAudio();
+    if (voice.edit((q) => { q.source.f0 = f; q.phonate = true; q.abduction = 0; q.source.vibratoDepth = vib ? 35 : 0; })) void voice.ensureAudio();
   };
-  const noteOff = () => store.setParams((q) => { q.phonate = false; });
+  const noteOff = () => { if (!voice.lock('lungs')) voice.edit((q) => { q.phonate = false; }); };
   useEffect(() => {
     const keys = 'awsedftgyhujk';
     const down = (e: KeyboardEvent) => {
@@ -151,9 +144,9 @@ export function MelodyPanel() {
         <div className="row wrap">
           <button className="btn primary" onClick={() => play('buzz')}>{L({ it: 'Suona col solo ronzio', en: 'Play with the buzz alone' })}</button>
           <button className="btn" onClick={() => play('vowel')}>{L({ it: 'Canta con la vocale attuale', en: 'Sing with the current vowel' })}</button>
-          <button className="chip" onClick={() => { melodyState.contour = defaultContour(store.params.source.f0); force((x) => x + 1); }}>{L({ it: 'Frase tipo', en: 'Sample sentence' })}</button>
-          <button className="chip" onClick={() => { melodyState.contour = defaultContour(store.params.source.f0).map((f, i) => (f > 0 && i > NPTS * 0.8 ? f * Math.pow(2, (6 * (i - NPTS * 0.8)) / (NPTS * 0.2) / 12) : f)); force((x) => x + 1); }}>{L({ it: 'Domanda', en: 'Question' })}</button>
-          <button className="chip" onClick={() => { melodyState.contour = new Array(NPTS).fill(store.params.source.f0); force((x) => x + 1); }}>{L({ it: 'Piatta (robot)', en: 'Flat (robot)' })}</button>
+          <button className="chip" onClick={() => { melodyState.contour = defaultContour(voice.manual.source.f0); force((x) => x + 1); }}>{L({ it: 'Frase tipo', en: 'Sample sentence' })}</button>
+          <button className="chip" onClick={() => { melodyState.contour = defaultContour(voice.manual.source.f0).map((f, i) => (f > 0 && i > NPTS * 0.8 ? f * Math.pow(2, (6 * (i - NPTS * 0.8)) / (NPTS * 0.2) / 12) : f)); force((x) => x + 1); }}>{L({ it: 'Domanda', en: 'Question' })}</button>
+          <button className="chip" onClick={() => { melodyState.contour = new Array(NPTS).fill(voice.manual.source.f0); force((x) => x + 1); }}>{L({ it: 'Piatta (robot)', en: 'Flat (robot)' })}</button>
         </div>
       </Section>
       <Section title={L({ it: 'Canta', en: 'Sing' })} accent={C.amber}
@@ -164,9 +157,10 @@ export function MelodyPanel() {
           <button className="chip" onClick={() => setOctave(Math.min(5, octave + 1))}>+8va</button>
           <Toggle label="vibrato" value={vib} onChange={setVib} />
         </div>
-        <div className="keyboard" style={{ ['--n' as string]: nW }}>
+        {pitchLock && <p className="small muted locked-note"><LockIcon /> {L(lockText(pitchLock))}</p>}
+        <div className={pitchLock ? 'keyboard locked' : 'keyboard'} style={{ ['--n' as string]: nW }}>
           {keysUi.map((k) => (
-            <button key={k.m} className={k.black ? 'key black' : 'key'} style={{ left: `${(k.x / nW) * 100}%`, width: `${((k.black ? 0.6 : 1) / nW) * 100}%` }}
+            <button key={k.m} className={k.black ? 'key black' : 'key'} disabled={!!pitchLock} style={{ left: `${(k.x / nW) * 100}%`, width: `${((k.black ? 0.6 : 1) / nW) * 100}%` }}
               onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture(e.pointerId); noteOn(k.m); }} onPointerUp={noteOff} onPointerCancel={noteOff}>
               {!k.black && k.m % 12 === 0 ? noteName(440 * Math.pow(2, (k.m - 69) / 12)) : ''}
             </button>

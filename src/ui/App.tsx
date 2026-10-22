@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { store, useUi, useParams, useTick, ViewTab, ControlTab } from './store';
+import { store, useUi, useTick, ViewTab, ControlTab } from './store';
+import { voice } from './voice/voice';
+import { useManual, useSoundOn } from './voice/hooks';
 import { useT, useL } from './i18n';
 import { HeadView } from './components/HeadView';
 import { Spectrum } from './components/Spectrum';
@@ -17,8 +19,8 @@ import { MelodyPanel } from './components/MelodyPanel';
 import { ABPanel } from './components/ABPanel';
 import { MachinePanel } from './components/MachinePanel';
 import { Meters } from './components/Meters';
+import { DriverBar } from './components/DriverBar';
 import { CHAPTERS, GuidedExperiment } from './tour';
-import { resetAll } from './presets';
 
 // three.js is loaded only when the 3D view is opened
 const Tract3DView = lazy(() => import('./components/Tract3DView'));
@@ -27,7 +29,8 @@ function Header() {
   const t = useT();
   const L = useL();
   const ui = useUi();
-  const p = useParams();
+  const p = useManual();
+  const sound = useSoundOn();
   return (
     <header className="app-header">
       <div className="brand">
@@ -46,27 +49,25 @@ function Header() {
         <button className={ui.mode === 'lab' ? 'on' : ''} onClick={() => store.setUi({ mode: 'lab' })}>{t('lab')}</button>
       </div>
       <div className="header-actions">
-        <button className={ui.audioOn ? 'btn on' : 'btn primary pulse'} onClick={() => void store.toggleAudio()}>
-          {ui.audioOn ? '■ ' + t('audioOn') : '▶ ' + t('startAudio')}
-        </button>
-        <button className={p.phonate ? 'btn blow on' : 'btn blow'} onClick={() => { store.setParams((q) => { q.phonate = !q.phonate; }); if (!store.audio.running) void store.startAudio(); }}>
-          {p.phonate ? t('blowing') : t('blow')}
+        <button className={sound ? 'btn sound on' : 'btn primary pulse sound'} title={t(sound ? 'soundOffHint' : 'soundHint')} onClick={() => void voice.setSound(!sound)}>
+          {sound ? '■ ' + t('soundOn') : '▶ ' + t('sound')}
         </button>
         <label className="mini vol">{t('volume')}
-          <input type="range" min={-30} max={12} step={0.5} value={p.volume} onChange={(e) => store.setParams((q) => { q.volume = Number(e.target.value); })} />
+          <input type="range" min={-30} max={12} step={0.5} value={p.volume} onChange={(e) => voice.edit((q) => { q.volume = Number(e.target.value); })} />
         </label>
         <button className={ui.micOn ? 'chip on sky' : 'chip'} title={t('micHint')} onClick={async () => {
-          if (ui.micOn) { store.audio.disableMic(); store.setUi({ micOn: false }); return; }
-          try { await store.audio.enableMic(); store.setUi({ micOn: true }); } catch (e) { store.setUi({ info: String(e) }); }
+          if (ui.micOn) { void voice.mic(false); store.setUi({ micOn: false }); return; }
+          try { await voice.mic(true); store.setUi({ micOn: true }); } catch (e) { store.setUi({ info: String(e) }); }
         }}>🎙 {t('mic')}</button>
         <button className={ui.numbers ? 'chip on' : 'chip'} onClick={() => store.setUi({ numbers: !ui.numbers })}>123 {t('numbers')}</button>
         <button className={ui.freeze ? 'chip on' : 'chip'} onClick={() => store.setUi({ freeze: !ui.freeze })}>❚❚ {t('freeze')}</button>
-        <button className="chip" onClick={resetAll}>{t('reset')}</button>
+        <button className="chip" onClick={() => voice.reset()}>{t('reset')}</button>
         <div className="seg lang">
           <button className={ui.lang === 'en' ? 'on' : ''} onClick={() => store.setUi({ lang: 'en' })}>EN</button>
           <button className={ui.lang === 'it' ? 'on' : ''} onClick={() => store.setUi({ lang: 'it' })}>IT</button>
         </div>
       </div>
+      <DriverBar />
       {ui.info && <div className="toast" onClick={() => store.setUi({ info: null })}>{ui.info} — {L({ it: 'clic per chiudere', en: 'click to close' })}</div>}
     </header>
   );

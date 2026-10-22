@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { store, useUi } from '../store';
+import { voice } from '../voice/voice';
 import { useT, useL } from '../i18n';
 import { useAnimatedCanvas, C, heat } from '../canvas';
 import { getFFT, hann } from '../../dsp/util/fft';
@@ -26,7 +27,7 @@ export function Spectrogram() {
 
   const ref = useAnimatedCanvas(({ ctx, w, h }) => {
     const st = state.current;
-    const fs = store.audio.sampleRate;
+    const fs = voice.sampleRate;
     const winN = Math.max(32, Math.round((store.ui.specWindow / 1000) * fs));
     let fftN = 512;
     while (fftN < winN || fftN < 1024) fftN *= 2;

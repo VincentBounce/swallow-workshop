@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { store, useParams } from '../store';
+import { store } from '../store';
+import { voice } from '../voice/voice';
+import { useManual } from '../voice/hooks';
 import { useL } from '../i18n';
 import { useAnimatedCanvas, C, label } from '../canvas';
 import { VOWELS } from '../../dsp/speech/phonemes';
@@ -8,7 +10,6 @@ import { computeGeometry } from '../../dsp/tract/geometry';
 import { sectionsFromGeometry } from '../../dsp/tract/areaFunction';
 import { formants } from '../../dsp/tract/acoustics';
 import { Articulators, ARTICULATOR_KEYS, DEFAULT_ARTICULATORS } from '../../dsp/tract/types';
-import { setPhoneme } from '../presets';
 import { analyseMic } from '../analysis';
 
 type RefSet = 'pb-men' | 'pb-women' | 'pb-children' | 'hillenbrand' | 'video';
@@ -20,7 +21,7 @@ let modelCache: { ipa: string; f1: number; f2: number; art: Articulators }[] = [
 
 /** Formants of the articulatory vowel targets for the current speaker. */
 function modelVowels(): { ipa: string; f1: number; f2: number; art: Articulators }[] {
-  const p = store.params;
+  const p = voice.sounding();
   const key = JSON.stringify(p.anatomy) + JSON.stringify(p.teeth) + p.articulators.larynx;
   if (key === modelKey) return modelCache;
   modelKey = key;
@@ -41,7 +42,7 @@ function modelVowels(): { ipa: string; f1: number; f2: number; art: Articulators
  */
 export function VowelChart() {
   const L = useL();
-  useParams();
+  useManual();
   const [refSet, setRefSet] = useState<RefSet>('pb-men');
   const trail = useRef<{ f1: number; f2: number }[]>([]);
   const micTrail = useRef<{ f1: number; f2: number }[]>([]);
@@ -119,14 +120,14 @@ export function VowelChart() {
       label(ctx, `F1 ${Math.round(fm[0].f)} · F2 ${Math.round(fm[1].f)}`, Math.min(x1 - 60, Math.max(x0 + 60, x)), Math.max(y0 + 10, y - 22), C.amber);
     }
     // microphone
-    const an = store.audio.micAnalyser;
+    const an = voice.micAnalyser;
     if (store.ui.micOn && an) {
       micT.current += dt;
       if (micT.current > 0.06) {
         micT.current = 0;
         if (!micBuf.current || micBuf.current.length !== an.fftSize) micBuf.current = new Float32Array(an.fftSize);
         an.getFloatTimeDomainData(micBuf.current as Float32Array<ArrayBuffer>);
-        const r = analyseMic(micBuf.current, store.audio.sampleRate);
+        const r = analyseMic(micBuf.current, voice.sampleRate);
         if (r && r.f1 > F1_MIN && r.f2 > F2_MIN && r.f2 < F2_MAX) { micTrail.current.push({ f1: r.f1, f2: r.f2 }); if (micTrail.current.length > 25) micTrail.current.shift(); }
       }
       const mt = micTrail.current;
@@ -159,7 +160,7 @@ export function VowelChart() {
     }
     const a: Partial<Articulators> = {};
     for (const k of ARTICULATOR_KEYS) if (k !== 'larynx') a[k] = acc[k] / wsum;
-    store.setParams((p) => { Object.assign(p.articulators, a); p.abduction = 0; p.phonate = true; });
+    voice.edit((p) => { Object.assign(p.articulators, a); p.abduction = 0; p.phonate = true; });
   };
   const onDown = (e: React.PointerEvent) => {
     const q = pick(e);
@@ -169,17 +170,17 @@ export function VowelChart() {
     const ly = (f1: number) => g.y0 + ((Math.log(f1) - Math.log(F1_MIN)) / (Math.log(F1_MAX) - Math.log(F1_MIN))) * (g.y1 - g.y0);
     for (const v of modelVowels()) {
       if (Math.hypot(lx(v.f2) - q.px, ly(v.f1) - q.py) < 13) {
-        setPhoneme(v.ipa);
+        voice.holdPhoneme(v.ipa);
         target.current = { f1: v.f1, f2: v.f2 };
-        if (!store.audio.running) void store.startAudio();
         return;
       }
     }
     dragging.current = true;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     target.current = { f1: q.f1, f2: q.f2 };
+    voice.grab();
     blendTo(q.f1, q.f2);
-    if (!store.audio.running) void store.startAudio();
+    void voice.ensureAudio();
   };
   const onMove = (e: React.PointerEvent) => {
     if (!dragging.current) return;

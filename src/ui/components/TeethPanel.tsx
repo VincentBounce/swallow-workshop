@@ -1,8 +1,9 @@
-import { store, useParams, useStore, useTick } from '../store';
+import { store, useStore, useTick } from '../store';
+import { voice } from '../voice/voice';
+import { useLock, useManual } from '../voice/hooks';
 import { useL } from '../i18n';
 import { Slider, Section, Readout } from './controls';
 import { useAnimatedCanvas, C, label } from '../canvas';
-import { setPhoneme } from '../presets';
 import { DEFAULT_TEETH, Teeth } from '../../dsp/tract/types';
 
 /**
@@ -12,7 +13,7 @@ import { DEFAULT_TEETH, Teeth } from '../../dsp/tract/types';
 function TeethCanvas() {
   const L = useL();
   const ref = useAnimatedCanvas(({ ctx, w, h, t }) => {
-    const p = store.params;
+    const p = voice.sounding();
     const tel = store.ui.audioOn ? store.telemetry : null;
     const { geom } = store.derived();
     const sl = geom.slit;
@@ -110,37 +111,38 @@ function TeethCanvas() {
 
 export function TeethPanel() {
   const L = useL();
-  const p = useParams();
+  const p = useManual();
   const numbers = useStore((s) => s.ui.numbers);
-  useTick(numbers ? 4 : 0);
+  const driven = !!useLock('posture');
+  useTick(driven ? 15 : numbers ? 4 : 0);
   const T = p.teeth;
-  const set = (k: keyof Teeth, v: number) => store.setParams((x) => { x.teeth[k] = v; });
+  const set = (k: keyof Teeth, v: number) => voice.edit((x) => { x.teeth[k] = v; });
   const tel = store.telemetry;
   const jet = tel?.jet;
   return (
     <div className="panel-body">
       <TeethCanvas />
       <div className="chips ipa">
-        {['s', 'ʃ', 'f', 'θ', 'z'].map((c) => <button key={c} className="chip ipa" onClick={() => { setPhoneme(c); if (!store.audio.running) void store.startAudio(); }}>{c}</button>)}
-        <button className="chip" onClick={() => store.setParams((x) => { x.teeth = { ...DEFAULT_TEETH }; })}>{L({ it: 'Denti normali', en: 'Normal teeth' })}</button>
-        <button className="chip" onClick={() => store.setParams((x) => { x.teeth = { ...DEFAULT_TEETH, slitOpen: 0.45 }; })}>{L({ it: 'Morso aperto', en: 'Open bite' })}</button>
-        <button className="chip" onClick={() => store.setParams((x) => { x.teeth = { ...DEFAULT_TEETH, diastema: 0.3 }; })}>{L({ it: 'Spazio tra i denti', en: 'Gap teeth' })}</button>
-        <button className="chip" onClick={() => store.setParams((x) => { x.teeth = { ...DEFAULT_TEETH, overjet: 0.45 }; })}>{L({ it: 'Denti sporgenti', en: 'Overjet' })}</button>
-        <button className="chip" onClick={() => store.setParams((x) => { x.teeth = { ...DEFAULT_TEETH, upperLength: -0.25, lowerLength: -0.2 }; })}>{L({ it: 'Denti corti', en: 'Short teeth' })}</button>
+        {['s', 'ʃ', 'f', 'θ', 'z'].map((c) => <button key={c} className="chip ipa" onClick={() => voice.holdPhoneme(c)}>{c}</button>)}
+        <button className="chip" onClick={() => voice.edit((x) => { x.teeth = { ...DEFAULT_TEETH }; }, { takeOver: true })}>{L({ it: 'Denti normali', en: 'Normal teeth' })}</button>
+        <button className="chip" onClick={() => voice.edit((x) => { x.teeth = { ...DEFAULT_TEETH, slitOpen: 0.45 }; }, { takeOver: true })}>{L({ it: 'Morso aperto', en: 'Open bite' })}</button>
+        <button className="chip" onClick={() => voice.edit((x) => { x.teeth = { ...DEFAULT_TEETH, diastema: 0.3 }; }, { takeOver: true })}>{L({ it: 'Spazio tra i denti', en: 'Gap teeth' })}</button>
+        <button className="chip" onClick={() => voice.edit((x) => { x.teeth = { ...DEFAULT_TEETH, overjet: 0.45 }; }, { takeOver: true })}>{L({ it: 'Denti sporgenti', en: 'Overjet' })}</button>
+        <button className="chip" onClick={() => voice.edit((x) => { x.teeth = { ...DEFAULT_TEETH, upperLength: -0.25, lowerLength: -0.2 }; }, { takeOver: true })}>{L({ it: 'Denti corti', en: 'Short teeth' })}</button>
       </div>
       <Section title={L({ it: 'La fessura', en: 'The slit' })} accent={C.violet}
         info={L({
           it: 'Per la «s» la lingua forma un canale stretto e il getto d’aria va a sbattere contro gli incisivi: è l’ostacolo a creare gran parte del fruscio acuto (Shadle 1985). Se la fessura tra i denti si allarga, o i denti non sono sulla traiettoria del getto, la «s» perde forza e diventa più cupa o sibilante in modo diverso.',
           en: 'For “s” the tongue forms a narrow channel and the air jet hits the incisors: the obstacle makes most of the high hiss (Shadle 1985). If the slit between the teeth widens, or the teeth are not in the jet’s path, the “s” weakens and changes color.',
         })}>
-        <Slider label={L({ it: 'Larghezza fessura', en: 'Slit width' })} value={T.slitWidth} min={0.5} max={4} onChange={(v) => set('slitWidth', v)} format={(v) => `${(v * 10).toFixed(0)} mm`} />
-        <Slider label={L({ it: 'Apertura extra tra i denti', en: 'Extra opening between teeth' })} value={T.slitOpen} min={-0.15} max={0.8} onChange={(v) => set('slitOpen', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
-        <Slider label={L({ it: 'Spazio tra gli incisivi', en: 'Gap between incisors' })} value={T.diastema} min={0} max={0.4} onChange={(v) => set('diastema', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
-        <Slider label={L({ it: 'Incisivi superiori in avanti', en: 'Upper incisors forward' })} value={T.overjet} min={-0.2} max={0.5} onChange={(v) => set('overjet', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
-        <Slider label={L({ it: 'Denti avanti/indietro', en: 'Teeth forward/back' })} value={T.advance} min={-0.3} max={0.4} onChange={(v) => set('advance', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
-        <Slider label={L({ it: 'Lunghezza incisivi superiori', en: 'Upper incisor length' })} value={T.upperLength} min={-0.3} max={0.4} onChange={(v) => set('upperLength', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
-        <Slider label={L({ it: 'Lunghezza incisivi inferiori', en: 'Lower incisor length' })} value={T.lowerLength} min={-0.3} max={0.4} onChange={(v) => set('lowerLength', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
-        <Slider label={L({ it: 'Solco della lingua', en: 'Tongue groove' })} value={p.articulators.groove} min={0} max={1} onChange={(v) => store.setArticulators({ groove: v })} />
+        <Slider label={L({ it: 'Larghezza fessura', en: 'Slit width' })} value={T.slitWidth} control="teeth" min={0.5} max={4} onChange={(v) => set('slitWidth', v)} format={(v) => `${(v * 10).toFixed(0)} mm`} />
+        <Slider label={L({ it: 'Apertura extra tra i denti', en: 'Extra opening between teeth' })} value={T.slitOpen} control="teeth" min={-0.15} max={0.8} onChange={(v) => set('slitOpen', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
+        <Slider label={L({ it: 'Spazio tra gli incisivi', en: 'Gap between incisors' })} value={T.diastema} control="teeth" min={0} max={0.4} onChange={(v) => set('diastema', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
+        <Slider label={L({ it: 'Incisivi superiori in avanti', en: 'Upper incisors forward' })} value={T.overjet} control="teeth" min={-0.2} max={0.5} onChange={(v) => set('overjet', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
+        <Slider label={L({ it: 'Denti avanti/indietro', en: 'Teeth forward/back' })} value={T.advance} control="teeth" min={-0.3} max={0.4} onChange={(v) => set('advance', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
+        <Slider label={L({ it: 'Lunghezza incisivi superiori', en: 'Upper incisor length' })} value={T.upperLength} control="teeth" min={-0.3} max={0.4} onChange={(v) => set('upperLength', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
+        <Slider label={L({ it: 'Lunghezza incisivi inferiori', en: 'Lower incisor length' })} value={T.lowerLength} control="teeth" min={-0.3} max={0.4} onChange={(v) => set('lowerLength', v)} format={(v) => `${(v * 10).toFixed(1)} mm`} />
+        <Slider label={L({ it: 'Solco della lingua', en: 'Tongue groove' })} value={p.articulators.groove} live={voice.sounding().articulators.groove} control="posture" min={0} max={1} onChange={(v) => voice.edit((x) => { x.articulators.groove = v; })} />
         <Readout items={jet ? [
           [L({ it: 'velocità getto', en: 'jet speed' }), `${(jet.v / 100).toFixed(1)} m/s`],
           ['Reynolds', jet.re.toFixed(0)],

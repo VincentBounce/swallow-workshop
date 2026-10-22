@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { store } from '../store';
+import { voice } from '../voice/voice';
 import { useL, useT } from '../i18n';
 import { useAnimatedCanvas, C, label } from '../canvas';
 
@@ -17,7 +18,7 @@ export function Scope() {
 
   const ref = useAnimatedCanvas(({ ctx, w, h }) => {
     ctx.fillStyle = C.panel; ctx.fillRect(0, 0, w, h);
-    const fs = store.audio.sampleRate;
+    const fs = voice.sampleRate;
     const n = Math.round((ms / 1000) * fs);
     const need = n + Math.round(0.03 * fs);
     const tel = store.ui.audioOn ? store.telemetry : null;
