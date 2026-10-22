@@ -3,6 +3,9 @@ import { Articulators } from '../tract/types';
 export type Manner =
   | 'vowel' | 'fricative' | 'stop' | 'nasal' | 'approximant' | 'lateral' | 'trill' | 'tap' | 'affricate' | 'glottal' | 'glottalStop' | 'silence';
 
+/** Velum opening of the nasal consonants: a port of about 0.4 cm² (portArea). */
+export const NASAL_VELUM = 0.35;
+
 /**
  * A phoneme as an articulatory target. Only the articulators that the sound
  * really controls are listed in `art`; the others are free to coarticulate
@@ -103,13 +106,17 @@ export const CONSONANTS: Record<string, Phoneme> = {
   d: C('d', 'stop', true, { jaw: 0.12, tipX: 0.25, tipY: 1.75, groove: 0, lipTuck: 0, velum: 0 }, 0.08, 0.06, 'dado, heed'),
   k: C('k', 'stop', false, { tongueX: -0.25, tongueY: 1.7, tongueRoot: 1.2, tipY: 0, groove: 0, velum: 0 }, 0.5, 0.09, 'casa', { dorsal: true }),
   g: C('g', 'stop', true, { tongueX: -0.25, tongueY: 1.7, tongueRoot: 1.2, tipY: 0, groove: 0, velum: 0 }, 0.08, 0.07, 'gatto', { dorsal: true }),
-  // nasals
-  m: C('m', 'nasal', true, { jaw: 0.3, lipOpen: -0.35, lipTuck: 0, velum: 1 }, 0, 0.08, 'mamma'),
-  n: C('n', 'nasal', true, { jaw: 0.12, tipX: 0.25, tipY: 1.75, groove: 0, lipTuck: 0, velum: 1 }, 0, 0.07, 'nonno'),
-  'ɲ': C('ɲ', 'nasal', true, { jaw: 0.1, tongueX: 0.9, tongueY: 1.5, tongueRoot: 1.2, tipY: 0.1, velum: 1 }, 0, 0.09, 'gnocchi'),
+  // nasals: in running speech the velum parts from the pharyngeal wall by 2-4
+  // mm (X-ray films of French sentences, Laprie, Elie & Tsukanova 2015),
+  // against about 10 mm in a breath; with the port's bean shape, 12-28 mm
+  // across, that is a few tenths of a square centimetre, not the 1.6 cm² of
+  // the velum fully lowered (NASAL_VELUM)
+  m: C('m', 'nasal', true, { jaw: 0.3, lipOpen: -0.35, lipTuck: 0, velum: NASAL_VELUM }, 0, 0.08, 'mamma'),
+  n: C('n', 'nasal', true, { jaw: 0.12, tipX: 0.25, tipY: 1.75, groove: 0, lipTuck: 0, velum: NASAL_VELUM }, 0, 0.07, 'nonno'),
+  'ɲ': C('ɲ', 'nasal', true, { jaw: 0.1, tongueX: 0.9, tongueY: 1.5, tongueRoot: 1.2, tipY: 0.1, velum: NASAL_VELUM }, 0, 0.09, 'gnocchi'),
   // the dorsum closes against the oral face of the lowered velum, in front of
   // the velopharyngeal port: further back it would cut the nose off too
-  'ŋ': C('ŋ', 'nasal', true, { tongueX: 0.15, tongueY: 1.7, tongueRoot: 1.2, tipY: 0, velum: 1 }, 0, 0.08, 'sing', { dorsal: true }),
+  'ŋ': C('ŋ', 'nasal', true, { tongueX: 0.15, tongueY: 1.7, tongueRoot: 1.2, tipY: 0, velum: NASAL_VELUM }, 0, 0.08, 'sing', { dorsal: true }),
   // approximants, laterals, trill
   // the tip closes on the alveolar ridge while the margins of the tongue are
   // drawn in and lowered: the air flows past both sides of the tongue

@@ -484,7 +484,12 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   of English codas backs the tongue body (F2 about 1000 Hz). The clear /l/
   sets its own tongue body: its air flows around the sides of the tongue,
   which a one-dimensional tube cannot show, and a high vowel next to it
-  would otherwise close the passage. The velar nasal /ŋ/ closes against the
+  would otherwise close the passage. The nasal consonants open the
+  velopharyngeal port to about 0.4 cm²: in running speech the velum parts
+  from the pharyngeal wall by only 2-4 mm, against about 10 mm in a breath,
+  across a port 12-28 mm wide (X-ray films of sentences, Laprie, Elie &
+  Tsukanova 2015); the 1.6 cm² of the velum fully lowered is the breath.
+  The velar nasal /ŋ/ closes against the
   oral face of the lowered velum, in front of the velopharyngeal port;
   further back it would cut the nose off too. /s z/ spread the lips back
   against the teeth (lip protrusion below zero): the short cavity in front of
@@ -565,16 +570,40 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   articulators (tongue body, jaw, velum, in proportion to their time
   constants), so that all of them open together. In the tract model the
   tucked lower lip of /f v/ rises to the upper teeth whatever the jaw (motor
-  equivalence, as for bilabial closure). The result: nasals dip 6-13 dB below
-  their vowels and /v/ 8-18 dB, as in the relative intensities of speech
-  sounds (Fletcher 1953; Fry 1979).
+  equivalence, as for bilabial closure). The result: nasals dip 7-15 dB below
+  their vowels (the /m/ of "mamma", beside an open /a/, the most) and /v/
+  13-20 dB, as in the relative intensities of speech sounds (Fletcher 1953;
+  Fry 1979).
+  The middle of a vowel belongs to the vowel: the tongue tip, the tongue
+  body and the velum may head for the next consonant only from 0.75 of their
+  time constant before it. Otherwise a short vowel between alveolars was
+  said with the tip already up (an r-coloured, retroflex vowel: /i/ F3 2360
+  Hz instead of 2990), one before a velar with the dorsum on its way there,
+  and one before a nasal through a port of up to 1 cm². English is the
+  exception for the velum: it lowers it from the start of a vowel before a
+  nasal, and the nasalized vowel is part of the word (Cohn 1990); Italian
+  keeps the vowel oral. A short vowel would also end before the slow
+  articulators (tongue body, jaw, lips) reach it, since the tongue body
+  needs about 85 ms for 90 % of its way: like a speaker who means to reach
+  it, the sequencer aims past the vowel, by as much as the engine's own
+  dynamics, run ahead of time, say it falls short, at most 0.6 of the way
+  and never outside the articulator's range. Vowels still fall a little
+  short where the range ends (/u/ after /j/, /i/ after /ɹ/), as real ones
+  do in fast speech (Lindblom 1963). scripts/context.ts measures every vowel
+  of 15 English and Italian sentences in its middle against the same vowel
+  held: front vowels reach 99 % of their F2 on average (94 % before), 97 %
+  at the 10th percentile (77 %); the tip in vowel middles is at 0.24 at the
+  90th percentile (1.05); the tongue body misses its target by 0.04 (0.15);
+  vowels with an F3 150 Hz below their own fell from 23 % to 6 % (after
+  /ɹ/, and before /l/ in Italian); the port in vowels away from nasals is
+  shut, and averages 0.05 cm² next to one (0.20).
   Stops are split into closure and release. English voiceless stops at the
   start of a stressed syllable (not after /s/) keep the glottis open past the
   release: aspiration, a voice onset time of about 60-70 ms. Italian ones
   (and English ones after /s/) are unaspirated: the folds stay apart through
   the closure and come together just after the burst, so the voice returns
   after a short lag, shortest for /p/ and longest behind the slower release
-  of the tongue body for /k/ (13, 19 and 26 ms; Italian voiceless stops are
+  of the tongue body for /k/ (12, 21 and 25 ms; Italian voiceless stops are
   short-lag, under about 30 ms, with /k/ the longest). Taps and trills are ballistic
   raised-cosine flicks of the tongue tip added on top of the smoothed posture
   (one for /ɾ/, two to four contacts at 26 Hz for the Italian /r/, Recasens
@@ -655,13 +684,13 @@ in brackets are the adult male targets described under Speech.
 | Period boundaries | jitter 1 % and shimmer 6 % change the 8-16 kHz energy by +0.1 dB (+32 dB when the pulse mean jumped at each period) |
 | Control rate | voice onset from rest: 3-8 kHz at -43.1 dB re 0-1 kHz (-6.5 dB with stepped control values) |
 | User pink noise | -2.99 dB/oct (theory -3.01) |
-| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +6.0 dB in /sː/ vs -39.5 dB in /a/ |
-| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -32.3 dB vs -11.0 dB in the vowel |
-| Nasal murmur, waveguide vs reference | lowest resonance with the same damping /m/ 307 vs 308, /n/ 322 vs 322, /ŋ/ 310 vs 309 Hz (308, 329, 324 Hz with the waveguide's tenfold nasal damping; 392-416 Hz in the reference while it gave the nose soft walls) |
+| "sasso" | geminate /sː/ 187 ms vs single /s/ 107 ms; HF/LF +5.1 dB in /sː/ vs -39.5 dB in /a/ |
+| "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -36.4 dB vs -10.7 dB in the vowel |
+| Nasal murmur, waveguide vs reference | lowest resonance with the same damping /m/ 306 vs 307, /n/ 319 vs 320, /ŋ/ 309 vs 308 Hz (308, 325, 316 Hz with the waveguide's tenfold nasal damping; 392-416 Hz in the reference while it gave the nose soft walls) |
 | Nasal cycle | /m/ with one passage congested (cycle 0.6): a new resonance at 2170 Hz with its antiresonance; first resonance 280 -> 270 Hz |
 | Pinched nostril | /m/ with the left nostril pinched: first resonance 310 -> 230 Hz, new antiresonance at 550 Hz |
 | Asymmetric nose, waveguide vs reference | congested left side, right nostril 40 % open, lossless: worst difference 0.34 % over 6 resonances below 3 kHz |
-| Pinched nose | held /m/: nasal airflow 236 -> 0 cm³/s, mouth pressure 8.0 cmH2O (the lung pressure), the hum silent |
+| Pinched nose | held /m/: nasal airflow 231 -> 0 cm³/s, mouth pressure 8.0 cmH2O (the lung pressure), the hum silent |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
 | American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.7 cmH2O (glottal stop, no puff) vs 6.6 cmH2O in "it." |
@@ -669,9 +698,10 @@ in brackets are the adult male targets described under Speech.
 | Dark l | F2 clear /l/ 1506 Hz, dark /ɫ/ 936 Hz |
 | Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
-| Voice onset time | /t/ English 77 ms, after /s/ 21 ms; Italian /p t k/ 13 / 21 / 26 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian voiceless stops short-lag, under about 30 ms, /k/ longest) |
+| Voice onset time | /t/ English 77 ms, after /s/ 21 ms; Italian /p t k/ 12 / 21 / 25 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian voiceless stops short-lag, under about 30 ms, /k/ longest) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
-| Consonant dips | nasals 5.9-12.0 dB, /v/ 13.4-20.0 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
+| Consonant dips | nasals 7.0-15.0 dB, /v/ 13.2-19.9 dB below their vowels (natural speech: nasals 6-12 dB, voiced fricatives 12-20 dB; 8.3-17.7 dB without the jet losses) ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/, the narrowest /v/ 0.08 cm² (0.03 before the lip could slide out from under the teeth); /ŋ/ in front of the nasal port in every vowel context |
+| Vowels in running speech | 15 English and Italian sentences, each vowel in its middle against the same vowel held: front vowels F2 99 % on average, 97 % at the 10th percentile; F3 of non-rhotic vowels 2367 Hz at the 10th percentile, 6.5 % of them 150 Hz below their own (after /ɹ/, before /l/); tip 0.24 at the 90th percentile; F1 100 %; tongue body 0.04 from its target; nasal port 0.002 cm² at most away from nasals, 0.05 cm² on average next to one |
 | Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
 | Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.58 st (90 %), 1.9 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
@@ -783,6 +813,9 @@ in brackets are the adult male targets described under Speech.
 - Espy-Wilson, C. Y., Boyce, S. E., Jackson, M., Narayanan, S. & Alwan, A. (2000). Acoustic modeling of American English /r/. JASA 108.
 - Fujisaki, H. & Hirose, K. (1984). Analysis of voice fundamental frequency contours for declarative sentences of Japanese. J. Acoust. Soc. Jpn. (E) 5.
 - Klatt, D. H. (1979). Synthesis by rule of segmental durations in English sentences. In Frontiers of Speech Communication Research. Academic Press.
+- Cohn, A. C. (1990). Phonetic and phonological rules of nasalization. UCLA Working Papers in Phonetics 76.
+- Laprie, Y., Elie, B. & Tsukanova, A. (2015). 2D articulatory velum modeling applied to copy synthesis of sentences containing nasal phonemes. ICPhS 2015, Glasgow.
+- Lindblom, B. (1963). Spectrographic study of vowel reduction. JASA 35.
 - Klatt, D. H. & Klatt, L. C. (1990). Analysis, synthesis, and perception of voice quality variations among female and male talkers. JASA 87.
 - Lisker, L. & Abramson, A. S. (1964). A cross-language study of voicing in initial stops: acoustical measurements. Word 20.
 - Fletcher, H. (1953). Speech and Hearing in Communication. Van Nostrand.
@@ -822,6 +855,7 @@ npx tsx scripts/melody.ts en "is it raining?"   # planned F0 at each phone
 npx tsx scripts/noisemap.ts en "every voice"    # level of each noise source per phone
 npx tsx scripts/contrast.ts it "il vino"        # how deep each consonant dips below its vowels
 npx tsx scripts/landmarks.ts                    # when constrictions form and open, against the plan
+npx tsx scripts/context.ts --base a.json        # vowels in sentences against the same vowels held (--save a.json keeps the measures)
 npx tsx scripts/sibilants.ts a.wav b.wav        # peak and spectral mean of the hissing frames of recordings
 npx tsx scripts/pitch.ts a.wav b.wav            # pitch track, level and F0 spread of recordings
 npx tsx scripts/hnr.ts a.wav b.wav              # harmonics-to-noise ratio, full band and above 2 kHz

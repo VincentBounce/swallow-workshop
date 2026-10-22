@@ -116,7 +116,8 @@ describe('real-time Kelly-Lochbaum waveguide', () => {
 });
 
 describe('left and right nasal passages', () => {
-  const m = sectionsFromGeometry(computeGeometry({ ...DEFAULT_ARTICULATORS, ...PHONEMES.m.art }, DEFAULT_ANATOMY, DEFAULT_TEETH));
+  // an /m/ with the velum fully lowered, as the transfers below open the port
+  const m = sectionsFromGeometry(computeGeometry({ ...DEFAULT_ARTICULATORS, ...PHONEMES.m.art, velum: 1 }, DEFAULT_ANATOMY, DEFAULT_TEETH));
   const open: NasalSides = { cycle: 0, nostrilLeft: 1, nostrilRight: 1 };
   /** peaks and dips of the transfer to lips + nostrils */
   const extrema = (nose: NasalSides, losses = true) => {

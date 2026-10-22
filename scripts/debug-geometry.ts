@@ -1,7 +1,7 @@
 /**
  * Debug helper: renders the mid-sagittal geometry, grid lines and area
  * functions of a few articulator settings to an HTML file.
- *   npx tsx scripts/debug-geometry.ts out.html
+ *   npx tsx scripts/debug-geometry.ts out.html [i,a,u:tipY=0.5] [front]
  */
 import { writeFileSync } from 'node:fs';
 import { computeGeometry } from '../src/dsp/tract/geometry';
@@ -56,8 +56,10 @@ function svgFor(name: string, a: Articulators): string {
 
 const htmlParts: string[] = [];
 for (const n of names) {
-  const ph = PHONEMES[n];
-  const a: Articulators = { ...DEFAULT_ARTICULATORS, ...(ph?.art ?? {}) };
+  // a phoneme, optionally with articulators changed: i:tipY=0.5:tongueY=1
+  const [base, ...set] = n.split(':');
+  const a: Articulators = { ...DEFAULT_ARTICULATORS, ...(PHONEMES[base]?.art ?? {}) };
+  for (const kv of set) { const [k, v] = kv.split('='); (a as unknown as Record<string, number>)[k] = +v; }
   htmlParts.push(svgFor(n, a));
 }
 writeFileSync(out, `<!doctype html><html><head><meta charset="utf-8"></head><body style="background:#fff">${htmlParts.join('\n')}</body></html>`);

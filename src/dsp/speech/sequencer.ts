@@ -1,4 +1,4 @@
-import { Articulators, ARTICULATOR_KEYS, DEFAULT_ARTICULATORS } from '../tract/types';
+import { Articulators, ARTICULATOR_KEYS, ARTICULATOR_RANGES, DEFAULT_ARTICULATORS } from '../tract/types';
 import { PHONEMES, Phoneme } from './phonemes';
 import { Phone, Lang } from './g2p';
 import { Score, ScoreFrame, ScorePhone } from '../engine/params';
@@ -110,6 +110,15 @@ const FRAME = 0.005;
 const CONS_ONSET = 0.02;
 /** how long before its planned release a consonant lets its target go (s) */
 const RELEASE_LEAD = 0.012;
+/** articulators that keep the middle of a vowel for the vowel, and how many of
+ *  their time constants before that middle a consonant may claim them */
+const PROTECTED = new Set<string>(['tipX', 'tipY', 'tongueX', 'tongueY', 'velum']);
+const CORE = 0.75;
+/** articulators whose vowel targets are aimed so that the middle of the vowel
+ *  reaches them, and how far past the target they may aim, as a share of the
+ *  way still to go */
+const COMPENSATED: (keyof Articulators)[] = ['tongueX', 'tongueY', 'tongueRoot', 'jaw', 'lipRound', 'lipProtrude'];
+const OVERSHOOT = 0.6;
 const isObstruent = (ph: Phoneme | undefined) => !!ph && (ph.manner === 'stop' || ph.manner === 'fricative' || ph.manner === 'affricate');
 const isCons = (u: Unit | undefined) => !!u && !u.vowel && u.ph.manner !== 'silence';
 
@@ -366,7 +375,7 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
 
   // ---------------------------------------------------------- articulation
   // per-key anchor points: (interval, value) at the segments that specify the key
-  const anchors: Record<string, { t0: number; t1: number; v: number; cons?: boolean }[]> = {};
+  const anchors: Record<string, { t0: number; t1: number; v: number; cons?: boolean; mid?: number }[]> = {};
   for (const k of ARTICULATOR_KEYS) anchors[k] = [];
   const neutral: Articulators = { ...DEFAULT_ARTICULATORS, ...PHONEMES['ə'].art };
   for (const s of segs) {
@@ -381,8 +390,9 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
       const v = art[k] ?? (nat.coarticulation ? DEFAULT_ARTICULATORS[k] : neutral[k]);
       if (off) {
         // diphthong: hold the nucleus, then glide to the offglide target
+        // (the nucleus is aimed to be reached a quarter of the way in)
         const d = s.t1 - s.t0;
-        anchors[k].push({ t0: s.t0 - lead, t1: s.t0 + 0.35 * d - lead, v });
+        anchors[k].push({ t0: s.t0 - lead, t1: s.t0 + 0.35 * d - lead, v, mid: s.t0 + 0.25 * d });
         anchors[k].push({ t0: s.t1 - 0.2 * d - lead, t1: s.t1 - lead, v: off[k] ?? v });
       } else if (m !== 'vowel') {
         // a consonant gesture starts earlier than its sound (it overlaps the
@@ -394,12 +404,21 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
         // (tongue body, jaw, velum) lets go earlier than the tip, so that all
         // open together (a velar released late behind a velum already raised
         // would cut off both mouth and nose)
-        const t0 = s.t0 - lead - (m === 'stop' ? 0 : CONS_ONSET);
+        // The middle of the vowel before is its own: the tongue may head for
+        // the consonant only from about one time constant before it, so a
+        // short vowel between alveolars is not said with the tip already up
+        // (an r-coloured, retroflex vowel) nor one before a velar with the
+        // dorsum on its way to it. The velum too, in Italian; English lowers
+        // it from the start of a vowel before a nasal (Cohn 1990), and the
+        // nasalized vowel is part of the word
         const prev = anchors[k][anchors[k].length - 1];
+        const own = PROTECTED.has(k) && !(en && k === 'velum');
+        const core = own && prev && !prev.cons && prev.mid !== undefined ? prev.mid - CORE * TAM_TAU[k] : -Infinity;
+        const t0 = Math.max(core, s.t0 - lead - (m === 'stop' ? 0 : CONS_ONSET));
         if (prev && prev.t1 > t0) prev.t1 = Math.max(prev.t0, t0);
         const release = (m === 'fricative' ? 2 : 1) * RELEASE_LEAD * (TAM_TAU[k] / TAM_TAU.tipY);
         anchors[k].push({ t0: Math.max(t0, prev ? prev.t1 : -Infinity), t1: Math.max(t0 + 0.01, s.t1 - release), v, cons: true });
-      } else anchors[k].push({ t0: s.t0 - lead, t1: s.t1 - lead, v });
+      } else anchors[k].push({ t0: s.t0 - lead, t1: s.t1 - lead, v, mid: 0.5 * (s.t0 + s.t1) });
     }
   }
   // after the last sound the mouth relaxes to rest (and a final stop is released)
@@ -421,6 +440,30 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
     }
     return a[a.length - 1].v;
   };
+
+  // a short vowel would end before the slow articulators reach it (the tongue
+  // body takes about 85 ms for 90 % of its way): its target is aimed past the
+  // vowel, as a speaker does who means to reach it, so that the middle of the
+  // vowel gets there. The engine's own dynamics are run here to find out by how
+  // much; the aim goes past the vowel by at most OVERSHOOT of the way, and
+  // never outside the articulator's range
+  for (const k of COMPENSATED) {
+    const vowels = anchors[k].filter((a) => a.mid !== undefined).map((a) => ({ a, v0: a.v, from: a.v }));
+    if (!vowels.length) continue;
+    const [lo, hi] = ARTICULATOR_RANGES[k];
+    for (let iter = 0; iter < 3; iter++) {
+      const tr = new TamChannel(valueAt(k, 0), TAM_TAU[k]);
+      const y: number[] = [];
+      for (let i = 0; i * FRAME <= duration; i++) y.push(tr.step(valueAt(k, i * FRAME), FRAME));
+      const at = (time: number) => y[Math.max(0, Math.min(y.length - 1, Math.round(time / FRAME)))];
+      for (const w of vowels) {
+        if (iter === 0) w.from = at(w.a.t0);
+        const miss = w.v0 - at(w.a.mid!);
+        const room = OVERSHOOT * Math.abs(w.v0 - w.from);
+        w.a.v = Math.max(lo, Math.min(hi, Math.max(w.v0 - room, Math.min(w.v0 + room, w.a.v + miss))));
+      }
+    }
+  }
 
   // tongue-tip contacts of taps and trills (raised-cosine flicks up to the
   // ridge). Their height is measured from where the smoothed tip really is,
