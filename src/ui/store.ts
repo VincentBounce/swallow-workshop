@@ -13,7 +13,7 @@ import { NaturalnessOptions, NATURAL_ALL } from '../dsp/speech/sequencer';
 export type Lang = 'it' | 'en';
 export type Mode = 'tour' | 'lab';
 export type ControlTab = 'source' | 'tract' | 'teeth' | 'noise' | 'speak' | 'melody' | 'ab' | 'machine';
-export type ViewTab = 'spectrum' | 'scope' | 'glottis' | 'chart' | 'tube';
+export type ViewTab = 'spectrum' | 'scope' | 'glottis' | 'chart' | 'tube' | 'tract3d';
 export type FieldMode = 'pressure' | 'velocity' | 'air';
 
 export interface UiState {

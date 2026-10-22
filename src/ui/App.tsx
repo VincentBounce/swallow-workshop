@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { store, useUi, useParams, useTick, ViewTab, ControlTab } from './store';
 import { useT, useL } from './i18n';
 import { HeadView } from './components/HeadView';
@@ -19,6 +19,9 @@ import { MachinePanel } from './components/MachinePanel';
 import { Meters } from './components/Meters';
 import { CHAPTERS, GuidedExperiment } from './tour';
 import { resetAll } from './presets';
+
+// three.js is loaded only when the 3D view is opened
+const Tract3DView = lazy(() => import('./components/Tract3DView'));
 
 function Header() {
   const t = useT();
@@ -125,7 +128,7 @@ const CONTROL_TABS: [ControlTab, Parameters<ReturnType<typeof useT>>[0]][] = [
   ['source', 'cSource'], ['tract', 'cTract'], ['teeth', 'cTeeth'], ['noise', 'cNoise'], ['speak', 'cSpeak'], ['melody', 'cMelody'], ['ab', 'cAB'], ['machine', 'cMachine'],
 ];
 const VIEW_TABS: [ViewTab, Parameters<ReturnType<typeof useT>>[0]][] = [
-  ['chart', 'vChart'], ['spectrum', 'vSpectrum'], ['scope', 'vScope'], ['glottis', 'vGlottis'], ['tube', 'vTube'],
+  ['chart', 'vChart'], ['spectrum', 'vSpectrum'], ['scope', 'vScope'], ['glottis', 'vGlottis'], ['tube', 'vTube'], ['tract3d', 'v3d'],
 ];
 
 export function App() {
@@ -144,7 +147,7 @@ export function App() {
         </section>
         <section className="col-views">
           <div className="card view-card">
-            <nav className="tabs">
+            <nav className="tabs wrap">
               {VIEW_TABS.map(([id, key]) => <button key={id} className={ui.viewTab === id ? 'on' : ''} onClick={() => store.setUi({ viewTab: id })}>{t(key)}</button>)}
             </nav>
             <div className="view-body">
@@ -153,6 +156,7 @@ export function App() {
               {ui.viewTab === 'glottis' && <GlottisView />}
               {ui.viewTab === 'chart' && <VowelChart />}
               {ui.viewTab === 'tube' && <TubeView />}
+              {ui.viewTab === 'tract3d' && <Suspense fallback={<div className="overlay-bottom hint">{L({ it: 'Carico la vista 3D…', en: 'Loading the 3D view…' })}</div>}><Tract3DView /></Suspense>}
             </div>
           </div>
           <div className="card spec-card">

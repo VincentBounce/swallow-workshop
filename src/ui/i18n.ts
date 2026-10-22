@@ -19,6 +19,7 @@ export const S = {
   vGlottis: { it: 'Corde vocali', en: 'Vocal folds' },
   vChart: { it: 'Mappa delle vocali', en: 'Vowel map' },
   vTube: { it: 'Il tubo', en: 'The tube' },
+  v3d: { it: 'Tratto in 3D', en: '3D tract' },
   spectrogram: { it: 'Spettrogramma', en: 'Spectrogram' },
   // control tabs
   cSource: { it: 'Sorgente', en: 'Source' },

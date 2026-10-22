@@ -79,14 +79,19 @@ export function heat(v: number): [number, number, number] {
   return [252, 240, 170];
 }
 
-/** Colour of the sound field inside the tract: teal (low) to amber (high). */
-export function fieldColor(v: number, alpha = 1): string {
+/** Colour (0..255) of the sound field inside the tract: teal (low) to amber (high). */
+export function fieldRgb(v: number): [number, number, number] {
   const x = Math.max(0, Math.min(1, v));
   const a: [number, number, number] = [16, 60, 80], b: [number, number, number] = [42, 212, 189], c: [number, number, number] = [246, 168, 35], d: [number, number, number] = [255, 236, 190];
-  let r: number, g: number, bl: number;
-  if (x < 0.4) { const t = x / 0.4; r = a[0] + (b[0] - a[0]) * t; g = a[1] + (b[1] - a[1]) * t; bl = a[2] + (b[2] - a[2]) * t; }
-  else if (x < 0.8) { const t = (x - 0.4) / 0.4; r = b[0] + (c[0] - b[0]) * t; g = b[1] + (c[1] - b[1]) * t; bl = b[2] + (c[2] - b[2]) * t; }
-  else { const t = (x - 0.8) / 0.2; r = c[0] + (d[0] - c[0]) * t; g = c[1] + (d[1] - c[1]) * t; bl = c[2] + (d[2] - c[2]) * t; }
+  if (x < 0.4) { const t = x / 0.4; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  if (x < 0.8) { const t = (x - 0.4) / 0.4; return [b[0] + (c[0] - b[0]) * t, b[1] + (c[1] - b[1]) * t, b[2] + (c[2] - b[2]) * t]; }
+  const t = (x - 0.8) / 0.2;
+  return [c[0] + (d[0] - c[0]) * t, c[1] + (d[1] - c[1]) * t, c[2] + (d[2] - c[2]) * t];
+}
+
+/** The field colour as a CSS colour. */
+export function fieldColor(v: number, alpha = 1): string {
+  const [r, g, bl] = fieldRgb(v);
   return `rgba(${r | 0},${g | 0},${bl | 0},${alpha})`;
 }
 
