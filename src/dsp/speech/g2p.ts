@@ -24,6 +24,8 @@ export interface Phone {
   question?: boolean;
   /** a question that starts with a question word (falls like a statement) */
   whQuestion?: boolean;
+  /** English final /t/ before a consonant: held by a glottal stop, released without a puff */
+  glottalized?: boolean;
 }
 
 export type Lang = 'it' | 'en';
@@ -263,5 +265,29 @@ export function textToPhones(text: string, lang: Lang): Phone[] {
     } else phones = italianWord(word);
     out.push(...phones);
   }
+  if (lang === 'en') americanLinking(out);
   return out;
+}
+
+/**
+ * What American speakers do to a word-final /t d/ inside a phrase (the
+ * lexicon gives the words one by one): between vowels it becomes a flap
+ * ("it is", "get up", "would it"); a /t/ after a vowel and before a
+ * consonant is held by a glottal stop and not released ("it rains", "that
+ * man"); after another consonant and before one it is usually dropped ("just
+ * two", "next day").
+ */
+function americanLinking(out: Phone[]): void {
+  const vowelLike = (p: Phone | undefined) => !!p && (PHONEMES[p.ipa]?.manner === 'vowel' || p.ipa === 'ɹ');
+  for (let i = out.length - 2; i >= 1; i--) {
+    const p = out[i], prev = out[i - 1], next = out[i + 1];
+    if (!p.wordEnd || p.pause || (p.ipa !== 't' && p.ipa !== 'd') || prev.wordEnd) continue;
+    const nextVowel = PHONEMES[next.ipa]?.manner === 'vowel';
+    if (vowelLike(prev) && nextVowel) p.ipa = 'ɾ';
+    else if (p.ipa === 't' && vowelLike(prev) && !nextVowel) p.glottalized = true;
+    else if (!vowelLike(prev) && !nextVowel && PHONEMES[prev.ipa]?.manner !== 'nasal') {
+      prev.wordEnd = true;
+      out.splice(i, 1);
+    }
+  }
 }

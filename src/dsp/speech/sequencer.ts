@@ -593,7 +593,12 @@ export function buildScore(phones: Phone[], opts: ScoreOptions = {}): Score {
       const unit = units[sg.unit];
       if (m === 'silence') abd = 0.6;
       else if (m === 'glottalStop') { abd = 0; gate = 0; }
-      else if (m === 'stop' && !sg.ph.voiced) {
+      else if (m === 'stop' && unit.p.glottalized) {
+        // [ʔt̚]: the folds close with the tongue, so no pressure builds up
+        // behind the closure and nothing bursts out at its release
+        abd = 0;
+        if (sg.part === 'closure') gate = 0;
+      } else if (m === 'stop' && !sg.ph.voiced) {
         // the stop part of an affricate keeps the glottis open into its hiss
         const aspirated = unit.ph.manner === 'affricate' || segs.some((s) => s.unit === sg.unit && s.part === 'aspiration');
         if (sg.part === 'closure') {

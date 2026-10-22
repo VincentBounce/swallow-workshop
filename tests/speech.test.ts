@@ -266,6 +266,26 @@ describe('timing, melody and gestures of sequenced speech', () => {
     expect(s.duration - last.t1).toBeLessThan(0.06);
   });
 
+  it('a glottalized /t/ builds no pressure, so it is not released with a puff', () => {
+    const peakPo = (text: string) => {
+      const sc = buildScore(textToPhones(text, 'en'), { lang: 'en' });
+      const t = sc.phones.find((q) => q.ipa === 't')!;
+      const e = new VoiceEngine(fs, defaultParams());
+      e.snapArticulators(); e.snapPressure(); e.playScore(sc);
+      const buf = new Float32Array(48);
+      let po = 0;
+      for (let time = 0; time < sc.duration; time += 48 / fs) {
+        e.process(buf, 48);
+        if (time > t.t0 && time < t.t1 + 0.01) po = Math.max(po, e.telemetry().po);
+      }
+      return po / 980.665; // cmH2O
+    };
+    const held = peakPo('it rains'), released = peakPo('it.');
+    note('glottalized t', `oral pressure behind /t/: "it rains" ${held.toFixed(1)} cmH2O, "it." ${released.toFixed(1)} cmH2O`);
+    expect(held).toBeLessThan(1);
+    expect(released).toBeGreaterThan(3);
+  });
+
   it('a glottal stop closes the folds ("button")', () => {
     const s = buildScore(textToPhones('button', 'en'), { lang: 'en' });
     expect(s.frames.some((f) => f.gate === 0)).toBe(true);

@@ -45,6 +45,18 @@ describe('English grapheme to phoneme', () => {
     note('English G2P', `voice ${ipa('voice')}, water ${ipa('water')}, little ${ipa('little')}, 1984 "${englishNumber(1984)}", blick (rules) ${ipa('blick')}`);
   });
 
+  it('links words the American way: flapped, glottalized or dropped final /t d/', () => {
+    expect(ipa('it is')).toBe('ɪ ɾ ɪ z');
+    expect(ipa('get up')).toBe('g ɛ ɾ ʌ p');
+    expect(ipa('just two')).toBe('dʒ ʌ s t u');
+    const rains = textToPhones('it rains', 'en');
+    expect(rains[1].ipa).toBe('t');
+    expect(rains[1].glottalized).toBe(true);
+    // at the end of a phrase the /t/ stays as it is
+    expect(textToPhones('it.', 'en')[1].glottalized).toBeFalsy();
+    note('American linking', `it is ${ipa('it is')}, get up ${ipa('get up')}, just two ${ipa('just two')}, it rains: /t/ held by a glottal stop`);
+  });
+
   it('marks questions that start with a question word', () => {
     const wh = textToPhones('where is it?', 'en');
     const yn = textToPhones('is it here?', 'en');

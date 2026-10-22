@@ -26,7 +26,7 @@ Firefox or Safari (AudioWorklet).
 cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 66 automated tests (physics, speech, analysis)
+npm test           # 68 automated tests (physics, speech, analysis)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
@@ -297,7 +297,11 @@ sibilants. The teeth panel draws the front and side views with the live jet.
   known words; for anything else, letter-to-sound rules in the style of
   Elovitz et al. (1976) with a simple stress rule; numbers and years in words.
   Flaps ("water"), glottal stops ("button"), dark l and r-coloured vowels come
-  from the lexicon's American forms.
+  from the lexicon's American forms. Across words, inside a phrase, a final
+  /t d/ links the American way: a flap between vowels ("it is", "get up"), a
+  /t/ held by a glottal stop and not released before a consonant ("it
+  rains": the folds close with the tongue, so no pressure builds up behind
+  it), dropped between consonants ("just two").
 - **IPA** between slashes, with ˈ ˌ and ː.
 - **Sequencer** (src/dsp/speech/sequencer.ts): the phones are syllabified
   (legal onsets, geminates close the syllable before), grouped into words and
@@ -430,15 +434,16 @@ in brackets are the adult male targets described under Speech.
 | "mamma" | nasal murmur 800-3000 / 80-400 Hz balance -32.6 dB vs -11.5 dB in the vowel |
 | Italian G2P | sasso, mamma, voce, rosa (northern /z/), gnocchi, figlio (long ʎ), scena, chiesa, città; IPA parsing |
 | English G2P | 89 321-word lexicon; voice v ɔɪ s, water w ɔ ɾ ɚ, little l ɪ ɾ ə ɫ, 1984 "nineteen eighty four", blick (rules) b l ɪ k; weak forms; wh-questions marked |
+| American linking | it is ɪ ɾ ɪ z, get up g ɛ ɾ ʌ p, just two dʒ ʌ s t u; oral pressure behind the /t/ of "it rains" 0.6 cmH2O (glottal stop, no puff) vs 6.5 cmH2O in "it." |
 | American r | /ɹ/ 420 / 1140 / 1608 Hz, /ɝ/ 474 / 1307 / 1758 Hz (Peterson & Barney /ɝ/ 490 / 1350 / 1690), narrowest passage 0.3 cm² (no hiss) |
 | Dark l | F2 clear /l/ 1524 Hz, dark /ɫ/ 985 Hz |
 | Klatt durations | /i/ in bead 223 ms vs beat 153 ms; "heed heed heed": first 121 ms, last 223 ms |
 | Italian durations | stressed /a/ in fato 156 ms vs fatto 104 ms |
 | Voice onset time | /t/ English 77 ms, Italian 8 ms (Lisker & Abramson: English /t/ about 70 ms, range 30-105; Italian 10-25 ms) |
 | Trill and tap | tongue-tip closures: "carro" 4, "caro" 2 |
-| Consonant dips | nasals 6.4-12.9 dB, /v/ 8.1-18.3 dB below their vowels ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/; /ŋ/ in front of the nasal port in every vowel context |
-| Fujisaki intonation | final F0: statement 105 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
-| Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.61 st (90 %), 2.0 st with the slider smoothing |
+| Consonant dips | nasals 6.6-12.9 dB, /v/ 8.1-18.3 dB below their vowels ("la mamma vuole la nonna e il vino", "Every voice you have ever heard is raining in."); no complete closure in /v w l/; /ŋ/ in front of the nasal port in every vowel context |
+| Fujisaki intonation | final F0: statement 106 Hz, wh-question 101 Hz, yes/no question 180 Hz (base 120 Hz) |
+| Melody | "Every voice you have ever heard is made of just two ingredients.": planned F0 range 10.2 st; the voice follows the plan within 0.58 st (90 %), 1.9 st with the slider smoothing |
 | Log-mel | 80 bands; a 1 kHz tone lands in band 25-29 |
 
 ## Simplifications and limits
