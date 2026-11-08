@@ -5,6 +5,8 @@ An interactive, physically based simulator of human voice production: a buzz
 follows the concepts of the video "The Buzz and the Filter" and lets you hear
 and see each of them, from the single glottal pulse to sequenced speech.
 
+**Try it in the browser: https://mithrilman.github.io/voice-workshop/**
+
 [![The Buzz and the Filter: how a voice is made (video, 7 min)](public/video/the-buzz-and-the-filter.jpg)](public/video/the-buzz-and-the-filter.mp4)
 
 **The Buzz and the Filter: how a voice is made** (7 minutes, English with
@@ -45,6 +47,9 @@ Or, without Node on the machine, in a container (Docker Compose):
 docker compose up                      # http://localhost:5186
 docker compose run --rm dev npm test
 ```
+
+Every push to `main` runs the tests, builds the site and publishes it on
+GitHub Pages (`.github/workflows/pages.yml`).
 
 Press **▶ Sound / Suono** in the header (browsers only allow audio after a user
 gesture): it gives the head a breath of voice, and you hear its shape. Press

@@ -4,6 +4,7 @@
   "license": "Apache-2.0",
   "version": "0.1.0",
   "description": "Interactive, physically based voice production simulator: buzz, hiss and filter.",
+  "homepage": "https://mithrilman.github.io/voice-workshop/",
   "type": "module",
   "scripts": {
     "dev": "vite",
