@@ -1,0 +1,7 @@
+# Keep every file's bytes as committed: some sources have CRLF line endings, others LF.
+* -text
+
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.lex binary

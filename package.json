@@ -1,6 +1,7 @@
 {
-  "name": "voice-simulator",
+  "name": "voice-workshop",
   "private": true,
+  "license": "Apache-2.0",
   "version": "0.1.0",
   "description": "Interactive, physically based voice production simulator: buzz, hiss and filter.",
   "type": "module",

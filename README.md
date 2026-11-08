@@ -23,13 +23,19 @@ Requirements: Node.js 20.19+ or 22.12+ (Vite 8), a recent Chrome, Edge,
 Firefox or Safari (AudioWorklet).
 
 ```bash
-cd voice-simulator
 npm install
 npm run dev        # http://localhost:5186
-npm test           # 116 automated tests (physics, speech, analysis, the voice controller, interface text)
+npm test           # 128 automated tests (physics, speech, analysis, the voice controller, interface text)
 npm run validate   # runs the tests and prints every validation number as a table
 npm run build      # type check + production build in dist/ (static files, relative paths)
 npm run preview    # serves dist/
+```
+
+Or, without Node on the machine, in a container (Docker Compose):
+
+```bash
+docker compose up                      # http://localhost:5186
+docker compose run --rm dev npm test
 ```
 
 Press **▶ Sound / Suono** in the header (browsers only allow audio after a user
@@ -897,3 +903,9 @@ npx tsx scripts/head-guide.ts out/      # the guide image the head's painting wa
 
 In development builds the store is exposed as `window.voiceStore` for
 debugging.
+
+## License
+
+Apache-2.0 (`LICENSE`). The American English lexicon is derived from the
+Misaki G2P by hexgrad (Apache-2.0): see `NOTICE`. Third-party components and
+data are listed in `THIRD_PARTY_NOTICES.md`.

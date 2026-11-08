@@ -1,0 +1,7 @@
+node_modules/
+dist/
+out/
+*.tsbuildinfo
+
+# private names the interface test also bans (one per line), kept out of the repository
+tests/banned-names.local
