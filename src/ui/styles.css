@@ -316,6 +316,17 @@ input[type='range'] { accent-color: var(--amber); width: 100%; }
 .lesson-nav .btn { padding: 9px 20px; font-size: 14px; }
 .learn-tool { border: 1px solid #2b3f55; border-radius: var(--radius); background: #0f151f; }
 .learn-tool .panel-body { max-height: none; }
+.video-intro { display: flex; gap: 12px; align-items: center; align-self: flex-start; max-width: 100%; padding: 6px 14px 6px 6px; border: 1px solid #2b3f55; border-radius: 10px; background: rgba(15, 21, 31, 0.8); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s; }
+.video-intro:hover { border-color: var(--amber); }
+.video-intro img { width: 128px; height: 72px; object-fit: cover; border-radius: 6px; flex: none; }
+.video-intro-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.4; color: var(--muted); }
+.video-intro-text b { color: var(--text); font-size: 14.5px; font-weight: 600; }
+.video-dialog { padding: 0; width: min(1100px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); border: 1px solid #2b3f55; border-radius: var(--radius); background: var(--card); color: var(--text); }
+.video-dialog::backdrop { background: rgba(5, 7, 11, 0.8); }
+.video-frame { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.video-frame video { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: calc(100dvh - 130px); border-radius: 8px; background: #000; }
+.video-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.video-foot a { color: var(--teal); }
 
 /* ------------------------------------------------------------ Play */
 /* one activity at a time: four big tabs, the head beside the activity's one view, its controls under them */

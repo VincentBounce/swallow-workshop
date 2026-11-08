@@ -6,6 +6,8 @@ services:
     working_dir: /app
     network_mode: bridge   # the default bridge: no project network to create
     command: sh -c "npm ci --no-audit --no-fund && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_POLL: "1"   # file changes on the host reach the dev server
     ports:
       - "127.0.0.1:5186:5186"
     volumes:

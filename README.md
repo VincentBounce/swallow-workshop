@@ -2,9 +2,17 @@
 
 An interactive, physically based simulator of human voice production: a buzz
 (the vocal folds), a hiss (turbulent air) and a filter (the vocal tract). It
-follows the concepts of the explainer video "a buzz, a hiss and a filter" and
-lets you hear and see each of them, from the single glottal pulse to sequenced
-speech.
+follows the concepts of the video "The Buzz and the Filter" and lets you hear
+and see each of them, from the single glottal pulse to sequenced speech.
+
+[![The Buzz and the Filter: how a voice is made (video, 7 min)](public/video/the-buzz-and-the-filter.jpg)](public/video/the-buzz-and-the-filter.mp4)
+
+**The Buzz and the Filter: how a voice is made** (7 minutes, English with
+captions) takes a voice apart: the vocal folds, the throat and the mouth,
+formants, noise, and the spectrogram. It is narrated by the small speech model
+of the paper [Teacher in the Loop](https://github.com/MithrilMan/teacher-in-the-loop)
+(doi:[10.5281/zenodo.23400040](https://doi.org/10.5281/zenodo.23400040)). In
+the app it opens from the first step of Learn.
 
 Everything is computed live in the browser: a mid-sagittal articulatory model
 of the head gives an area function, a lossy Kelly-Lochbaum waveguide with
@@ -133,7 +141,7 @@ Inspector (Lab) and tools (Learn):
 | Speak | English or Italian text (numbers are read out), or IPA between slashes; rate, accent strength; examples in both languages; a phone timeline that follows the playback; "what makes it sound natural": timing, intonation, micro-variation, voice quality and coarticulation, each switchable, with a plain explanation and a one-click robot voice. |
 | Melody | Draw a pitch contour (erase = unvoiced) and play it with the buzz alone or through the current vowel; contour presets (sample sentence, question, flat); a two-octave keyboard (mouse or computer keys) with vibrato. |
 | A/B experiment | Nine ready-made experiments (same filter other pitch, same pitch other filter, same vowel another body, dark vs bright, velum closed vs open, one nostril pinched, steady vs pulsed hiss, voice vs whisper, LF vs two-mass) plus your own A/B captures. Each side plays through the live engine, so the head and the views show A or B as you hear it, and the long-term spectra are taken from the samples you heard. |
-| Machine voice | Only what the video narration says about the excitation of a neural speech model: nine sines at 1..9 x F0, locked to the pitch, switched off where the melody is zero and replaced by soft noise, mixed by learned weights (here by hand). |
+| Machine voice | Only the excitation of the speech model of the paper Teacher in the Loop, as the paper describes it: nine sines at 1..9 x F0, locked to the pitch, switched off where the melody is zero and replaced by soft noise, mixed by learned weights (here by hand). |
 
 | Output | Volume, sample rate and level; harmonics, filter envelope, log-mel, analysis window; numbers everywhere; freeze the views; the microphone (opt-in, analysed locally, never played back). |
 
@@ -176,6 +184,7 @@ src/
   ui/three/meshes.ts      pure mesh builder for the 3D view (tested in Node); three.js loads only with that view
   ui/head/                the illustrated head: the scene (pure, tested in Node) and the painter
 public/anatomy/head.jpg   the painted backdrop of the illustrated head
+public/video/             the video The Buzz and the Filter (H.264 720p) and its poster frame
 tests/                    Vitest suites with the validation numbers
 scripts/                  validate.ts, say.ts (renders sentences to WAV), tuning and debug tools
 ```
@@ -795,8 +804,8 @@ in brackets are the adult male targets described under Speech.
   pronunciation. Italian open and close e/o are only known where an accent is
   written. Prosody is rule-based: it has no idea which word the sentence is
   about, so the nuclear accent always falls on the last content word.
-- The machine-voice tab describes only the excitation as the video narration
-  presents it; it does not model any trained network.
+- The machine-voice tab describes only the excitation as the paper Teacher in
+  the Loop presents it; it does not model any trained network.
 - The colourful field and particle visualisations are illustrative (the
   colours follow the real per-section pressure / velocity / flow, the
   particles are decorative). In the 3D view the air has the cross-sections

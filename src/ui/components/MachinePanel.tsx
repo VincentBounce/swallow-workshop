@@ -10,8 +10,8 @@ import { Rng } from '../../dsp/util/rng';
 const DUR = 3.2;
 
 /**
- * The excitation of the speech model described in the explainer video, as the
- * narration describes it and nothing more: nine sine waves at 1..9 times the
+ * The excitation of the speech model of the paper Teacher in the Loop, as the
+ * paper describes it and nothing more: nine sine waves at 1..9 times the
  * fundamental, all starting together (locked to the pitch); where the melody
  * is zero they switch off and a soft noise takes their place; a set of
  * learned numbers mixes the nine sines into one signal, the excitation, which
@@ -83,8 +83,8 @@ export function MachinePanel() {
     <div className="panel-body">
       <Section title={L({ it: 'Come la costruisce un modello', en: 'How a model builds it' })} accent={C.violet}
         info={L({
-          it: 'Questa scheda riassume solo quanto racconta il video sul modello vocale del lavoro «Teacher in the Loop». Il ronzio lì è quasi tutto matematica: dalla melodia prevista nascono nove sinusoidi, a una, due, tre… fino a nove volte la fondamentale. Partono insieme e l’armonica k gira esattamente k volte più veloce, così restano agganciate alla nota. Nove armoniche arrivano solo a circa 2 kHz: sopra deve pensarci la rete. Dove la melodia prevista va a zero (la «s» di «hiss») le sinusoidi si spengono e al loro posto c’è un rumore leggero. Dieci numeri appresi mescolano le nove sinusoidi in un solo segnale, l’eccitazione; poi un filtro appreso (il decoder) la trasforma in voce, e il colore della voce vive nei suoi pesi.',
-          en: 'This tab only summarizes what the video says about the speech model of the “Teacher in the Loop” paper. Its buzz is mostly math: from the predicted melody come nine sine waves, at one, two, three… up to nine times the fundamental. They start together and harmonic k turns exactly k times faster, so they stay locked to the pitch. Nine harmonics reach only about 2 kHz: above that the network has to do the work. Where the predicted melody drops to zero (the s of “hiss”) the sines switch off and a soft noise takes their place. Ten learned numbers mix the nine sines into one signal, the excitation; then a learned filter (the decoder) turns it into a voice, and the color of the voice lives in its weights.',
+          it: 'Questa scheda riassume solo come costruisce una voce il modello vocale del lavoro «Teacher in the Loop». Il ronzio lì è quasi tutto matematica: dalla melodia prevista nascono nove sinusoidi, a una, due, tre… fino a nove volte la fondamentale. Partono insieme e l’armonica k gira esattamente k volte più veloce, così restano agganciate alla nota. Nove armoniche arrivano solo a circa 2 kHz: sopra deve pensarci la rete. Dove la melodia prevista va a zero (la «s» di «hiss») le sinusoidi si spengono e al loro posto c’è un rumore leggero. Dieci numeri appresi mescolano le nove sinusoidi in un solo segnale, l’eccitazione; poi un filtro appreso (il decoder) la trasforma in voce, e il colore della voce vive nei suoi pesi.',
+          en: 'This tab only summarizes how the speech model of the “Teacher in the Loop” paper builds a voice. Its buzz is mostly math: from the predicted melody come nine sine waves, at one, two, three… up to nine times the fundamental. They start together and harmonic k turns exactly k times faster, so they stay locked to the pitch. Nine harmonics reach only about 2 kHz: above that the network has to do the work. Where the predicted melody drops to zero (the s of “hiss”) the sines switch off and a soft noise takes their place. Ten learned numbers mix the nine sines into one signal, the excitation; then a learned filter (the decoder) turns it into a voice, and the color of the voice lives in its weights.',
         })}>
         <p className="small">{L({ it: 'Prova a mescolare a mano le nove sinusoidi (nel modello lo fanno numeri appresi) e ascolta l’eccitazione sulla melodia disegnata nella scheda «Melodia».', en: 'Try mixing the nine sines by hand (in the model learned numbers do it) and listen to the excitation on the melody drawn in the “Melody” tab.' })}</p>
         {w.map((v, i) => (

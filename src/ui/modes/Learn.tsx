@@ -6,6 +6,7 @@ import { ABPanel } from '../components/ABPanel';
 import { MelodyPanel } from '../components/MelodyPanel';
 import { MachinePanel } from '../components/MachinePanel';
 import { NoisePanel } from '../components/NoisePanel';
+import { VideoIntro } from '../components/VideoIntro';
 import { LESSONS, Step, openStep, breath } from '../tour';
 import { ViewFrame } from './views';
 import { QuickControls } from './quick';
@@ -84,13 +85,14 @@ export function Learn() {
   const last = c === LESSONS.length - 1 && k === lesson.steps.length - 1;
   const next = () => { if (k < lesson.steps.length - 1) goTo(c, k + 1); else if (!last) goTo(c + 1, 0); };
   const back = () => { if (k > 0) goTo(c, k - 1); else if (!first) goTo(c - 1, -1); };
-  // the arrow keys turn the steps (not while typing or choosing)
+  // the arrow keys turn the steps (not while typing or choosing, nor over the video player)
   const nav = useRef({ next, back });
   nav.current = { next, back };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.altKey || e.ctrlKey || e.metaKey || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) return;
+      if (document.querySelector('dialog[open]')) return;
       if (e.key === 'ArrowRight') nav.current.next();
       else if (e.key === 'ArrowLeft') nav.current.back();
     };
@@ -121,7 +123,8 @@ export function Learn() {
         <div className="lesson-body">
           <div className="lesson-text">
             <p className="lesson-idea">{L(step.text)}</p>
-            {step.look && <p className="lesson-look"><b>{L({ it: 'Guarda e ascolta', en: 'Look and listen' })}</b> {L(step.look)}</p>}
+            {first && <VideoIntro />}
+            {step.look &&<p className="lesson-look"><b>{L({ it: 'Guarda e ascolta', en: 'Look and listen' })}</b> {L(step.look)}</p>}
             {(step.why || step.numbers) && (
               <div className="lesson-more">
                 {step.why && (why

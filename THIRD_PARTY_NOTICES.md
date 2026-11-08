@@ -28,6 +28,16 @@ installed package metadata.
 resonance imaging-based vocal tract area functions obtained from the same speaker in 1994 and 2002", JASA 123.
 Other constants come from the papers listed under References in `README.md`, each cited where it is used.
 
+## Video
+
+`public/video/the-buzz-and-the-filter.mp4` (and its poster frame) was made for this project and is licensed with
+it. The narration is spoken by the af_heart student of the paper Teacher in the Loop
+(https://github.com/MithrilMan/teacher-in-the-loop, Apache-2.0), itself trained on Kokoro-82M by hexgrad
+(https://huggingface.co/hexgrad/Kokoro-82M, Apache-2.0) and built on the Paradee architecture
+(https://github.com/sahilmahendrakar/paradee, Apache-2.0). The animations were rendered with Manim Community
+(https://www.manim.community, MIT); the music was synthesized for the video. The captions use Noto Sans (SIL Open
+Font License 1.1). The end card of the video carries the same credits.
+
 ## Images
 
 `public/anatomy/head.jpg` is a painting generated from the guide image of `scripts/head-guide.ts` and retouched
