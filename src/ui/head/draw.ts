@@ -6,7 +6,7 @@
  */
 import { C, fieldColor } from '../canvas';
 import type { FieldMode } from '../store';
-import { canonToWorld, TractGeometry, Solid } from '../../dsp/tract/geometry';
+import { canonToWorld, rayPoints, TractGeometry, Solid } from '../../dsp/tract/geometry';
 import { Anatomy, Articulators, Teeth } from '../../dsp/tract/types';
 import { N_SECTIONS } from '../../dsp/tract/areaFunction';
 import type { Telemetry } from '../../dsp/engine/engine';
@@ -221,11 +221,6 @@ function drawSolid(ctx: CanvasRenderingContext2D, sol: Solid, path: (pts: number
   ctx.fill();
   if (sol.id === 'upperIncisor' || sol.id === 'lowerIncisor') { ctx.strokeStyle = '#b9b09b'; ctx.lineWidth = 1; ctx.stroke(); }
   else if (sol.id === 'tongue' || sol.id === 'upperLip' || sol.id === 'lowerLip' || sol.id === 'velum') { ctx.strokeStyle = 'rgba(255,220,225,0.35)'; ctx.lineWidth = 1; ctx.stroke(); }
-}
-
-export function rayPoints(geom: TractGeometry, i: number): [number, number, number, number] {
-  const r = geom.rays[i], h = geom.hits[i];
-  return [r.sx + r.nx * (r.t0 + h.tLow), r.sy + r.ny * (r.t0 + h.tLow), r.sx + r.nx * (r.t0 + h.tUp), r.sy + r.ny * (r.t0 + h.tUp)];
 }
 
 function drawChannel(ctx: CanvasRenderingContext2D, geom: TractGeometry, X: (x: number) => number, Y: (y: number) => number, mode: FieldMode, tel: Telemetry | null): void {

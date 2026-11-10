@@ -7,7 +7,7 @@
  * tongue thrust forward). Same speaker for both, so only the pattern differs.
  */
 import { Articulators, Teeth, DEFAULT_ARTICULATORS, DEFAULT_TEETH, ARTICULATOR_KEYS, ARTICULATOR_RANGES } from '../tract/types';
-import { TractGeometry } from '../tract/geometry';
+import { TractGeometry, rayPoints } from '../tract/geometry';
 
 /** The named stages of a swallow. */
 export type SwallowPhase = 'oralPrep' | 'oralTransit' | 'pharyngeal';
@@ -116,4 +116,25 @@ export function swallowMarks(g: TractGeometry): SwallowMarks {
     toothGap: g.slit.vertical, tipForward: g.tipPoint[0] - g.landmarks.upperEdge[0],
     tipContact: incisor ? 'incisor' : palate ? 'palate' : null, lipsShut,
   };
+}
+
+/** In the lower pharynx (below this fraction of the tract) the bolus keeps to the back wall: it slides past the epiglottis and the larynx, not into them. */
+const HYPO = 0.25;
+
+/** Where the bolus is drawn for a position `b` along the tract (as in SwallowKey): its centre, the unit direction it travels (world) and the half width of the passage there (cm). Below the glottis it goes straight down the oesophagus, behind the larynx. */
+export function bolusPoint(g: TractGeometry, b: number): { x: number; y: number; dx: number; dy: number; half: number } {
+  // across the channel: 0 at the lower boundary (tongue, larynx), 1 at the upper one (palate, back wall)
+  const across = (bb: number) => 0.5 + 0.4 * Math.max(0, Math.min(1, 1 - bb / HYPO));
+  const at = (i: number, f: number) => { const q = rayPoints(g, i); return [q[0] + (q[2] - q[0]) * f, q[1] + (q[3] - q[1]) * f, Math.hypot(q[2] - q[0], q[3] - q[1]) / 2]; };
+  const s = b * g.length;
+  if (s < 0) {
+    const [x, y] = at(0, across(0));
+    return { x, y: y + s, dx: 0, dy: -1, half: 0.35 * g.scale };
+  }
+  let i = 0;
+  while (i < g.lastRay - 1 && g.s[i + 1] <= s) i++;
+  const u = Math.max(0, Math.min(1, (s - g.s[i]) / Math.max(1e-6, g.s[i + 1] - g.s[i])));
+  const p0 = at(i, across(b)), p1 = at(i + 1, across(b));
+  const dx = p0[0] - p1[0], dy = p0[1] - p1[1], d = Math.hypot(dx, dy) || 1;
+  return { x: p0[0] + (p1[0] - p0[0]) * u, y: p0[1] + (p1[1] - p0[1]) * u, dx: dx / d, dy: dy / d, half: p0[2] + (p1[2] - p0[2]) * u };
 }

@@ -7,13 +7,13 @@ import type { ControlId } from '../voice/controls';
 import { lockText } from './DriverBar';
 import { useAnimatedCanvas, C, label } from '../canvas';
 import {
-  canonToWorld, tongueOffsetFromWorld, tipOffsetFromWorld, velumFromWorld, velumTip, GEOMETRY_CONST, TractGeometry,
+  canonToWorld, rayPoints, tongueOffsetFromWorld, tipOffsetFromWorld, velumFromWorld, velumTip, GEOMETRY_CONST, TractGeometry,
 } from '../../dsp/tract/geometry';
 import { Articulators, ARTICULATOR_RANGES, Teeth } from '../../dsp/tract/types';
 import { N_SECTIONS } from '../../dsp/tract/areaFunction';
 import type { Telemetry } from '../../dsp/engine/engine';
 import { NASAL_CENTRE, chinWeight } from '../head/outline';
-import { drawHead, headViewport, newHeadLayer, rayPoints, HeadLayer } from '../head/draw';
+import { drawHead, headViewport, newHeadLayer, HeadLayer } from '../head/draw';
 
 type HandleId = 'tongue' | 'tip' | 'jaw' | 'lips' | 'velum' | 'larynx' | 'teeth';
 

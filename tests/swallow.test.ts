@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeGeometry } from '../src/dsp/tract/geometry';
 import { ARTICULATOR_KEYS, ARTICULATOR_RANGES, DEFAULT_ANATOMY } from '../src/dsp/tract/types';
-import { SWALLOWS, SWALLOW_PHASES, swallowDuration, swallowMarks, swallowPose, SwallowSequence } from '../src/dsp/swallow/sequence';
+import { SWALLOWS, SWALLOW_PHASES, bolusPoint, swallowDuration, swallowMarks, swallowPose, SwallowSequence } from '../src/dsp/swallow/sequence';
 
 const marksAt = (seq: SwallowSequence, t: number) => {
   const p = swallowPose(seq, t);
@@ -61,4 +61,23 @@ describe('swallow sequences', () => {
     }
     expect(marksAt(seq, 0.8).tipContact).toBe('incisor');
   });
+
+  it('the bolus path runs without a jump from the lips down past the glottis, along the back wall low in the throat', () => {
+    for (const seq of Object.values(SWALLOWS)) for (const t of times(seq)) {
+      const p = swallowPose(seq, t);
+      const g = computeGeometry(p.a, DEFAULT_ANATOMY, p.teeth);
+      let last: { x: number; y: number } | null = null;
+      for (let b = 1; b >= -0.3; b -= 0.01) {
+        const q = bolusPoint(g, b);
+        if (last) expect(Math.hypot(q.x - last.x, q.y - last.y), `${seq.id} t ${t} b ${b.toFixed(2)}`).toBeLessThan(0.6);
+        last = q;
+      }
+      expect(bolusPoint(g, -0.2).y).toBeLessThan(g.landmarks.glottis[1] - 2);
+      // in the lower pharynx the bolus is behind the middle of the passage (toward the back wall, smaller x)
+      const mid = g.hits[Math.round(g.lastRay * 0.12)];
+      const q = bolusPoint(g, g.s[Math.round(g.lastRay * 0.12)] / g.length);
+      expect(q.x).toBeLessThan(mid.mx);
+    }
+  });
 });
+

@@ -962,6 +962,12 @@ export function velumFromWorld(x: number, y: number, an: Anatomy): number {
   return Math.max(0, Math.min(1, (ang - 207) / 30));
 }
 
+/** The two ends of ray i across the channel (world): the lower boundary (x, y), then the upper one. */
+export function rayPoints(geom: TractGeometry, i: number): [number, number, number, number] {
+  const r = geom.rays[i], h = geom.hits[i];
+  return [r.sx + r.nx * (r.t0 + h.tLow), r.sy + r.ny * (r.t0 + h.tLow), r.sx + r.nx * (r.t0 + h.tUp), r.sy + r.ny * (r.t0 + h.tUp)];
+}
+
 /** Tip of the velum (world), for the handle. */
 export function velumTip(a: Articulators, an: Anatomy): [number, number] {
   const ang = ((207 + 30 * a.velum) * Math.PI) / 180;
