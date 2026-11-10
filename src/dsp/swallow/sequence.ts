@@ -34,13 +34,13 @@ const ADULT: SwallowKey[] = [
   // the bolus gathered on the tongue, lips closed and relaxed, the back of the tongue sealed against the lowered velum
   { t: 0.0, phase: 'oralPrep', a: { jaw: 0.15, lipOpen: -0.25, tongueY: 0.3, tipX: 0.2, tipY: 1.2, velum: 0.4 }, bolus: 0.75 },
   // teeth together, tip on the ridge behind the upper incisors
-  { t: 0.4, phase: 'oralPrep', a: { jaw: 0, lipOpen: -0.1, tongueX: 0.6, tongueY: 0.3, tipX: 0.2, tipY: 1.6, velum: 0.4 }, bolus: 0.72 },
-  // the wave: the tongue presses up against the palate from front to back
-  { t: 0.8, phase: 'oralTransit', a: { jaw: 0, lipOpen: -0.1, tongueX: 0, tongueY: 1.3, tipX: 0.2, tipY: 1.6, velum: 0.2 }, bolus: 0.55 },
-  { t: 1.1, phase: 'oralTransit', a: { jaw: 0, lipOpen: -0.1, tongueX: -1.0, tongueY: 1.4, tongueRoot: -0.6, tipX: 0.2, tipY: 1.6, velum: 0 }, bolus: 0.38 },
+  { t: 0.4, phase: 'oralPrep', a: { jaw: 0, lipOpen: -0.1, tongueX: 0.3, tongueY: 0.3, tipX: 0.2, tipY: 1.6, velum: 0.4, wave: 0.1, press: 0.6 }, bolus: 0.72 },
+  // the wave: the back of the tongue presses up against the palate from front to back, the bolus riding behind it
+  { t: 0.8, phase: 'oralTransit', a: { jaw: 0, lipOpen: -0.1, tongueX: 0, tongueY: 0.9, tipX: 0.2, tipY: 1.6, velum: 0.2, wave: 0.3, press: 1 }, bolus: 0.55 },
+  { t: 1.1, phase: 'oralTransit', a: { jaw: 0, lipOpen: -0.1, tongueX: -0.5, tongueY: 0.9, tongueRoot: -0.6, tipX: 0.2, tipY: 1.6, velum: 0, wave: 0.6, press: 1 }, bolus: 0.38 },
   // the velum shut, the root pushes back and the larynx rises: the bolus goes down
-  { t: 1.4, phase: 'pharyngeal', a: { jaw: 0, lipOpen: -0.1, tongueX: -1.2, tongueY: 1.2, tongueRoot: -1.2, tipX: 0.2, tipY: 1.5, velum: 0, larynx: 1.0 }, bolus: 0.15 },
-  { t: 1.7, phase: 'pharyngeal', a: { jaw: 0, lipOpen: -0.1, tongueX: -0.6, tongueY: 0.6, tongueRoot: -0.6, tipX: 0.2, tipY: 1.2, velum: 0, larynx: 0.8 }, bolus: -0.15 },
+  { t: 1.4, phase: 'pharyngeal', a: { jaw: 0, lipOpen: -0.1, tongueX: -0.8, tongueY: 0.8, tongueRoot: -1.2, tipX: 0.2, tipY: 1.5, velum: 0, larynx: 1.0, wave: 0.95, press: 1 }, bolus: 0.15 },
+  { t: 1.7, phase: 'pharyngeal', a: { jaw: 0, lipOpen: -0.1, tongueX: -0.4, tongueY: 0.4, tongueRoot: -0.6, tipX: 0.2, tipY: 1.2, velum: 0, larynx: 0.8, wave: 1, press: 0.3 }, bolus: -0.15 },
   { t: 2.1, phase: 'pharyngeal', a: { jaw: 0.1, lipOpen: -0.05, velum: 0 }, bolus: -0.3 },
 ];
 
@@ -51,11 +51,11 @@ const INFANT: SwallowKey[] = [
   { t: 0.4, phase: 'oralPrep', a: { jaw: 0.35, lipOpen: -0.35, lipProtrude: 0.4, tongueX: 1.0, tongueY: 0.2, tipX: 1.3, tipY: 0.3, velum: 0.4 }, bolus: 0.78 },
   // the thrust: the tongue pushes forward against the teeth
   { t: 0.8, phase: 'oralTransit', a: { jaw: 0.35, lipOpen: -0.35, lipProtrude: 0.5, tongueX: 1.3, tongueY: 0.3, tipX: 1.4, tipY: 0.4, velum: 0.3 }, bolus: 0.8 },
-  // then the back of the tongue lifts while the tip stays forward
-  { t: 1.2, phase: 'oralTransit', a: { jaw: 0.35, lipOpen: -0.35, lipProtrude: 0.4, tongueX: -0.6, tongueY: 1.0, tipX: 1.2, tipY: 0.3, velum: 0.1 }, bolus: 0.5 },
-  { t: 1.5, phase: 'oralTransit', a: { jaw: 0.3, lipOpen: -0.3, lipProtrude: 0.3, tongueX: -1.0, tongueY: 1.1, tongueRoot: -0.6, tipX: 1.2, tipY: 0.3, velum: 0 }, bolus: 0.35 },
-  { t: 1.8, phase: 'pharyngeal', a: { jaw: 0.3, lipOpen: -0.3, lipProtrude: 0.3, tongueX: -1.2, tongueY: 1.0, tongueRoot: -1.2, tipX: 1.2, tipY: 0.3, velum: 0, larynx: 1.0 }, bolus: 0.15 },
-  { t: 2.1, phase: 'pharyngeal', a: { jaw: 0.3, lipOpen: -0.2, lipProtrude: 0.2, tongueX: -0.6, tongueY: 0.5, tongueRoot: -0.6, tipX: 1.0, tipY: 0.3, velum: 0, larynx: 0.8 }, bolus: -0.15 },
+  // then a weaker wave lifts the back of the tongue while the tip stays forward
+  { t: 1.2, phase: 'oralTransit', a: { jaw: 0.35, lipOpen: -0.35, lipProtrude: 0.4, tongueX: -0.3, tongueY: 0.6, tipX: 1.2, tipY: 0.3, velum: 0.1, wave: 0.5, press: 0.6 }, bolus: 0.5 },
+  { t: 1.5, phase: 'oralTransit', a: { jaw: 0.3, lipOpen: -0.3, lipProtrude: 0.3, tongueX: -0.6, tongueY: 0.7, tongueRoot: -0.6, tipX: 1.2, tipY: 0.3, velum: 0, wave: 0.75, press: 0.7 }, bolus: 0.35 },
+  { t: 1.8, phase: 'pharyngeal', a: { jaw: 0.3, lipOpen: -0.3, lipProtrude: 0.3, tongueX: -0.8, tongueY: 0.6, tongueRoot: -1.2, tipX: 1.2, tipY: 0.3, velum: 0, larynx: 1.0, wave: 0.95, press: 0.7 }, bolus: 0.15 },
+  { t: 2.1, phase: 'pharyngeal', a: { jaw: 0.3, lipOpen: -0.2, lipProtrude: 0.2, tongueX: -0.4, tongueY: 0.3, tongueRoot: -0.6, tipX: 1.0, tipY: 0.3, velum: 0, larynx: 0.8, wave: 1, press: 0.2 }, bolus: -0.15 },
   { t: 2.5, phase: 'pharyngeal', a: { jaw: 0.25, lipOpen: -0.05, velum: 0 }, bolus: -0.3 },
 ];
 

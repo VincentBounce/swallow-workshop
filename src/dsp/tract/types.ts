@@ -29,6 +29,10 @@ export interface Articulators {
   velum: number;
   /** larynx height, cm (+ raises the larynx and shortens the tract) */
   larynx: number;
+  /** where a wave of the tongue presses up along its back, 0 = at the blade .. 1 = at the root (swallowing) */
+  wave: number;
+  /** how hard that wave presses, 0 = none (the round tongue of speech) .. 1 */
+  press: number;
 }
 
 /** Speaker anatomy (persistent "person" part of the filter). */
@@ -86,6 +90,8 @@ export const DEFAULT_ARTICULATORS: Articulators = {
   lipTuck: 0,
   velum: 0,
   larynx: 0,
+  wave: 0,
+  press: 0,
 };
 
 export const DEFAULT_ANATOMY: Anatomy = { scale: 1, pharynx: 1, pharynxWidth: 1, nasalLeak: 0, nasalCycle: 0, nostrilLeft: 1, nostrilRight: 1, piriform: 1 };
@@ -101,7 +107,7 @@ export const DEFAULT_TEETH: Teeth = {
 };
 
 export const ARTICULATOR_KEYS: (keyof Articulators)[] = [
-  'jaw', 'tongueX', 'tongueY', 'tongueRoot', 'tipX', 'tipY', 'groove', 'tongueSides', 'lipOpen', 'lipRound', 'lipProtrude', 'lipTuck', 'velum', 'larynx',
+  'jaw', 'tongueX', 'tongueY', 'tongueRoot', 'tipX', 'tipY', 'groove', 'tongueSides', 'lipOpen', 'lipRound', 'lipProtrude', 'lipTuck', 'velum', 'larynx', 'wave', 'press',
 ];
 
 /** Allowed ranges of the articulators (used by the UI and the sequencer). */
@@ -120,4 +126,6 @@ export const ARTICULATOR_RANGES: Record<keyof Articulators, [number, number]> = 
   lipTuck: [0, 1],
   velum: [0, 1],
   larynx: [-1.5, 1.2],
+  wave: [0, 1],
+  press: [0, 1],
 };

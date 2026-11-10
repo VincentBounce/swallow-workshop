@@ -265,6 +265,18 @@ function tangentAngle(p: [number, number], c: [number, number], r: number, side:
   return phi + side * Math.acos(r / D);
 }
 
+/** The wave of the tongue (swallowing): the back rises by up to WAVE_BULGE (cm) around
+ *  where the wave is, and is hollowed by up to WAVE_CUP just behind it, where the bolus
+ *  rides; both are bells WAVE_WIDTH wide along the arc (fractions of the arc). */
+const WAVE_BULGE = 0.9, WAVE_CUP = 0.45, WAVE_WIDTH = 0.11, WAVE_LAG = 0.24;
+
+/** How far the tongue's back stands out of its circle at `u` along the arc (0 = blade .. 1 = root), cm. */
+function tongueWave(u: number, a: Articulators): number {
+  if (!a.press) return 0;
+  const bell = (x: number) => Math.exp(-(x * x) / (2 * WAVE_WIDTH * WAVE_WIDTH));
+  return a.press * (WAVE_BULGE * bell(u - a.wave) - WAVE_CUP * bell(u - a.wave - WAVE_LAG));
+}
+
 function buildTongue(a: Articulators, jawAngle: number): { pts: number[]; c: [number, number]; tip: [number, number] } {
   const cLocal: [number, number] = [TONGUE_C0[0] + a.tongueX, TONGUE_C0[1] + a.tongueY];
   const c = rot(cLocal, J, jawAngle * 0.75);
@@ -292,7 +304,8 @@ function buildTongue(a: Articulators, jawAngle: number): { pts: number[]; c: [nu
   const nArc = Math.max(4, Math.ceil(span / (5 * Math.PI / 180)));
   for (let i = 0; i <= nArc; i++) {
     const phi = start - (span * i) / nArc;
-    pts.push(c[0] + r * Math.cos(phi), c[1] + r * Math.sin(phi));
+    const rr = r + tongueWave(1 - i / nArc, a);
+    pts.push(c[0] + rr * Math.cos(phi), c[1] + rr * Math.sin(phi));
   }
   // blade (straight tangent) to the tip, with a small rounded tip
   const bx = c[0] + r * Math.cos(phiBlade), by = c[1] + r * Math.sin(phiBlade);

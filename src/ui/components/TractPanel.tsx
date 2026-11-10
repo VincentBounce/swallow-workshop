@@ -37,6 +37,8 @@ export function TractPanel() {
     lipTuck: { it: 'Labbro sotto i denti (f, v)', en: 'Lip under the teeth (f, v)' },
     velum: { it: 'Velo abbassato (naso)', en: 'Velum lowered (nose)' },
     larynx: { it: 'Altezza della laringe', en: 'Larynx height' },
+    wave: { it: 'Onda della lingua: dove (deglutizione)', en: 'Tongue wave: where (swallowing)' },
+    press: { it: 'Onda della lingua: forza', en: 'Tongue wave: strength' },
   };
   const fm = store.derived().formants;
   const af = store.derived().af;
