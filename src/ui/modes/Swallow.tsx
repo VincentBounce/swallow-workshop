@@ -36,8 +36,11 @@ function phaseSpans(seq: SwallowSequence): { phase: SwallowPhase; t0: number; t1
   });
 }
 
-/** One head playing one sequence on the shared clock, with its name, its stage and a bar of the three stages. */
-function SwallowHead({ seq, name, clock }: { seq: SwallowSequence; name: Bi; clock: React.RefObject<Clock> }) {
+/** The bar of the stages on a w x h head canvas: from x0 to x1 at height y (CSS pixels), grabbed within `grab` of it. */
+const bar = (w: number, h: number) => ({ x0: 12, x1: w - 12, y: h - 14, grab: 16 });
+
+/** One head playing one sequence on the shared clock, with its name, its stage and a bar of the three stages; dragging along the bar moves the clock (`seek`, `held` while the button is down). */
+function SwallowHead({ seq, name, clock, seek }: { seq: SwallowSequence; name: Bi; clock: React.RefObject<Clock>; seek: (t: number, held: boolean) => void }) {
   const L = useL();
   const layer = useRef(newHeadLayer());
   const spans = phaseSpans(seq);
@@ -50,7 +53,7 @@ function SwallowHead({ seq, name, clock }: { seq: SwallowSequence; name: Bi; clo
     label(ctx, L(name), 12, 18, C.text, undefined, 'left');
     label(ctx, L(PHASE_NAMES[p.phase]), 12, 40, PHASE_COLORS[p.phase], undefined, 'left');
     // the three stages along the sequence, the current one bright, and where the clock is
-    const x0 = 12, x1 = w - 12, y = h - 14, bw = x1 - x0;
+    const { x0, x1, y } = bar(w, h), bw = x1 - x0;
     for (const s of spans) {
       ctx.fillStyle = PHASE_COLORS[s.phase];
       ctx.globalAlpha = s.phase === p.phase ? 0.95 : 0.3;
@@ -60,7 +63,31 @@ function SwallowHead({ seq, name, clock }: { seq: SwallowSequence; name: Bi; clo
     ctx.fillStyle = C.text;
     ctx.beginPath(); ctx.arc(x0 + (t / end) * bw, y, 5, 0, Math.PI * 2); ctx.fill();
   });
-  return <canvas ref={ref} className="fill" />;
+  // the time under the pointer, or null when it is off the bar
+  const timeAt = (e: React.PointerEvent, anywhere = false): number | null => {
+    const r = (e.target as HTMLCanvasElement).getBoundingClientRect();
+    const b = bar(r.width, r.height), x = e.clientX - r.left, y = e.clientY - r.top;
+    if (!anywhere && Math.abs(y - b.y) > b.grab) return null;
+    return end * Math.max(0, Math.min(1, (x - b.x0) / (b.x1 - b.x0)));
+  };
+  const dragging = useRef(false);
+  const onDown = (e: React.PointerEvent) => {
+    const t = timeAt(e);
+    if (t === null) return;
+    dragging.current = true;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    seek(t, true);
+  };
+  const onMove = (e: React.PointerEvent) => {
+    if (dragging.current) { seek(timeAt(e, true)!, true); return; }
+    (e.target as HTMLElement).style.cursor = timeAt(e) === null ? 'default' : 'grab';
+  };
+  const onUp = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    seek(timeAt(e, true)!, false);
+  };
+  return <canvas ref={ref} className="fill" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} />;
 }
 
 /**
@@ -79,11 +106,19 @@ export function Swallow() {
     setPlaying(clock.current.playing);
     setSpeed(clock.current.speed);
   };
+  // the clock stands still at the dragged time while the bar is held, then plays on as it did before
+  const wasPlaying = useRef(true);
+  const dragHeld = useRef(false);
+  const seek = (t: number, held: boolean) => {
+    if (held && !dragHeld.current) wasPlaying.current = clock.current.playing;
+    dragHeld.current = held;
+    set({ from: t, playing: held ? false : wasPlaying.current });
+  };
   return (
     <main className="swallow">
       <section className="swallow-stage">
-        <div className="swallow-head ds-card"><SwallowHead seq={SWALLOWS.adult} name={{ it: 'Deglutizione adulta', en: 'Adult swallow' }} clock={clock} /></div>
-        <div className="swallow-head ds-card"><SwallowHead seq={SWALLOWS.infant} name={{ it: 'Deglutizione infantile (atipica)', en: 'Infantile (atypical) swallow' }} clock={clock} /></div>
+        <div className="swallow-head ds-card"><SwallowHead seq={SWALLOWS.adult} name={{ it: 'Deglutizione adulta', en: 'Adult swallow' }} clock={clock} seek={seek} /></div>
+        <div className="swallow-head ds-card"><SwallowHead seq={SWALLOWS.infant} name={{ it: 'Deglutizione infantile (atipica)', en: 'Infantile (atypical) swallow' }} clock={clock} seek={seek} /></div>
       </section>
       <section className="quick swallow-controls">
         <button className={playing ? 'btn on' : 'btn primary'} onClick={() => set({ playing: !playing })}>{playing ? '❚❚ ' + L({ it: 'Pausa', en: 'Pause' }) : '▶ ' + L({ it: 'Riproduci', en: 'Play' })}</button>
