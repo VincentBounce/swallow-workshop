@@ -4,16 +4,17 @@ import { useAnimatedCanvas, C, label } from '../canvas';
 import { drawHead, headViewport, newHeadLayer, HeadViewport } from '../head/draw';
 import { computeGeometry, TractGeometry } from '../../dsp/tract/geometry';
 import { DEFAULT_ANATOMY } from '../../dsp/tract/types';
-import { SWALLOWS, SWALLOW_PHASES, SwallowPhase, SwallowPose, SwallowSequence, bolusPoint, swallowDuration, swallowMarks, swallowPose } from '../../dsp/swallow/sequence';
+import { SWALLOWS, SwallowPhase, SwallowPose, SwallowSequence, bolusPoint, swallowDuration, swallowMarks, swallowPose } from '../../dsp/swallow/sequence';
 
 type Bi = { it: string; en: string };
 
 const PHASE_NAMES: Record<SwallowPhase, Bi> = {
+  rest: { it: 'Riposo', en: 'Rest' },
   oralPrep: { it: 'Preparazione orale', en: 'Oral preparation' },
   oralTransit: { it: 'Transito orale', en: 'Oral transit' },
   pharyngeal: { it: 'Fase faringea', en: 'Pharyngeal phase' },
 };
-const PHASE_COLORS: Record<SwallowPhase, string> = { oralPrep: C.teal, oralTransit: C.amber, pharyngeal: C.violet };
+const PHASE_COLORS: Record<SwallowPhase, string> = { rest: C.sky, oralPrep: C.teal, oralTransit: C.amber, pharyngeal: C.violet };
 
 /** The bolus, a mouthful of purée. */
 const BOLUS = '#8fd16a';
@@ -27,8 +28,8 @@ const GAP_SHOWN = 0.05;
  */
 function drawMarks(ctx: CanvasRenderingContext2D, g: TractGeometry, p: SwallowPose, vp: HeadViewport, w: number, L: (t: Bi) => string): void {
   const X = (x: number) => vp.ox + x * vp.k, Y = (y: number) => vp.oy - y * vp.k;
-  // the bolus, fading out down the oesophagus
-  const fade = Math.max(0, Math.min(1, (p.bolus + 0.3) / 0.15));
+  // the bolus, fading out down the oesophagus (there is none at rest)
+  const fade = p.phase === 'rest' ? 0 : Math.max(0, Math.min(1, (p.bolus + 0.3) / 0.15));
   if (fade > 0) {
     const q = bolusPoint(g, p.bolus);
     const along = 0.75 * g.scale * vp.k, across = Math.max(0.18, Math.min(0.45, 0.9 * q.half)) * vp.k;
@@ -74,23 +75,24 @@ function drawMarks(ctx: CanvasRenderingContext2D, g: TractGeometry, p: SwallowPo
 
 /** The playback speeds, slowest last. */
 const SPEEDS: [number, string][] = [[1, '×1'], [0.5, '×½'], [0.25, '×¼']];
-/** Rest at the end of the longer sequence before both start again (s). */
-const HOLD = 0.8;
-/** Both sequences loop together on the longer one. */
-const PERIOD = Math.max(...Object.values(SWALLOWS).map(swallowDuration)) + HOLD;
+/** Both sequences loop together on the longer one (each rests at its end meanwhile). */
+const PERIOD = Math.max(...Object.values(SWALLOWS).map(swallowDuration));
 
 /** The shared clock: the sequence time `from` at the instant `at` (performance.now, ms), running at `speed` while playing. */
 interface Clock { at: number; from: number; playing: boolean; speed: number }
 const clockTime = (c: Clock, now = performance.now()): number => (c.playing ? c.from + ((now - c.at) / 1000) * c.speed : c.from) % PERIOD;
 
-/** Where each stage starts and ends in a sequence (s). */
+/** The stretches of a sequence, in order: each stage from its first key to the next stage's first key (s); a stage may come back (the rest). */
 function phaseSpans(seq: SwallowSequence): { phase: SwallowPhase; t0: number; t1: number }[] {
-  const end = swallowDuration(seq);
-  return SWALLOW_PHASES.map((phase) => {
-    const ks = seq.keys.filter((k) => k.phase === phase);
-    const next = seq.keys.find((k) => k.t > ks[ks.length - 1].t && k.phase !== phase);
-    return { phase, t0: ks[0].t, t1: next ? next.t : end };
-  });
+  const spans: { phase: SwallowPhase; t0: number; t1: number }[] = [];
+  for (const k of seq.keys) {
+    const last = spans[spans.length - 1];
+    if (last?.phase === k.phase) continue;
+    if (last) last.t1 = k.t;
+    spans.push({ phase: k.phase, t0: k.t, t1: k.t });
+  }
+  spans[spans.length - 1].t1 = swallowDuration(seq);
+  return spans;
 }
 
 /** The bar of the stages on a w x h head canvas: from x0 to x1 at height y (CSS pixels), grabbed within `grab` of it. */

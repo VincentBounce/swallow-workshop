@@ -7,6 +7,8 @@ const marksAt = (seq: SwallowSequence, t: number) => {
   const p = swallowPose(seq, t);
   return { ...swallowMarks(computeGeometry(p.a, DEFAULT_ANATOMY, p.teeth)), phase: p.phase, bolus: p.bolus };
 };
+/** When the swallow itself starts, after the rest (s). */
+const start = (seq: SwallowSequence) => seq.keys.find((k) => k.phase === 'oralPrep')!.t;
 /** Instants every 50 ms over the sequence. */
 const times = (seq: SwallowSequence) => Array.from({ length: Math.floor(swallowDuration(seq) / 0.05) + 1 }, (_, i) => i * 0.05);
 
@@ -23,9 +25,11 @@ describe('swallow sequences', () => {
           }
         }
       });
-      it('goes through the three stages in order, and the bolus only moves back and down', () => {
+      it('goes from rest through the three stages in order and back to rest, and the bolus only moves back and down', () => {
         const seen = times(seq).map((t) => swallowPose(seq, t).phase);
         expect([...new Set(seen)]).toEqual(SWALLOW_PHASES);
+        expect(seen[0]).toBe('rest');
+        expect(seen[seen.length - 1]).toBe('rest');
         // from the end of the oral preparation the bolus never comes forward again
         const from = seq.keys.find((k) => k.phase === 'oralTransit')!.t;
         let last = Infinity;
@@ -33,7 +37,7 @@ describe('swallow sequences', () => {
         expect(last).toBeLessThan(0);
       });
       it('keeps the lips closed while the bolus is in the mouth', () => {
-        for (const t of times(seq)) { const m = marksAt(seq, t); if (m.bolus > 0.3) expect(m.lipsShut, `t ${t}`).toBe(true); }
+        for (const t of times(seq)) { const m = marksAt(seq, t); if (m.phase !== 'rest' && m.bolus > 0.3) expect(m.lipsShut, `t ${t}`).toBe(true); }
       });
       it('holds each key at its time', () => {
         for (const k of seq.keys) for (const [n, v] of Object.entries(k.a)) expect(swallowPose(seq, k.t).a[n as keyof typeof k.a]).toBeCloseTo(v as number, 9);
@@ -43,7 +47,7 @@ describe('swallow sequences', () => {
 
   it('adult: teeth together and the tip on the ridge behind the upper incisors, through the oral transit', () => {
     const seq = SWALLOWS.adult;
-    for (const t of times(seq).filter((t) => t >= 0.4 && t <= 1.7)) {
+    for (const t of times(seq).filter((t) => t >= start(seq) + 0.4 && t <= start(seq) + 1.7)) {
       const m = marksAt(seq, t);
       expect(m.toothGap, `t ${t}`).toBeLessThan(0);
       expect(m.tipContact, `t ${t}`).toBe('palate');
@@ -53,13 +57,36 @@ describe('swallow sequences', () => {
 
   it('infant: teeth apart and the tip between or against the incisors, pushing on them in the thrust', () => {
     const seq = SWALLOWS.infant;
-    for (const t of times(seq).filter((t) => t >= 0.4 && t <= 1.8)) {
+    for (const t of times(seq).filter((t) => t >= start(seq) + 0.4 && t <= start(seq) + 1.8)) {
       const m = marksAt(seq, t);
       expect(m.toothGap, `t ${t}`).toBeGreaterThan(0.2);
       expect(m.tipForward, `t ${t}`).toBeGreaterThan(-0.1);
       expect(m.tipContact, `t ${t}`).not.toBe('palate');
     }
-    expect(marksAt(seq, 0.8).tipContact).toBe('incisor');
+    expect(marksAt(seq, start(seq) + 0.8).tipContact).toBe('incisor');
+  });
+
+  it('adult rest: tip on the palate behind the incisors, lips closed, teeth a little apart', () => {
+    const m = marksAt(SWALLOWS.adult, 0);
+    expect(m.phase).toBe('rest');
+    expect(m.tipContact).toBe('palate');
+    expect(m.tipForward).toBeLessThan(-0.4);
+    expect(m.lipsShut).toBe(true);
+    expect(m.toothGap).toBeGreaterThan(0.05);
+    expect(m.toothGap).toBeLessThan(0.3);
+  });
+
+  it('infantile rest: tongue low on the lower incisors, off the palate, mouth open', () => {
+    const seq = SWALLOWS.infant;
+    const p = swallowPose(seq, 0);
+    const g = computeGeometry(p.a, DEFAULT_ANATOMY, p.teeth);
+    const m = swallowMarks(g);
+    expect(m.tipContact).toBe(null);
+    expect(m.lipsShut).toBe(false);
+    expect(m.toothGap).toBeGreaterThan(0.2);
+    // the tip lies below the lower incisor's edge, in front of it
+    expect(g.tipPoint[1]).toBeLessThan(g.landmarks.lowerEdge[1]);
+    expect(g.tipPoint[0]).toBeGreaterThan(g.landmarks.lowerEdge[0]);
   });
 
   it('the bolus path runs without a jump from the lips down past the glottis, along the back wall low in the throat', () => {

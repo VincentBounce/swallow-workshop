@@ -5,13 +5,16 @@
  * wave of the tongue from front to back) and the infantile, or atypical, one
  * (teeth apart, tip between or against the incisors, lips and chin tight,
  * tongue thrust forward). Same speaker for both, so only the pattern differs.
+ * Each starts and ends at its own rest: the adult tongue up against the palate,
+ * tip on the ridge, lips closed, teeth just apart; the infantile tongue low and
+ * forward on the lower incisors, mouth open.
  */
 import { Articulators, Teeth, DEFAULT_ARTICULATORS, DEFAULT_TEETH, ARTICULATOR_KEYS, ARTICULATOR_RANGES } from '../tract/types';
 import { TractGeometry, rayPoints } from '../tract/geometry';
 
-/** The named stages of a swallow. */
-export type SwallowPhase = 'oralPrep' | 'oralTransit' | 'pharyngeal';
-export const SWALLOW_PHASES: SwallowPhase[] = ['oralPrep', 'oralTransit', 'pharyngeal'];
+/** The named stages of a swallow, after the rest it starts from (and comes back to). */
+export type SwallowPhase = 'rest' | 'oralPrep' | 'oralTransit' | 'pharyngeal';
+export const SWALLOW_PHASES: SwallowPhase[] = ['rest', 'oralPrep', 'oralTransit', 'pharyngeal'];
 
 export type SwallowId = 'adult' | 'infant';
 
@@ -41,8 +44,9 @@ const ADULT: SwallowKey[] = [
   // the velum shut, the root pushes back and the larynx rises: the bolus goes down
   { t: 1.4, phase: 'pharyngeal', a: { jaw: 0, lipOpen: -0.1, tongueX: -0.8, tongueY: 0.8, tongueRoot: -1.2, tipX: 0.2, tipY: 1.5, velum: 0, larynx: 1.0, wave: 0.95, press: 1 }, bolus: 0.15 },
   { t: 1.7, phase: 'pharyngeal', a: { jaw: 0, lipOpen: -0.1, tongueX: -0.4, tongueY: 0.4, tongueRoot: -0.6, tipX: 0.2, tipY: 1.2, velum: 0, larynx: 0.8, wave: 1, press: 0.3 }, bolus: -0.15 },
-  { t: 2.1, phase: 'pharyngeal', a: { jaw: 0.1, lipOpen: -0.05, velum: 0 }, bolus: -0.3 },
 ];
+/** Adult rest: tongue up against the palate, tip on the ridge behind the upper incisors, lips closed, teeth a little apart (the freeway space), breathing through the nose. */
+const ADULT_REST: Partial<Articulators> = { jaw: 0.2, lipOpen: -0.3, tongueY: 1.5, tipX: 0.2, tipY: 1.8, velum: 0.4 };
 
 const INFANT: SwallowKey[] = [
   // the bolus on the tongue, teeth apart
@@ -56,12 +60,28 @@ const INFANT: SwallowKey[] = [
   { t: 1.5, phase: 'oralTransit', a: { jaw: 0.3, lipOpen: -0.3, lipProtrude: 0.3, tongueX: -0.6, tongueY: 0.7, tongueRoot: -0.6, tipX: 1.2, tipY: 0.3, velum: 0, wave: 0.75, press: 0.7 }, bolus: 0.35 },
   { t: 1.8, phase: 'pharyngeal', a: { jaw: 0.3, lipOpen: -0.3, lipProtrude: 0.3, tongueX: -0.8, tongueY: 0.6, tongueRoot: -1.2, tipX: 1.2, tipY: 0.3, velum: 0, larynx: 1.0, wave: 0.95, press: 0.7 }, bolus: 0.15 },
   { t: 2.1, phase: 'pharyngeal', a: { jaw: 0.3, lipOpen: -0.2, lipProtrude: 0.2, tongueX: -0.4, tongueY: 0.3, tongueRoot: -0.6, tipX: 1.0, tipY: 0.3, velum: 0, larynx: 0.8, wave: 1, press: 0.2 }, bolus: -0.15 },
-  { t: 2.5, phase: 'pharyngeal', a: { jaw: 0.25, lipOpen: -0.05, velum: 0 }, bolus: -0.3 },
 ];
+/** Infantile rest: tongue low and forward, its tip on the lower incisors, mouth a little open. */
+const INFANT_REST: Partial<Articulators> = { jaw: 0.3, lipOpen: 0.1, tongueX: 0.6, tongueY: -0.4, tipX: 1.0, tipY: -0.3, velum: 0.4 };
+
+/** The rest is held this long before and after the swallow (s), and reached or left in REST_MOVE. */
+const REST_HOLD = 0.8, REST_MOVE = 0.4;
+
+/** A swallow between two rests: held, then the swallow's keys, then back to rest and held. The bolus waits where the swallow takes it up, then is gone. */
+function withRest(rest: Partial<Articulators>, keys: SwallowKey[]): SwallowKey[] {
+  const lead = REST_HOLD + REST_MOVE, back = keys[keys.length - 1].t + lead + REST_MOVE;
+  return [
+    { t: 0, phase: 'rest', a: rest, bolus: keys[0].bolus },
+    { t: REST_HOLD, phase: 'rest', a: rest, bolus: keys[0].bolus },
+    ...keys.map((k) => ({ ...k, t: k.t + lead })),
+    { t: back, phase: 'rest', a: rest, bolus: -0.3 },
+    { t: back + REST_HOLD, phase: 'rest', a: rest, bolus: -0.3 },
+  ];
+}
 
 export const SWALLOWS: Record<SwallowId, SwallowSequence> = {
-  adult: { id: 'adult', keys: ADULT, teeth: DEFAULT_TEETH },
-  infant: { id: 'infant', keys: INFANT, teeth: DEFAULT_TEETH },
+  adult: { id: 'adult', keys: withRest(ADULT_REST, ADULT), teeth: DEFAULT_TEETH },
+  infant: { id: 'infant', keys: withRest(INFANT_REST, INFANT), teeth: DEFAULT_TEETH },
 };
 
 /** Length of a sequence (s): the time of its last key. */
